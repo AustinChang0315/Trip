@@ -30,7 +30,7 @@ JST = timezone(timedelta(hours=9))
 SHEET_ID       = os.environ.get("GOOGLE_SHEET_ID", "")
 CREDS_FILE     = os.environ.get("GOOGLE_CREDENTIALS", "credentials.json")
 JPY_TO_TWD     = float(os.environ.get("JPY_TO_TWD_RATE", "0.215"))
-VALID_CATS     = {"餐飲", "交通", "體驗", "購物", "其他"}
+VALID_CATS     = {"餐飲", "交通", "體驗", "購物", "購物-寶寶", "購物-ㄚ鼻", "其他"}
 
 
 def sync():
@@ -59,7 +59,7 @@ def sync():
     print(f"[sync_expenses] 取得 {len(records)} 筆記錄")
 
     total_jpy = 0
-    cat_totals = {c: 0 for c in ["餐飲", "交通", "體驗", "購物", "其他"]}
+    cat_totals = {c: 0 for c in ["餐飲", "交通", "體驗", "購物", "購物-寶寶", "購物-ㄚ鼻", "其他"]}
     daily: dict[str, int] = {}
 
     for r in records:
