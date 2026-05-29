@@ -795,8 +795,9 @@ function buildSummary(data) {
   window._expRecords = data.records || [];
 
   // debug: will show in UI to diagnose
-  const _dbg = window._expRecords.length > 0
-    ? `共 ${window._expRecords.length} 筆 | 首筆日期：${window._expRecords[0].date}`
+  const _r0 = window._expRecords[0];
+  const _dbg = _r0
+    ? `共 ${window._expRecords.length} 筆 | ${_r0.date} → ${normalizeDate(_r0.date)}`
     : 'GAS 未回傳 records（請更新部署）';
 
   const today = todayStr();
