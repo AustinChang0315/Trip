@@ -699,6 +699,10 @@ function showToast(msg) {
   t.textContent = msg; t.classList.add('show');
   toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
 }
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
 </script>
 </body>
 </html>
