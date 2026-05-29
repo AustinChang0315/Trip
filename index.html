@@ -701,7 +701,19 @@ function showToast(msg) {
 }
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  navigator.serviceWorker.register('./sw.js').then(reg => {
+    reg.update(); // 每次開啟都強制檢查 SW 是否有新版
+
+    reg.addEventListener('updatefound', () => {
+      const newWorker = reg.installing;
+      newWorker.addEventListener('statechange', () => {
+        // 新 SW 啟動後（且非第一次安裝），自動重載取得最新內容
+        if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+          window.location.reload();
+        }
+      });
+    });
+  }).catch(() => {});
 }
 </script>
 </body>
