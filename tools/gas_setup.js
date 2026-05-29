@@ -69,9 +69,10 @@ function doGet() {
     CATS.forEach(function(c) { catTotals[c] = 0; });
     var total = 0;
     var daily = {};
+    var records = [];
 
     if (lastRow > 1) {
-      var rows = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+      var rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
       rows.forEach(function(row) {
         var date = row[0] ? String(row[0]).substring(0, 10) : '';
         var cat  = String(row[2] || '其他').trim();
@@ -87,6 +88,13 @@ function doGet() {
 
         if (date) {
           daily[date] = (daily[date] || 0) + jpy;
+          records.push({
+            date:       date,
+            item:       String(row[1] || ''),
+            category:   cat,
+            amount_jpy: jpy,
+            payment:    String(row[4] || '現金')
+          });
         }
       });
     }
@@ -108,6 +116,7 @@ function doGet() {
       total_twd:       Math.round(total * JPY_TWD),
       categories:      categories,
       daily_breakdown: dailyBreakdown,
+      records:         records,
       last_synced:     new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Tokyo' })
     };
 
