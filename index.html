@@ -369,7 +369,8 @@ async function boot() {
   document.getElementById('hdr-date').textContent =
     jst.toLocaleDateString('zh-TW', { timeZone: 'Asia/Tokyo', month: 'long', day: 'numeric', weekday: 'short' });
 
-  let itinerary, expenses = null;
+  // 1. 先載入行程，立刻顯示
+  let itinerary;
   try {
     const r1 = await fetch('./data/itinerary.json');
     itinerary = (await r1.json()).itinerary;
@@ -379,22 +380,19 @@ async function boot() {
     return;
   }
 
-  // 即時從 Google Sheets 抓統計資料
-  const gasReady = GAS_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
-  if (gasReady) {
-    try {
-      const r2 = await fetch(GAS_URL);
-      expenses = await r2.json();
-    } catch {
-      expenses = null;
-    }
-  }
-
   buildTabs(itinerary);
   buildPanels(itinerary);
   buildExpForm();
-  buildSummary(expenses);
   autoTab(itinerary);
+
+  // 2. 統計資料在背景載入，不阻擋行程顯示
+  const gasReady = GAS_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+  if (gasReady) {
+    fetch(GAS_URL)
+      .then(r => r.json())
+      .then(data => buildSummary(data))
+      .catch(() => {});
+  }
 }
 
 // ══════════════════════════════
