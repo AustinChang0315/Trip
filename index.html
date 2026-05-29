@@ -3,26 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#2c2c2c">
+  <meta name="theme-color" content="#8a2040">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Tokyo 2026">
   <link rel="manifest" href="manifest.json">
   <title>東京自由行 2026</title>
   <style>
     /* ── Variables ── */
     :root {
-      --bg:        #f5f0eb;
-      --surface:   #fffcf8;
-      --border:    #e0d8d0;
-      --text:      #2c2c2c;
-      --muted:     #8a8078;
-      --accent:    #8b7355;
-      --accent-lt: #d4c4aa;
-      --green:     #5a8c62;
-      --red:       #b85c5c;
-      --header-h:  54px;
-      --tab-h:     50px;
+      --bg:          #fdf0f3;
+      --surface:     #fff8fa;
+      --border:      #ecc5d0;
+      --text:        #3d2030;
+      --muted:       #9e7080;
+      --accent:      #c04068;
+      --accent-lt:   #f2c0d0;
+      --accent-deep: #8a2040;
+      --green:       #6b9e74;
+      --red:         #c04545;
+      --gold:        #c4905a;
+      --header-h:    54px;
+      --tab-h:       50px;
     }
 
     /* ── Reset ── */
@@ -39,30 +41,59 @@
     /* ── Gate ── */
     #gate {
       position: fixed; inset: 0; z-index: 999;
-      background: var(--bg);
+      background: linear-gradient(150deg, #fce8ef 0%, #f8d5e6 55%, #f6e2ec 100%);
       display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 28px;
+      align-items: center; justify-content: center; gap: 22px;
+      overflow: hidden;
+    }
+    #gate::before {
+      content: ''; position: absolute; pointer-events: none;
+      width: 380px; height: 380px; border-radius: 50%;
+      border: 1px solid rgba(192,64,104,0.1);
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+    }
+    #gate::after {
+      content: ''; position: absolute; pointer-events: none;
+      width: 560px; height: 560px; border-radius: 50%;
+      border: 1px solid rgba(192,64,104,0.06);
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
     }
     #gate.hidden { display: none; }
+
+    .gate-kamon {
+      width: 62px; height: 62px; border-radius: 50%;
+      border: 1.5px solid rgba(138,32,64,0.3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.7rem; color: rgba(138,32,64,0.45);
+      position: relative; flex-shrink: 0; z-index: 1;
+    }
+    .gate-kamon::before {
+      content: ''; position: absolute; inset: 5px;
+      border: 1px solid rgba(138,32,64,0.15); border-radius: 50%;
+    }
     .gate-title {
-      font-size: 2.4rem; letter-spacing: 0.3em;
-      color: var(--accent); font-weight: 300;
+      font-size: 2.4rem; letter-spacing: 0.5em;
+      color: var(--accent-deep); font-weight: 300; z-index: 1;
     }
     .gate-sub {
-      font-size: 0.72rem; letter-spacing: 0.25em;
-      color: var(--muted); margin-top: -20px;
+      font-size: 0.7rem; letter-spacing: 0.32em;
+      color: var(--muted); margin-top: -14px; z-index: 1;
     }
-    .gate-box { display: flex; flex-direction: column; gap: 12px; width: 220px; }
+    .gate-rule {
+      width: 72px; height: 1px; z-index: 1;
+      background: linear-gradient(90deg, transparent, var(--accent-lt), transparent);
+    }
+    .gate-box { display: flex; flex-direction: column; gap: 12px; width: 220px; z-index: 1; }
     .gate-input {
       text-align: center; font-size: 1.8rem; letter-spacing: 0.6em;
       padding: 12px 8px; border: 1px solid var(--border);
-      background: var(--surface); border-radius: 10px; outline: none;
+      background: rgba(255,255,255,0.75); border-radius: 10px; outline: none;
       color: var(--text);
     }
-    .gate-input:focus { border-color: var(--accent); }
+    .gate-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(192,64,104,0.1); }
     .gate-btn {
       padding: 13px; background: var(--accent); color: #fff;
-      border-radius: 10px; font-size: 0.88rem; letter-spacing: 0.12em;
+      border-radius: 10px; font-size: 0.88rem; letter-spacing: 0.15em;
     }
     .gate-err {
       font-size: 0.75rem; color: var(--red);
@@ -77,12 +108,14 @@
     .hdr {
       position: sticky; top: 0; z-index: 100;
       height: var(--header-h);
-      background: var(--text); color: #fff;
+      background: var(--accent-deep);
+      color: #fff;
       display: flex; align-items: center;
       justify-content: space-between; padding: 0 18px;
+      box-shadow: 0 2px 0 var(--gold);
     }
-    .hdr-title { font-size: 0.92rem; letter-spacing: 0.18em; font-weight: 400; }
-    .hdr-date  { font-size: 0.68rem; color: #aaa; letter-spacing: 0.06em; }
+    .hdr-title { font-size: 0.92rem; letter-spacing: 0.22em; font-weight: 400; }
+    .hdr-date  { font-size: 0.68rem; color: rgba(255,255,255,0.58); letter-spacing: 0.06em; }
 
     /* ── Tabs ── */
     .tabs {
@@ -97,7 +130,7 @@
       border-bottom: 2px solid transparent; text-align: center;
       white-space: nowrap; line-height: 1.3;
     }
-    .tab span { display: block; font-size: 0.62rem; color: #bbb; margin-top: 1px; }
+    .tab span { display: block; font-size: 0.62rem; color: #c8a0b8; margin-top: 1px; }
     .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
     .tab.is-today { color: var(--green); }
     .tab.is-today.active { border-bottom-color: var(--green); }
@@ -106,13 +139,13 @@
     .panel { display: none; padding: 16px; }
     .panel.active { display: block; }
     .panel-note {
-      background: #fffbf2; border-left: 3px solid var(--accent-lt);
+      background: rgba(255,240,246,0.9); border-left: 3px solid var(--accent-lt);
       padding: 10px 12px; margin-bottom: 16px; border-radius: 0 6px 6px 0;
       font-size: 0.78rem; color: var(--muted); line-height: 1.7;
     }
     .panel-empty {
       text-align: center; padding: 48px 0;
-      font-size: 0.82rem; color: #ccc; letter-spacing: 0.05em;
+      font-size: 0.82rem; color: #d4a8bc; letter-spacing: 0.05em;
     }
 
     /* ── Timeline ── */
@@ -146,9 +179,10 @@
     .spot-body {
       flex: 1; margin-left: 16px;
       background: var(--surface); border: 1px solid var(--border);
+      border-left: 3px solid var(--accent-lt);
       border-radius: 12px; padding: 13px 15px; overflow: hidden;
     }
-    .spot-name { font-size: 0.94rem; font-weight: 600; margin-bottom: 4px; }
+    .spot-name { font-size: 0.94rem; font-weight: 600; margin-bottom: 4px; color: var(--accent-deep); }
     .spot-desc {
       font-size: 0.78rem; color: var(--muted);
       margin-bottom: 10px; line-height: 1.65;
@@ -158,18 +192,20 @@
     .weather {
       display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
       margin-bottom: 10px; padding: 7px 10px;
-      background: #f0f6f0; border-radius: 6px; font-size: 0.75rem;
+      background: rgba(235,248,238,0.8); border-radius: 6px; font-size: 0.75rem;
+      border: 1px solid rgba(107,158,116,0.22);
     }
     .w-temp { font-weight: 600; color: var(--green); }
     .w-alert { color: var(--red); }
 
     /* transport */
     .transport {
-      background: var(--bg); border-radius: 7px;
+      background: rgba(253,240,243,0.7); border-radius: 7px;
       padding: 8px 11px; margin-bottom: 10px;
       font-size: 0.74rem; color: var(--muted); line-height: 1.6;
+      border: 1px solid rgba(236,197,208,0.55);
     }
-    .transport-dur { color: #bbb; }
+    .transport-dur { color: #c0a0b0; }
 
     /* nav button */
     .nav-btn {
@@ -181,14 +217,24 @@
     .nav-btn svg { width: 12px; height: 12px; fill: currentColor; }
 
     /* ── Divider ── */
-    .divider { height: 8px; background: var(--border); }
+    .divider {
+      height: 10px;
+      background: repeating-linear-gradient(
+        90deg,
+        var(--border) 0px, var(--border) 2px,
+        var(--bg) 2px, var(--bg) 6px
+      );
+    }
 
     /* ── Section ── */
     .section { padding: 20px 16px; }
     .section-label {
       font-size: 0.72rem; letter-spacing: 0.2em; color: var(--muted);
       text-transform: uppercase; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
     }
+    .section-label::before { content: '✿'; color: var(--accent-lt); font-size: 1rem; }
+    .section-label::after  { content: ''; flex: 1; height: 1px; background: var(--border); }
 
     /* ── Expense Form ── */
     .exp-form { display: flex; flex-direction: column; gap: 11px; }
@@ -201,14 +247,17 @@
       font-size: 0.9rem; outline: none;
       -webkit-appearance: none; appearance: none;
     }
-    .field input:focus, .field select:focus { border-color: var(--accent); }
+    .field input:focus, .field select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(192,64,104,0.08);
+    }
     .twd { font-size: 0.72rem; color: var(--muted); text-align: right; margin-top: -6px; min-height: 1em; }
     .submit-btn {
-      padding: 13px; background: var(--text); color: #fff;
+      padding: 13px; background: var(--accent); color: #fff;
       border-radius: 10px; font-size: 0.88rem; letter-spacing: 0.1em;
     }
     .setup-hint {
-      background: #fffbf0; border: 1px solid #e8d8a0;
+      background: rgba(255,248,245,0.9); border: 1px solid #f0d0c0;
       border-radius: 9px; padding: 14px; font-size: 0.78rem;
       color: var(--muted); line-height: 1.75;
     }
@@ -220,7 +269,7 @@
     /* ── Summary ── */
     .total-box { text-align: center; margin-bottom: 22px; }
     .total-lbl { font-size: 0.68rem; letter-spacing: 0.15em; color: var(--muted); margin-bottom: 6px; }
-    .total-jpy { font-size: 2.2rem; font-weight: 300; letter-spacing: 0.04em; }
+    .total-jpy { font-size: 2.2rem; font-weight: 300; letter-spacing: 0.04em; color: var(--accent-deep); }
     .total-twd { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
     .chart { display: flex; flex-direction: column; gap: 12px; }
     .chart-row { display: flex; align-items: center; gap: 10px; }
@@ -228,24 +277,18 @@
     .chart-bar-bg { flex: 1; background: var(--border); border-radius: 4px; height: 7px; overflow: hidden; }
     .chart-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width .5s ease; }
     .chart-amt { flex: 0 0 62px; font-size: 0.7rem; color: var(--muted); text-align: right; }
-    .synced-at { font-size: 0.66rem; color: #ccc; text-align: center; margin-top: 14px; }
+    .synced-at { font-size: 0.66rem; color: #c0a0b8; text-align: center; margin-top: 14px; }
 
     /* ── Countdown ── */
     #countdown {
-      background: var(--surface);
+      background: linear-gradient(135deg, rgba(242,192,208,0.32) 0%, rgba(252,232,240,0.5) 100%);
       border-bottom: 1px solid var(--border);
-      text-align: center;
-      padding: 10px 16px;
-      font-size: 0.74rem;
-      color: var(--muted);
-      letter-spacing: 0.15em;
+      text-align: center; padding: 10px 16px;
+      font-size: 0.74rem; color: var(--muted); letter-spacing: 0.15em;
     }
     #countdown strong {
-      color: var(--accent);
-      font-size: 1.5rem;
-      font-weight: 300;
-      letter-spacing: 0.04em;
-      margin: 0 4px;
+      color: var(--accent); font-size: 1.5rem; font-weight: 300;
+      letter-spacing: 0.04em; margin: 0 4px;
     }
 
     /* ── Print btn ── */
@@ -261,7 +304,7 @@
     #toast {
       position: fixed; bottom: 28px; left: 50%;
       transform: translateX(-50%);
-      background: var(--text); color: #fff;
+      background: var(--accent-deep); color: #fff;
       padding: 10px 22px; border-radius: 20px;
       font-size: 0.8rem; letter-spacing: 0.05em;
       opacity: 0; transition: opacity .3s;
@@ -272,9 +315,9 @@
     /* ── Print ── */
     @media print {
       #gate, .tabs, .nav-btn, .section, .print-wrap, #toast, .divider { display: none !important; }
-      .hdr { position: static; background: none; color: var(--text); padding: 0; }
+      .hdr { position: static; background: none; color: var(--text); padding: 0; box-shadow: none; }
       .panel { display: block !important; page-break-inside: avoid; }
-      .spot-body { border: 1px solid #ccc; }
+      .spot-body { border: 1px solid #ccc; border-left-width: 1px; }
       body { background: #fff; }
     }
   </style>
@@ -283,8 +326,10 @@
 
 <!-- ════════ GATE ════════ -->
 <div id="gate">
+  <div class="gate-kamon">✿</div>
   <div class="gate-title">東 京</div>
   <div class="gate-sub">TOKYO · 2026</div>
+  <div class="gate-rule"></div>
   <div class="gate-box">
     <input id="pwd" class="gate-input" type="password"
            inputmode="numeric" maxlength="6"
