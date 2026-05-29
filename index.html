@@ -385,7 +385,10 @@ async function boot() {
   buildExpForm();
   autoTab(itinerary);
 
-  // 2. 統計資料在背景載入，不阻擋行程顯示
+  // 2. 天氣在背景非阻塞載入
+  fetchWeather(itinerary);
+
+  // 3. 統計資料在背景載入，不阻擋行程顯示
   const gasReady = GAS_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
   if (gasReady) {
     fetch(GAS_URL)
@@ -440,22 +443,18 @@ function buildPanels(days) {
     if (!day.spots?.length) {
       html += `<div class="panel-empty">行程待填入</div>`;
     } else {
-      html += `<div class="timeline">` + day.spots.map(spotHTML).join('') + `</div>`;
+      html += `<div class="timeline">` + day.spots.map((s, si) => spotHTML(s, day.date, si)).join('') + `</div>`;
     }
     div.innerHTML = html;
     main.appendChild(div);
   });
 }
 
-function spotHTML(s) {
+function spotHTML(s, dayDate, spotIdx) {
   const isAirport = /空港|ターミナル/.test(s.spot_name);
-  const weather = s.weather?.temperature_c != null ? `
-    <div class="weather">
-      <span class="w-temp">${s.weather.temperature_c}°C</span>
-      <span style="color:#ccc">｜</span>
-      <span>${s.weather.precipitation_mm}mm</span>
-      ${(s.weather.alerts||[]).map(a => `<span class="w-alert">${a}</span>`).join('')}
-    </div>` : '';
+  const weather = (s.latitude && s.longitude)
+    ? `<div class="weather" id="w-${dayDate}-${spotIdx}" style="display:none"></div>`
+    : '';
   const navBtn = (!isAirport && s.transport?.google_maps_url) ? `
     <a href="${s.transport.google_maps_url}" target="_blank" rel="noopener">
       <div class="nav-btn">
@@ -478,6 +477,70 @@ function spotHTML(s) {
         ${navBtn}
       </div>
     </div>`;
+}
+
+// ══════════════════════════════
+//  WEATHER（Open-Meteo，無需 API Key）
+// ══════════════════════════════
+async function fetchWeather(days) {
+  // 去重：以 region_name 為 key，每地區只發一次請求
+  const regionMap = new Map();
+  days.forEach(day => {
+    (day.spots || []).forEach(spot => {
+      if (spot.region_name && spot.latitude && spot.longitude && !regionMap.has(spot.region_name)) {
+        regionMap.set(spot.region_name, { lat: spot.latitude, lon: spot.longitude, data: null });
+      }
+    });
+  });
+
+  const startDate = days[0].date;
+  const endDate   = days[days.length - 1].date;
+
+  // 並行發送請求
+  await Promise.all([...regionMap.entries()].map(async ([region, loc]) => {
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}`
+        + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max`
+        + `&timezone=Asia%2FTokyo&start_date=${startDate}&end_date=${endDate}`;
+      const r = await fetch(url);
+      const j = await r.json();
+      if (j.daily?.time?.length) regionMap.get(region).data = j.daily;
+    } catch {}
+  }));
+
+  // 將資料填入各景點 DOM
+  days.forEach(day => {
+    (day.spots || []).forEach((spot, si) => {
+      if (!spot.region_name) return;
+      const loc = regionMap.get(spot.region_name);
+      if (!loc?.data) return;
+
+      const di = loc.data.time.indexOf(day.date);
+      if (di < 0) return;
+
+      const tMax = Math.round(loc.data.temperature_2m_max[di]);
+      const tMin = Math.round(loc.data.temperature_2m_min[di]);
+      const rain = loc.data.precipitation_sum[di] ?? 0;
+      const prob = loc.data.precipitation_probability_max[di] ?? 0;
+
+      const el = document.getElementById(`w-${day.date}-${si}`);
+      if (!el) return;
+
+      const alerts = [];
+      if (rain > 0 || prob > 30) alerts.push('<span class="w-alert">☂ 帶傘</span>');
+      if (tMax < 15) alerts.push('<span class="w-alert">🧥 外套</span>');
+
+      el.innerHTML = `
+        <span class="w-temp">${tMax}°C</span>
+        <span style="color:#ccc;font-size:0.65rem">↕</span>
+        <span style="color:var(--muted)">${tMin}°C</span>
+        <span style="color:#ccc">｜</span>
+        <span>☔ ${prob}%</span>
+        ${alerts.join('')}
+      `;
+      el.style.display = 'flex';
+    });
+  });
 }
 
 // ══════════════════════════════
