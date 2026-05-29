@@ -22,7 +22,7 @@
  *  （網址不變，不需要改 index.html）
  *
  *  【試算表欄位格式】
- *  A: 日期　B: 項目　C: 分類　D: 金額(JPY)　E: 記錄時間
+ *  A: 日期　B: 項目　C: 分類　D: 金額(JPY)　E: 支付方式　F: 記錄時間
  * ══════════════════════════════════════════════════
  */
 
@@ -36,8 +36,8 @@ function doPost(e) {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
 
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow(['日期', '項目', '分類', '金額(JPY)', '記錄時間']);
-      sheet.getRange(1, 1, 1, 5).setFontWeight('bold');
+      sheet.appendRow(['日期', '項目', '分類', '金額(JPY)', '支付方式', '記錄時間']);
+      sheet.getRange(1, 1, 1, 6).setFontWeight('bold');
     }
 
     sheet.appendRow([
@@ -45,6 +45,7 @@ function doPost(e) {
       data.item       || '',
       data.category   || '其他',
       data.amount_jpy || 0,
+      data.payment    || '現金',
       new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
     ]);
 
