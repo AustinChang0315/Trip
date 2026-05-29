@@ -795,10 +795,6 @@ function buildSummary(data) {
   window._expRecords = data.records || [];
 
   // debug: will show in UI to diagnose
-  const _r0 = window._expRecords[0];
-  const _dbg = _r0
-    ? `共 ${window._expRecords.length} 筆 | ${_r0.date} → ${normalizeDate(_r0.date)}`
-    : 'GAS 未回傳 records（請更新部署）';
 
   const today = todayStr();
   const defaultDetailDate = tripDays.find(d => d.date === today)?.date || tripDays[0]?.date || '';
@@ -816,14 +812,12 @@ function buildSummary(data) {
     <div class="chart">${bars}</div>
     <div class="synced-at">${synced}</div>
     <div class="detail-section">
-      <div class="detail-header">消費明細<span id="rec-debug" style="font-size:0.65rem;color:var(--accent);margin-left:6px;letter-spacing:0"></span></div>
+      <div class="detail-header">消費明細</div>
       <div class="detail-tabs">${detailTabs}</div>
       <div id="detail-list"></div>
     </div>`;
 
   renderDetailRecords(defaultDetailDate);
-  const dbgEl = document.getElementById('rec-debug');
-  if (dbgEl) dbgEl.textContent = _dbg;
 }
 
 function switchDetailDay(btn, date) {
