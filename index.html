@@ -320,6 +320,21 @@ const AUTH_TTL = 3 * 24 * 60 * 60 * 1000; // 3 天
 const JPY_TWD  = 0.215;                    // 匯率，可自行調整
 
 // ══════════════════════════════
+//  TIME HELPERS
+// ══════════════════════════════
+const toJST = d => new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+const todayStr = () => {
+  const d = toJST(new Date());
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+};
+const pad = n => String(n).padStart(2, '0');
+const fmtDate = s => {
+  const d = new Date(s + 'T12:00:00+09:00');
+  const wd = ['日','一','二','三','四','五','六'][d.getDay()];
+  return `${d.getMonth()+1}/${d.getDate()}（${wd}）`;
+};
+
+// ══════════════════════════════
 //  AUTH
 // ══════════════════════════════
 function auth() {
@@ -344,21 +359,6 @@ document.getElementById('pwd').addEventListener('keydown', e => { if (e.key === 
     boot();
   }
 })();
-
-// ══════════════════════════════
-//  TIME HELPERS
-// ══════════════════════════════
-const toJST = d => new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
-const todayStr = () => {
-  const d = toJST(new Date());
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-};
-const pad = n => String(n).padStart(2, '0');
-const fmtDate = s => {
-  const d = new Date(s + 'T12:00:00+09:00');
-  const wd = ['日','一','二','三','四','五','六'][d.getDay()];
-  return `${d.getMonth()+1}/${d.getDate()}（${wd}）`;
-};
 
 // ══════════════════════════════
 //  BOOT
