@@ -236,19 +236,6 @@
     .section-label::before { content: '✿'; color: var(--accent-lt); font-size: 1rem; }
     .section-label::after  { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-    /* ── Date Pills ── */
-    .date-pills { display: flex; gap: 6px; flex-wrap: wrap; }
-    .date-pill {
-      padding: 7px 13px; border-radius: 20px;
-      font-size: 0.72rem; letter-spacing: 0.03em;
-      border: 1px solid var(--border);
-      background: var(--surface); color: var(--muted);
-      white-space: nowrap; transition: background .15s, color .15s;
-    }
-    .date-pill.active {
-      background: var(--accent); color: #fff; border-color: var(--accent);
-    }
-
     /* ── Expense Form ── */
     .exp-form { display: flex; flex-direction: column; gap: 11px; }
     .row { display: flex; gap: 10px; }
@@ -656,17 +643,15 @@ function buildExpForm() {
 
   const today = todayStr();
   const defaultDate = tripDays.find(d => d.date === today)?.date || tripDays[0]?.date || today;
-  const datePills = tripDays.map(d => `
-    <button type="button" class="date-pill${d.date === defaultDate ? ' active' : ''}"
-      onclick="selectDatePill(this,'${d.date}')">${fmtDate(d.date)}</button>`
+  const dateOptions = tripDays.map(d =>
+    `<option value="${d.date}"${d.date === defaultDate ? ' selected' : ''}>Day ${d.day} · ${fmtDate(d.date)}</option>`
   ).join('');
 
   wrap.innerHTML = `
     <form class="exp-form" onsubmit="submitExp(event)">
       <div class="field">
         <label>日期</label>
-        <div class="date-pills">${datePills}</div>
-        <input type="hidden" id="e-date" value="${defaultDate}">
+        <select id="e-date">${dateOptions}</select>
       </div>
       <div class="row">
         <div class="field">
@@ -703,12 +688,6 @@ function buildExpForm() {
       </div>
       <button type="submit" class="submit-btn">記帳</button>
     </form>`;
-}
-
-function selectDatePill(btn, date) {
-  document.querySelectorAll('.date-pill').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('e-date').value = date;
 }
 
 function updTWD() {
