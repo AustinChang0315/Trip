@@ -236,6 +236,19 @@
     .section-label::before { content: '✿'; color: var(--accent-lt); font-size: 1rem; }
     .section-label::after  { content: ''; flex: 1; height: 1px; background: var(--border); }
 
+    /* ── Date Pills ── */
+    .date-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+    .date-pill {
+      padding: 7px 13px; border-radius: 20px;
+      font-size: 0.72rem; letter-spacing: 0.03em;
+      border: 1px solid var(--border);
+      background: var(--surface); color: var(--muted);
+      white-space: nowrap; transition: background .15s, color .15s;
+    }
+    .date-pill.active {
+      background: var(--accent); color: #fff; border-color: var(--accent);
+    }
+
     /* ── Expense Form ── */
     .exp-form { display: flex; flex-direction: column; gap: 11px; }
     .row { display: flex; gap: 10px; }
@@ -381,6 +394,7 @@
 // ══════════════════════════════
 const GAS_URL  = 'https://script.google.com/macros/s/AKfycbzqHl0fERsnWhHagUkguBaeGr3UjeiBLSj1pwX8dEjQmhQH0kU0lauEwEVm-gBuA7LqsQ/exec';
 const PASSWORD = '0315';
+let tripDays = [];
 const AUTH_TTL = 3 * 24 * 60 * 60 * 1000; // 3 天
 const JPY_TWD  = 0.215;                    // 匯率，可自行調整
 
@@ -445,6 +459,7 @@ async function boot() {
     return;
   }
 
+  tripDays = itinerary;
   buildCountdown(itinerary);
   buildTabs(itinerary);
   buildPanels(itinerary);
@@ -639,13 +654,21 @@ function buildExpForm() {
     return;
   }
 
+  const today = todayStr();
+  const defaultDate = tripDays.find(d => d.date === today)?.date || tripDays[0]?.date || today;
+  const datePills = tripDays.map(d => `
+    <button type="button" class="date-pill${d.date === defaultDate ? ' active' : ''}"
+      onclick="selectDatePill(this,'${d.date}')">${fmtDate(d.date)}</button>`
+  ).join('');
+
   wrap.innerHTML = `
     <form class="exp-form" onsubmit="submitExp(event)">
+      <div class="field">
+        <label>日期</label>
+        <div class="date-pills">${datePills}</div>
+        <input type="hidden" id="e-date" value="${defaultDate}">
+      </div>
       <div class="row">
-        <div class="field" style="flex:1.3">
-          <label>日期</label>
-          <input type="date" id="e-date" value="${todayStr()}" required>
-        </div>
         <div class="field">
           <label>分類</label>
           <select id="e-cat">
@@ -658,19 +681,19 @@ function buildExpForm() {
             <option>其他</option>
           </select>
         </div>
+        <div class="field">
+          <label>支付方式</label>
+          <select id="e-pay">
+            <option>現金</option>
+            <option>寶寶信用卡</option>
+            <option>寶寶中信附卡</option>
+            <option>ㄚ鼻中信卡</option>
+          </select>
+        </div>
       </div>
       <div class="field">
         <label>項目</label>
         <input type="text" id="e-item" placeholder="例：藏前咖啡" required>
-      </div>
-      <div class="field">
-        <label>支付方式</label>
-        <select id="e-pay">
-          <option>現金</option>
-          <option>寶寶信用卡</option>
-          <option>寶寶中信附卡</option>
-          <option>ㄚ鼻中信卡</option>
-        </select>
       </div>
       <div class="field">
         <label>金額（日圓 ¥）</label>
@@ -680,6 +703,12 @@ function buildExpForm() {
       </div>
       <button type="submit" class="submit-btn">記帳</button>
     </form>`;
+}
+
+function selectDatePill(btn, date) {
+  document.querySelectorAll('.date-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('e-date').value = date;
 }
 
 function updTWD() {
