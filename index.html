@@ -486,7 +486,7 @@ function buildPanels(days) {
 }
 
 function spotHTML(s, dayDate, spotIdx) {
-  const isAirport = /空港|ターミナル/.test(s.spot_name);
+  const isAirport = /空港|ターミナル|[A-Z]{2}\s*\d{4}/.test(s.spot_name);
   const weather = (s.latitude && s.longitude)
     ? `<div class="weather" id="w-${dayDate}-${spotIdx}" style="display:none"></div>`
     : '';
