@@ -230,6 +230,24 @@
     .chart-amt { flex: 0 0 62px; font-size: 0.7rem; color: var(--muted); text-align: right; }
     .synced-at { font-size: 0.66rem; color: #ccc; text-align: center; margin-top: 14px; }
 
+    /* ── Countdown ── */
+    #countdown {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+      padding: 10px 16px;
+      font-size: 0.74rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+    }
+    #countdown strong {
+      color: var(--accent);
+      font-size: 1.5rem;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      margin: 0 4px;
+    }
+
     /* ── Print btn ── */
     .print-wrap { padding: 14px 16px 30px; }
     .print-btn {
@@ -282,6 +300,8 @@
     <div class="hdr-title">東京自由行 2026</div>
     <div class="hdr-date" id="hdr-date"></div>
   </header>
+
+  <div id="countdown" hidden></div>
 
   <nav class="tabs" id="tabs"></nav>
 
@@ -380,6 +400,7 @@ async function boot() {
     return;
   }
 
+  buildCountdown(itinerary);
   buildTabs(itinerary);
   buildPanels(itinerary);
   buildExpForm();
@@ -396,6 +417,20 @@ async function boot() {
       .then(data => buildSummary(data))
       .catch(() => {});
   }
+}
+
+// ══════════════════════════════
+//  COUNTDOWN
+// ══════════════════════════════
+function buildCountdown(days) {
+  const tripStart = new Date(days[0].date + 'T00:00:00+09:00');
+  const now = toJST(new Date());
+  const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((tripStart - todayMid) / 86400000);
+  if (diff <= 0) return;
+  const el = document.getElementById('countdown');
+  el.innerHTML = `距離出發還有 <strong>${diff}</strong> 天`;
+  el.removeAttribute('hidden');
 }
 
 // ══════════════════════════════
