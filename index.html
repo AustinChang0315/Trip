@@ -510,10 +510,9 @@ document.getElementById('pwd').addEventListener('keydown', e => { if (e.key === 
 //  BOOT
 // ══════════════════════════════
 async function boot() {
-  // Header date
-  const jst = toJST(new Date());
+  // Header date — use device local time
   document.getElementById('hdr-date').textContent =
-    jst.toLocaleDateString('zh-TW', { timeZone: 'Asia/Tokyo', month: 'long', day: 'numeric', weekday: 'short' });
+    new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' });
 
   // 1. 先載入行程，立刻顯示
   let itinerary;
