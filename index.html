@@ -369,18 +369,25 @@ async function boot() {
   document.getElementById('hdr-date').textContent =
     jst.toLocaleDateString('zh-TW', { timeZone: 'Asia/Tokyo', month: 'long', day: 'numeric', weekday: 'short' });
 
-  let itinerary, expenses;
+  let itinerary, expenses = null;
   try {
-    const [r1, r2] = await Promise.all([
-      fetch('./data/itinerary.json'),
-      fetch('./data/expenses_summary.json')
-    ]);
+    const r1 = await fetch('./data/itinerary.json');
     itinerary = (await r1.json()).itinerary;
-    expenses  = await r2.json();
   } catch {
     document.getElementById('panels').innerHTML =
       '<div class="panel active"><div class="panel-empty">⚠ 請透過本機伺服器開啟（python -m http.server 8000）</div></div>';
     return;
+  }
+
+  // 即時從 Google Sheets 抓統計資料
+  const gasReady = GAS_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+  if (gasReady) {
+    try {
+      const r2 = await fetch(GAS_URL);
+      expenses = await r2.json();
+    } catch {
+      expenses = null;
+    }
   }
 
   buildTabs(itinerary);
