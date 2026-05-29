@@ -351,6 +351,34 @@
     }
     #toast.show { opacity: 1; }
 
+    /* ── Confirm Modal ── */
+    .modal { position: fixed; inset: 0; z-index: 9998; display: flex; align-items: center; justify-content: center; }
+    .modal.hidden { display: none; }
+    .modal-overlay { position: absolute; inset: 0; background: rgba(61,32,48,0.45); }
+    .modal-box {
+      position: relative; z-index: 1;
+      background: var(--surface); border-radius: 18px;
+      padding: 28px 22px 20px; width: 280px;
+      box-shadow: 0 8px 32px rgba(61,32,48,0.2);
+    }
+    .modal-title { font-size: 1rem; font-weight: 600; color: var(--accent-deep); margin-bottom: 8px; text-align: center; }
+    .modal-msg { font-size: 0.85rem; color: var(--muted); text-align: center; margin-bottom: 22px; line-height: 1.6; }
+    .modal-actions { display: flex; gap: 10px; }
+    .modal-cancel {
+      flex: 1; padding: 12px; border-radius: 10px;
+      border: 1px solid var(--border); color: var(--muted);
+      font-size: 0.88rem; background: var(--surface);
+    }
+    .modal-confirm {
+      flex: 1; padding: 12px; border-radius: 10px;
+      background: var(--red); color: #fff; font-size: 0.88rem;
+    }
+    .record-del {
+      font-size: 0.78rem; color: #d4b0bc; padding: 4px 8px;
+      border-radius: 6px; flex-shrink: 0; line-height: 1;
+    }
+    .record-del:active { color: var(--red); background: rgba(192,69,69,0.08); }
+
     /* ── Print ── */
     @media print {
       #gate, .tabs, .nav-btn, .section, .print-wrap, #toast, .divider { display: none !important; }
@@ -413,6 +441,19 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- ════════ CONFIRM MODAL ════════ -->
+<div id="confirm-modal" class="modal hidden">
+  <div class="modal-overlay" onclick="closeModal()"></div>
+  <div class="modal-box">
+    <div class="modal-title">確認刪除</div>
+    <div class="modal-msg" id="modal-msg"></div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeModal()">取消</button>
+      <button class="modal-confirm" id="modal-confirm-btn">刪除</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ══════════════════════════════
@@ -856,9 +897,49 @@ function renderDetailRecords(date) {
           <div class="record-meta">${r.category} · ${r.payment}</div>
         </div>
         <div class="record-amount">¥${r.amount_jpy.toLocaleString()}</div>
+        <button class="record-del" data-row="${r.rowIndex}" data-name="${r.item.replace(/"/g,'&quot;')}">✕</button>
       </div>`).join('') +
     `</div>
     <div class="record-subtotal">小計 ¥${subtotal.toLocaleString()} ≈ TWD ${Math.round(subtotal * JPY_TWD).toLocaleString()}</div>`;
+
+  list.querySelectorAll('.record-del').forEach(btn => {
+    btn.addEventListener('click', () => showDeleteConfirm(+btn.dataset.row, btn.dataset.name));
+  });
+}
+
+// ══════════════════════════════
+//  DELETE RECORD
+// ══════════════════════════════
+function showDeleteConfirm(rowIndex, itemName) {
+  document.getElementById('modal-msg').textContent = `確定要刪除「${itemName}」這筆記錄嗎？`;
+  document.getElementById('modal-confirm-btn').onclick = () => {
+    closeModal();
+    doDeleteRecord(rowIndex);
+  };
+  document.getElementById('confirm-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('confirm-modal').classList.add('hidden');
+}
+
+async function doDeleteRecord(rowIndex) {
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'delete', rowIndex })
+    });
+    showToast('✓ 已刪除');
+    setTimeout(() => {
+      fetch(GAS_URL)
+        .then(r => r.json())
+        .then(data => buildSummary(data))
+        .catch(() => {});
+    }, 1500);
+  } catch {
+    showToast('刪除失敗，請確認網路');
+  }
 }
 
 // ══════════════════════════════

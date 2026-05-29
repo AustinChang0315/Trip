@@ -35,6 +35,16 @@ function doPost(e) {
     var data  = JSON.parse(e.postData.contents);
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
 
+    // 刪除明細
+    if (data.action === 'delete') {
+      if (data.rowIndex && data.rowIndex > 1) {
+        sheet.deleteRow(data.rowIndex);
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(['日期', '項目', '分類', '金額(JPY)', '支付方式', '記錄時間']);
       sheet.getRange(1, 1, 1, 6).setFontWeight('bold');
@@ -73,7 +83,7 @@ function doGet() {
 
     if (lastRow > 1) {
       var rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
-      rows.forEach(function(row) {
+      rows.forEach(function(row, i) {
         var date = row[0] instanceof Date
           ? Utilities.formatDate(row[0], 'Asia/Tokyo', 'yyyy-MM-dd')
           : (row[0] ? String(row[0]).substring(0, 10) : '');
@@ -91,6 +101,7 @@ function doGet() {
         if (date) {
           daily[date] = (daily[date] || 0) + jpy;
           records.push({
+            rowIndex:   i + 2,
             date:       date,
             item:       String(row[1] || ''),
             category:   cat,
