@@ -648,10 +648,18 @@ async function submitExp(e) {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
-    showToast('✓ 已記帳');
+    showToast('✓ 已記帳，統計更新中…');
     document.getElementById('e-item').value = '';
     document.getElementById('e-jpy').value  = '';
     document.getElementById('twd-preview').textContent = '≈ TWD —';
+
+    // GAS 寫入需要約 1-2 秒，稍後重新抓統計
+    setTimeout(() => {
+      fetch(GAS_URL)
+        .then(r => r.json())
+        .then(data => { buildSummary(data); showToast('✓ 統計已更新'); })
+        .catch(() => {});
+    }, 2000);
   } catch {
     showToast('送出失敗，請確認網路');
   }
