@@ -1,0 +1,278 @@
+{
+  "trip": {
+    "title": "東京質感自由行 2026",
+    "start_date": "2026-06-24",
+    "end_date": "2026-06-29",
+    "total_days": 6,
+    "season_note": "梅雨季，建議每天攜帶折傘，戶外景點準備防水外套",
+    "hotel": {
+      "name": "三井花園酒店五反田",
+      "area": "品川區五反田",
+      "latitude": 35.6263,
+      "longitude": 139.723,
+      "nearest_station": "五反田站（JR 山手線 / 東急池上線）"
+    },
+    "passes": [
+      "Suica / PASMO IC 卡（全程通用）",
+      "江の島・鎌倉フリーパス（Day 5 建議購買，小田急新宿出發）"
+    ],
+    "flight_out": {
+      "from": "台北松山 (TSA)",
+      "to": "東京羽田 (HND)",
+      "depart": "09:00",
+      "arrive": "13:10",
+      "date": "2026-06-24"
+    },
+    "flight_back": {
+      "from": "東京羽田 (HND)",
+      "to": "台北松山 (TSA)",
+      "depart": "14:30",
+      "arrive": "16:55",
+      "date": "2026-06-29"
+    }
+  },
+  "itinerary": [
+    {
+      "day": 1,
+      "date": "2026-06-24",
+      "day_title": "入境輕落地：五反田周邊三角散步",
+      "note": "羽田入境 + 電車到飯店約 13:10-15:00，辦理入住後實際可用時間約 15:30 起，選最近景點徒步串連，不趕行程。",
+      "spots": [
+        {
+          "time": "15:30",
+          "spot_name": "惠比壽 ガーデンプレイス 散策",
+          "region_name": "東京市區",
+          "latitude": 35.6467,
+          "longitude": 139.71,
+          "description": "從飯店搭 JR 山手線一站即達。惠比壽花園廣場是昔日札幌啤酒廠改建的歐式廣場，下午茶氛圍絕佳，無須消費也可散步拍照。",
+          "transport": {
+            "method": "從三井花園酒店五反田步行至五反田站，搭乘 JR 山手線（外回り）1 站至惠比壽站，東口出，步行 5 分鐘",
+            "duration": "約 15 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=恵比寿ガーデンプレイス&travelmode=transit"
+          }
+        },
+        {
+          "time": "16:30",
+          "spot_name": "代官山 蔦屋書店（T-SITE）",
+          "region_name": "東京市區",
+          "latitude": 35.6485,
+          "longitude": 139.7034,
+          "description": "從惠比壽步行 10 分鐘。日本最具代表性的選物型書店，三棟白色建築由竹中工務店設計，內有旅遊書、藝術品、咖啡廳，是感受代官山氣質最直接的方式。",
+          "transport": {
+            "method": "從惠比壽ガーデンプレイス步行",
+            "duration": "約 10 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=代官山蔦屋書店&travelmode=transit"
+          }
+        },
+        {
+          "time": "17:30",
+          "spot_name": "中目黑 目黑川沿岸",
+          "region_name": "東京市區",
+          "latitude": 35.6441,
+          "longitude": 139.6979,
+          "description": "從代官山步行 8 分鐘。目黑川兩側林立獨立咖啡廳、麵包店、選物店。6 月梅雨過後綠意濃厚，傍晚的水岸光線極美。推薦在這裡覓食晚餐後，原路返五反田。",
+          "transport": {
+            "method": "從代官山蔦屋書店步行",
+            "duration": "約 8 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=中目黒駅&travelmode=transit"
+          }
+        }
+      ]
+    },
+    {
+      "day": 2,
+      "date": "2026-06-25",
+      "day_title": "下町時光：谷中老街與淺草燈火",
+      "spots": [
+        {
+          "time": "10:30",
+          "spot_name": "谷中銀座商店街",
+          "region_name": "東京市區",
+          "latitude": 35.7268,
+          "longitude": 139.7698,
+          "description": "昭和氣息最濃厚的在地小商店街，貓咪遍佈的石板老巷，豆腐店、煎餅鋪、古董小物，是東京最有人情味的散步路線。比假日少人，適合拍照。",
+          "transport": {
+            "method": "從五反田站搭乘 JR 山手線至日暮里站，步行 5 分鐘",
+            "duration": "約 35 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=谷中銀座&travelmode=transit"
+          }
+        },
+        {
+          "time": "13:00",
+          "spot_name": "淺草 雷門・仲見世通",
+          "region_name": "東京市區",
+          "latitude": 35.7116,
+          "longitude": 139.7964,
+          "description": "江戶風情的標誌大門，仲見世通可買到正統人形燒與草餅。下午燈籠亮起後氣氛更佳。站在吾妻橋即可遠眺晴空塔，無需購票。",
+          "transport": {
+            "method": "從谷中搭乘東京Metro千代田線至根津站 → 轉日比谷線至入谷站 → 步行或搭都營淺草線至淺草站",
+            "duration": "約 20 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=雷門&travelmode=transit"
+          }
+        }
+      ]
+    },
+    {
+      "day": 3,
+      "date": "2026-06-26",
+      "day_title": "東京迪士尼海洋 全日沉浸",
+      "note": "週五入場，比週末少人。建議 08:30 前抵達閘口，熱門設施優先使用 Premier Access。",
+      "spots": [
+        {
+          "time": "08:30",
+          "spot_name": "東京迪士尼海洋 (Tokyo DisneySea)",
+          "region_name": "舞濱・千葉",
+          "latitude": 35.627,
+          "longitude": 139.8845,
+          "description": "全球唯一以「海洋」為主題的迪士尼樂園，七大港灣各有異國情調。6 月梅雨季人潮相對少，室內設施（海底兩萬里、驚魂古塔）不受天氣影響。",
+          "transport": {
+            "method": "從五反田站搭乘 JR 山手線至品川站，轉 JR 京葉線（需在東京站換乘）至舞濱站，再轉迪士尼度假區線至迪士尼海洋站",
+            "duration": "約 50 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit"
+          }
+        }
+      ]
+    },
+    {
+      "day": 4,
+      "date": "2026-06-27",
+      "day_title": "小江戶川越 + 回程澀谷天空",
+      "note": "週六前往川越人氣較旺，建議 10:00 前抵達景點。返回東京後順路在澀谷卡黃金時段，澀谷 SKY 務必提前線上購票。",
+      "spots": [
+        {
+          "time": "10:00",
+          "spot_name": "藏造老街（一番街）",
+          "region_name": "川越",
+          "latitude": 35.9249,
+          "longitude": 139.4878,
+          "description": "江戶時代商人街區，黑色蔵造倉庫連棟而立。兩側藏著老醬油店、和菓子鋪與手工雜貨，氣息比淺草更為清靜。",
+          "transport": {
+            "method": "從五反田站搭 JR 山手線至池袋站，轉東武東上線急行至川越站，再步行或搭巴士 15 分鐘",
+            "duration": "約 50 分鐘（電車）",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=川越一番街&travelmode=transit"
+          }
+        },
+        {
+          "time": "11:00",
+          "spot_name": "時之鐘（時の鐘）",
+          "region_name": "川越",
+          "latitude": 35.9239,
+          "longitude": 139.488,
+          "description": "川越最具代表性的木造地標，每天 12:00、15:00、18:00 整點報時。與藏造老街相鄰，步行可達。",
+          "transport": {
+            "method": "從藏造老街步行",
+            "duration": "約 5 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=時の鐘+川越&travelmode=transit"
+          }
+        },
+        {
+          "time": "12:00",
+          "spot_name": "菓子屋橫丁",
+          "region_name": "川越",
+          "latitude": 35.9221,
+          "longitude": 139.4894,
+          "description": "明治時代保留至今的糖果小巷，十幾間老舖販賣江戶糖果、炸饅頭、麥芽糖棒，是日本現存最完整的糖果街景，適合邊走邊吃當午餐前點心。",
+          "transport": {
+            "method": "從時之鐘步行",
+            "duration": "約 8 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=菓子屋横丁&travelmode=transit"
+          }
+        },
+        {
+          "time": "13:30",
+          "spot_name": "川越冰川神社",
+          "region_name": "川越",
+          "latitude": 35.9299,
+          "longitude": 139.4843,
+          "description": "粉色系結緣神社，每月更換限定御守設計，以緣結び聞名關東。社境內有古木參道，氣氛清靜，與老街熱鬧形成反差。",
+          "transport": {
+            "method": "從菓子屋橫丁步行",
+            "duration": "約 12 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=川越氷川神社&travelmode=transit"
+          }
+        },
+        {
+          "time": "17:30",
+          "spot_name": "澀谷 SKY 觀景台",
+          "region_name": "東京市區",
+          "latitude": 35.658,
+          "longitude": 139.7016,
+          "description": "360 度全開放天空觀景台。從川越返回東京約 16:00，再從新宿搭 JR 至澀谷剛好卡到黃金時段。6 月梅雨季偶有雲霧，但城市燈火不受影響。務必提前線上購票。",
+          "transport": {
+            "method": "從川越站搭乘東武東上線至池袋，轉 JR 山手線至澀谷站，步行至 Scramble Square",
+            "duration": "川越返東京約 50 分鐘，澀谷站至 SKY 步行 5 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=SHIBUYA+SKY&travelmode=transit"
+          }
+        }
+      ]
+    },
+    {
+      "day": 5,
+      "date": "2026-06-28",
+      "day_title": "湘南日歸：極樂寺古道與江之島海風",
+      "note": "週日前往建議早出發避開人潮，搭乘小田急「江の島・鎌倉フリーパス」最划算（含 Enoden 全日通）。",
+      "spots": [
+        {
+          "time": "10:00",
+          "spot_name": "極樂寺（極楽寺）",
+          "region_name": "鎌倉",
+          "latitude": 35.3132,
+          "longitude": 139.5359,
+          "description": "江ノ電最神祕的小站，下車即是苔蘚覆蓋的山門與古寺。少有觀光客，6 月梅雨期青苔更是翠綠飽滿，氣氛幽靜如進入另一個時空。稻村崎海岸就在 3 分鐘步行處，可同時看海。",
+          "transport": {
+            "method": "從五反田站搭 JR 山手線至新宿站，轉小田急線至藤沢站，再轉 Enoden（江ノ電）至極樂寺站",
+            "duration": "約 80 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=極楽寺駅&travelmode=transit"
+          }
+        },
+        {
+          "time": "12:00",
+          "spot_name": "江之島（江の島）",
+          "region_name": "湘南・江之島",
+          "latitude": 35.299,
+          "longitude": 139.4822,
+          "description": "與本土相連的海中島嶼，島上有江島神社、展望台與新鮮海鮮丼。繞島主要路線約 2 小時，推薦走到岩屋洞窟看海蝕地形。6 月可能有薄霧但海風宜人，海鮮季節正好。",
+          "transport": {
+            "method": "從極樂寺站搭 Enoden 往藤沢方向，至江ノ島站下車，步行 10 分鐘至島口",
+            "duration": "約 25 分鐘（Enoden）+ 步行",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=江の島&travelmode=transit"
+          }
+        }
+      ]
+    },
+    {
+      "day": 6,
+      "date": "2026-06-29",
+      "day_title": "最終早晨：麻布台之丘 → 羽田起飛",
+      "note": "班機 14:30，國際線建議 12:30 前抵達羽田（提早 2 小時）。行李可寄放飯店，輕裝出發，11:00 前離開麻布台之丘直奔機場。",
+      "spots": [
+        {
+          "time": "09:00",
+          "spot_name": "麻布台之丘（Azabudai Hills）",
+          "region_name": "東京市區",
+          "latitude": 35.6596,
+          "longitude": 139.739,
+          "description": "2023 年末開幕的複合文化建築群，早上 9 點人最少，可以悠閒欣賞森 JP 塔的建築量體與空中花園。teamLab Borderless 在此，但需預約且花 2 小時，若無預約可走外部廣場與展示廊。",
+          "transport": {
+            "method": "從五反田站搭 JR 山手線至目黑站，轉東京Metro日比谷線至神谷町站，步行 5 分鐘",
+            "duration": "約 25 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=麻布台ヒルズ&travelmode=transit"
+          }
+        },
+        {
+          "time": "11:00",
+          "spot_name": "羽田空港 國際線ターミナル",
+          "region_name": "羽田・東京灣",
+          "latitude": 35.5494,
+          "longitude": 139.7798,
+          "description": "從麻布台之丘搭日比谷線至大門站，轉都營淺草線至泉岳寺，再轉京急線至羽田國際線ターミナル。抵達時間約 11:50-12:10，距起飛 14:30 有充裕時間辦理登機。",
+          "transport": {
+            "method": "從神谷町站搭日比谷線至大門站，轉都營淺草線至泉岳寺站，再轉京急空港線至羽田空港第3ターミナル",
+            "duration": "約 40-50 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit"
+          }
+        }
+      ]
+    }
+  ]
+}

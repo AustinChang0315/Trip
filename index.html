@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#2c2c2c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Tokyo 2026">
+  <link rel="manifest" href="manifest.json">
+  <title>東京自由行 2026</title>
+  <style>
+    /* ── Variables ── */
+    :root {
+      --bg:        #f5f0eb;
+      --surface:   #fffcf8;
+      --border:    #e0d8d0;
+      --text:      #2c2c2c;
+      --muted:     #8a8078;
+      --accent:    #8b7355;
+      --accent-lt: #d4c4aa;
+      --green:     #5a8c62;
+      --red:       #b85c5c;
+      --header-h:  54px;
+      --tab-h:     50px;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; font-size: 15px; }
+    body {
+      font-family: -apple-system, 'Hiragino Sans', 'Noto Sans CJK TC', sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.65;
+    }
+    button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+    input, select, textarea { font: inherit; }
+    a { color: inherit; text-decoration: none; }
+
+    /* ── Gate ── */
+    #gate {
+      position: fixed; inset: 0; z-index: 999;
+      background: var(--bg);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 28px;
+    }
+    #gate.hidden { display: none; }
+    .gate-title {
+      font-size: 2.4rem; letter-spacing: 0.3em;
+      color: var(--accent); font-weight: 300;
+    }
+    .gate-sub {
+      font-size: 0.72rem; letter-spacing: 0.25em;
+      color: var(--muted); margin-top: -20px;
+    }
+    .gate-box { display: flex; flex-direction: column; gap: 12px; width: 220px; }
+    .gate-input {
+      text-align: center; font-size: 1.8rem; letter-spacing: 0.6em;
+      padding: 12px 8px; border: 1px solid var(--border);
+      background: var(--surface); border-radius: 10px; outline: none;
+      color: var(--text);
+    }
+    .gate-input:focus { border-color: var(--accent); }
+    .gate-btn {
+      padding: 13px; background: var(--accent); color: #fff;
+      border-radius: 10px; font-size: 0.88rem; letter-spacing: 0.12em;
+    }
+    .gate-err {
+      font-size: 0.75rem; color: var(--red);
+      text-align: center; min-height: 1em;
+    }
+
+    /* ── App ── */
+    #app { display: flex; flex-direction: column; min-height: 100dvh; }
+    #app[hidden] { display: none; }
+
+    /* ── Header ── */
+    .hdr {
+      position: sticky; top: 0; z-index: 100;
+      height: var(--header-h);
+      background: var(--text); color: #fff;
+      display: flex; align-items: center;
+      justify-content: space-between; padding: 0 18px;
+    }
+    .hdr-title { font-size: 0.92rem; letter-spacing: 0.18em; font-weight: 400; }
+    .hdr-date  { font-size: 0.68rem; color: #aaa; letter-spacing: 0.06em; }
+
+    /* ── Tabs ── */
+    .tabs {
+      position: sticky; top: var(--header-h); z-index: 99;
+      display: flex; overflow-x: auto; background: var(--surface);
+      border-bottom: 1px solid var(--border); scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      flex: 0 0 auto; padding: 9px 15px;
+      font-size: 0.73rem; color: var(--muted);
+      border-bottom: 2px solid transparent; text-align: center;
+      white-space: nowrap; line-height: 1.3;
+    }
+    .tab span { display: block; font-size: 0.62rem; color: #bbb; margin-top: 1px; }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+    .tab.is-today { color: var(--green); }
+    .tab.is-today.active { border-bottom-color: var(--green); }
+
+    /* ── Day panel ── */
+    .panel { display: none; padding: 16px; }
+    .panel.active { display: block; }
+    .panel-note {
+      background: #fffbf2; border-left: 3px solid var(--accent-lt);
+      padding: 10px 12px; margin-bottom: 16px; border-radius: 0 6px 6px 0;
+      font-size: 0.78rem; color: var(--muted); line-height: 1.7;
+    }
+    .panel-empty {
+      text-align: center; padding: 48px 0;
+      font-size: 0.82rem; color: #ccc; letter-spacing: 0.05em;
+    }
+
+    /* ── Timeline ── */
+    .timeline { position: relative; }
+    .timeline::before {
+      content: ''; position: absolute;
+      left: 55px; top: 12px; bottom: 24px;
+      width: 1px; background: var(--border);
+    }
+    .spot {
+      display: flex; align-items: flex-start;
+      margin-bottom: 20px; position: relative;
+    }
+    .spot-time {
+      flex: 0 0 52px; font-size: 0.68rem; color: var(--muted);
+      text-align: right; padding-right: 11px; padding-top: 5px;
+      line-height: 1;
+    }
+    .spot-dot {
+      flex: 0 0 8px; display: flex;
+      flex-direction: column; align-items: center; padding-top: 5px;
+    }
+    .spot-dot::before {
+      content: ''; display: block;
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--bg);
+      outline: 1px solid var(--accent);
+    }
+    .spot.airport .spot-dot::before { background: var(--muted); outline-color: var(--muted); }
+    .spot-body {
+      flex: 1; margin-left: 16px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 13px 15px; overflow: hidden;
+    }
+    .spot-name { font-size: 0.94rem; font-weight: 600; margin-bottom: 4px; }
+    .spot-desc {
+      font-size: 0.78rem; color: var(--muted);
+      margin-bottom: 10px; line-height: 1.65;
+    }
+
+    /* weather */
+    .weather {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      margin-bottom: 10px; padding: 7px 10px;
+      background: #f0f6f0; border-radius: 6px; font-size: 0.75rem;
+    }
+    .w-temp { font-weight: 600; color: var(--green); }
+    .w-alert { color: var(--red); }
+
+    /* transport */
+    .transport {
+      background: var(--bg); border-radius: 7px;
+      padding: 8px 11px; margin-bottom: 10px;
+      font-size: 0.74rem; color: var(--muted); line-height: 1.6;
+    }
+    .transport-dur { color: #bbb; }
+
+    /* nav button */
+    .nav-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--accent); color: #fff;
+      padding: 8px 16px; border-radius: 20px;
+      font-size: 0.76rem; letter-spacing: 0.06em;
+    }
+    .nav-btn svg { width: 12px; height: 12px; fill: currentColor; }
+
+    /* ── Divider ── */
+    .divider { height: 8px; background: var(--border); }
+
+    /* ── Section ── */
+    .section { padding: 20px 16px; }
+    .section-label {
+      font-size: 0.72rem; letter-spacing: 0.2em; color: var(--muted);
+      text-transform: uppercase; margin-bottom: 16px;
+    }
+
+    /* ── Expense Form ── */
+    .exp-form { display: flex; flex-direction: column; gap: 11px; }
+    .row { display: flex; gap: 10px; }
+    .field { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .field label { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.06em; }
+    .field input, .field select {
+      padding: 10px 12px; border: 1px solid var(--border);
+      background: var(--surface); border-radius: 9px; width: 100%;
+      font-size: 0.9rem; outline: none;
+      -webkit-appearance: none; appearance: none;
+    }
+    .field input:focus, .field select:focus { border-color: var(--accent); }
+    .twd { font-size: 0.72rem; color: var(--muted); text-align: right; margin-top: -6px; min-height: 1em; }
+    .submit-btn {
+      padding: 13px; background: var(--text); color: #fff;
+      border-radius: 10px; font-size: 0.88rem; letter-spacing: 0.1em;
+    }
+    .setup-hint {
+      background: #fffbf0; border: 1px solid #e8d8a0;
+      border-radius: 9px; padding: 14px; font-size: 0.78rem;
+      color: var(--muted); line-height: 1.75;
+    }
+    .setup-hint code {
+      background: var(--border); padding: 1px 5px;
+      border-radius: 3px; font-size: 0.72rem;
+    }
+
+    /* ── Summary ── */
+    .total-box { text-align: center; margin-bottom: 22px; }
+    .total-lbl { font-size: 0.68rem; letter-spacing: 0.15em; color: var(--muted); margin-bottom: 6px; }
+    .total-jpy { font-size: 2.2rem; font-weight: 300; letter-spacing: 0.04em; }
+    .total-twd { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+    .chart { display: flex; flex-direction: column; gap: 12px; }
+    .chart-row { display: flex; align-items: center; gap: 10px; }
+    .chart-lbl { flex: 0 0 36px; font-size: 0.7rem; color: var(--muted); text-align: right; }
+    .chart-bar-bg { flex: 1; background: var(--border); border-radius: 4px; height: 7px; overflow: hidden; }
+    .chart-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width .5s ease; }
+    .chart-amt { flex: 0 0 62px; font-size: 0.7rem; color: var(--muted); text-align: right; }
+    .synced-at { font-size: 0.66rem; color: #ccc; text-align: center; margin-top: 14px; }
+
+    /* ── Print btn ── */
+    .print-wrap { padding: 14px 16px 30px; }
+    .print-btn {
+      width: 100%; padding: 12px;
+      border: 1px solid var(--border); border-radius: 10px;
+      background: var(--surface); color: var(--muted);
+      font-size: 0.82rem; letter-spacing: 0.08em;
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%);
+      background: var(--text); color: #fff;
+      padding: 10px 22px; border-radius: 20px;
+      font-size: 0.8rem; letter-spacing: 0.05em;
+      opacity: 0; transition: opacity .3s;
+      pointer-events: none; white-space: nowrap; z-index: 9999;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ── Print ── */
+    @media print {
+      #gate, .tabs, .nav-btn, .section, .print-wrap, #toast, .divider { display: none !important; }
+      .hdr { position: static; background: none; color: var(--text); padding: 0; }
+      .panel { display: block !important; page-break-inside: avoid; }
+      .spot-body { border: 1px solid #ccc; }
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════ GATE ════════ -->
+<div id="gate">
+  <div class="gate-title">東 京</div>
+  <div class="gate-sub">TOKYO · 2026</div>
+  <div class="gate-box">
+    <input id="pwd" class="gate-input" type="password"
+           inputmode="numeric" maxlength="6"
+           placeholder="••••" autocomplete="off" autofocus>
+    <div id="gate-err" class="gate-err"></div>
+    <button class="gate-btn" onclick="auth()">進入</button>
+  </div>
+</div>
+
+<!-- ════════ APP ════════ -->
+<div id="app" hidden>
+  <header class="hdr">
+    <div class="hdr-title">東京自由行 2026</div>
+    <div class="hdr-date" id="hdr-date"></div>
+  </header>
+
+  <nav class="tabs" id="tabs"></nav>
+
+  <main id="panels"></main>
+
+  <div class="divider"></div>
+
+  <section class="section">
+    <div class="section-label">記帳</div>
+    <div id="exp-wrap"></div>
+  </section>
+
+  <div class="divider"></div>
+
+  <section class="section">
+    <div class="section-label">支出統計</div>
+    <div id="summary-wrap">
+      <div class="panel-empty">尚未同步資料</div>
+    </div>
+  </section>
+
+  <div class="print-wrap">
+    <button class="print-btn" onclick="window.print()">↓ 下載離線備份（列印 / PDF）</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════
+//  CONFIG  ← 只需修改這裡
+// ══════════════════════════════
+const GAS_URL  = 'https://script.google.com/macros/s/AKfycbwQxVJ0KuyOwxSlK0g8KTE2VJt5X-04we9qN2SDyhNu6mshOocRI6Rt3YQdX77qS1msgg/exec';
+const PASSWORD = '0315';
+const AUTH_TTL = 3 * 24 * 60 * 60 * 1000; // 3 天
+const JPY_TWD  = 0.215;                    // 匯率，可自行調整
+
+// ══════════════════════════════
+//  AUTH
+// ══════════════════════════════
+function auth() {
+  if (document.getElementById('pwd').value === PASSWORD) {
+    localStorage.setItem('auth_exp', Date.now() + AUTH_TTL);
+    document.getElementById('gate').classList.add('hidden');
+    document.getElementById('app').removeAttribute('hidden');
+    boot();
+  } else {
+    document.getElementById('gate-err').textContent = '密碼錯誤';
+    document.getElementById('pwd').value = '';
+    document.getElementById('pwd').focus();
+  }
+}
+document.getElementById('pwd').addEventListener('keydown', e => { if (e.key === 'Enter') auth(); });
+
+(function checkSavedAuth() {
+  const exp = localStorage.getItem('auth_exp');
+  if (exp && Date.now() < +exp) {
+    document.getElementById('gate').classList.add('hidden');
+    document.getElementById('app').removeAttribute('hidden');
+    boot();
+  }
+})();
+
+// ══════════════════════════════
+//  TIME HELPERS
+// ══════════════════════════════
+const toJST = d => new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+const todayStr = () => {
+  const d = toJST(new Date());
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+};
+const pad = n => String(n).padStart(2, '0');
+const fmtDate = s => {
+  const d = new Date(s + 'T12:00:00+09:00');
+  const wd = ['日','一','二','三','四','五','六'][d.getDay()];
+  return `${d.getMonth()+1}/${d.getDate()}（${wd}）`;
+};
+
+// ══════════════════════════════
+//  BOOT
+// ══════════════════════════════
+async function boot() {
+  // Header date
+  const jst = toJST(new Date());
+  document.getElementById('hdr-date').textContent =
+    jst.toLocaleDateString('zh-TW', { timeZone: 'Asia/Tokyo', month: 'long', day: 'numeric', weekday: 'short' });
+
+  let itinerary, expenses;
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch('./data/itinerary.json'),
+      fetch('./data/expenses_summary.json')
+    ]);
+    itinerary = (await r1.json()).itinerary;
+    expenses  = await r2.json();
+  } catch {
+    document.getElementById('panels').innerHTML =
+      '<div class="panel active"><div class="panel-empty">⚠ 請透過本機伺服器開啟（python -m http.server 8000）</div></div>';
+    return;
+  }
+
+  buildTabs(itinerary);
+  buildPanels(itinerary);
+  buildExpForm();
+  buildSummary(expenses);
+  autoTab(itinerary);
+}
+
+// ══════════════════════════════
+//  TABS
+// ══════════════════════════════
+function buildTabs(days) {
+  const nav = document.getElementById('tabs');
+  const today = todayStr();
+  days.forEach((day, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (day.date === today ? ' is-today' : '');
+    btn.innerHTML = `Day ${day.day}<span>${fmtDate(day.date)}</span>`;
+    btn.onclick = () => switchTab(i);
+    nav.appendChild(btn);
+  });
+}
+
+function switchTab(idx) {
+  document.querySelectorAll('.tab').forEach((b, i) => b.classList.toggle('active', i === idx));
+  document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+  document.querySelector('.tab.active')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
+function autoTab(days) {
+  const today = todayStr();
+  const tripStart = days[0]?.date, tripEnd = days[days.length-1]?.date;
+  let idx = 0;
+  if (today >= tripStart && today <= tripEnd) {
+    const found = days.findIndex(d => d.date === today);
+    if (found >= 0) idx = found;
+  } else if (today > tripEnd) idx = days.length - 1;
+  switchTab(idx);
+}
+
+// ══════════════════════════════
+//  DAY PANELS
+// ══════════════════════════════
+function buildPanels(days) {
+  const main = document.getElementById('panels');
+  days.forEach(day => {
+    const div = document.createElement('div');
+    div.className = 'panel';
+    let html = '';
+    if (day.note) html += `<div class="panel-note">${day.note}</div>`;
+    if (!day.spots?.length) {
+      html += `<div class="panel-empty">行程待填入</div>`;
+    } else {
+      html += `<div class="timeline">` + day.spots.map(spotHTML).join('') + `</div>`;
+    }
+    div.innerHTML = html;
+    main.appendChild(div);
+  });
+}
+
+function spotHTML(s) {
+  const isAirport = /空港|ターミナル/.test(s.spot_name);
+  const weather = s.weather?.temperature_c != null ? `
+    <div class="weather">
+      <span class="w-temp">${s.weather.temperature_c}°C</span>
+      <span style="color:#ccc">｜</span>
+      <span>${s.weather.precipitation_mm}mm</span>
+      ${(s.weather.alerts||[]).map(a => `<span class="w-alert">${a}</span>`).join('')}
+    </div>` : '';
+  const navBtn = (!isAirport && s.transport?.google_maps_url) ? `
+    <a href="${s.transport.google_maps_url}" target="_blank" rel="noopener">
+      <div class="nav-btn">
+        <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>
+        立即導航
+      </div>
+    </a>` : '';
+  return `
+    <div class="spot${isAirport ? ' airport' : ''}">
+      <div class="spot-time">${s.time}</div>
+      <div class="spot-dot"></div>
+      <div class="spot-body">
+        <div class="spot-name">${s.spot_name}</div>
+        ${weather}
+        <div class="spot-desc">${s.description}</div>
+        ${s.transport ? `<div class="transport">
+          🚃 ${s.transport.method}<br>
+          <span class="transport-dur">⏱ ${s.transport.duration}</span>
+        </div>` : ''}
+        ${navBtn}
+      </div>
+    </div>`;
+}
+
+// ══════════════════════════════
+//  EXPENSE FORM
+// ══════════════════════════════
+function buildExpForm() {
+  const wrap = document.getElementById('exp-wrap');
+  const ready = GAS_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+
+  if (!ready) {
+    wrap.innerHTML = `<div class="setup-hint">
+      尚未設定 Google Apps Script。<br>
+      請參考 <code>tools/gas_setup.js</code> 完成設定，<br>
+      再將網址填入 <code>index.html</code> 的 <code>GAS_URL</code>。
+    </div>`;
+    return;
+  }
+
+  wrap.innerHTML = `
+    <form class="exp-form" onsubmit="submitExp(event)">
+      <div class="row">
+        <div class="field" style="flex:1.3">
+          <label>日期</label>
+          <input type="date" id="e-date" value="${todayStr()}" required>
+        </div>
+        <div class="field">
+          <label>分類</label>
+          <select id="e-cat">
+            <option>餐飲</option>
+            <option>交通</option>
+            <option>體驗</option>
+            <option>購物</option>
+            <option>其他</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>項目</label>
+        <input type="text" id="e-item" placeholder="例：藏前咖啡" required>
+      </div>
+      <div class="field">
+        <label>金額（日圓 ¥）</label>
+        <input type="number" id="e-jpy" placeholder="0" min="0" step="1"
+               oninput="updTWD()" required>
+        <div class="twd" id="twd-preview">≈ TWD —</div>
+      </div>
+      <button type="submit" class="submit-btn">記帳</button>
+    </form>`;
+}
+
+function updTWD() {
+  const jpy = +document.getElementById('e-jpy').value;
+  document.getElementById('twd-preview').textContent =
+    jpy > 0 ? `≈ TWD ${Math.round(jpy * JPY_TWD).toLocaleString()}` : '≈ TWD —';
+}
+
+async function submitExp(e) {
+  e.preventDefault();
+  const payload = {
+    date:       document.getElementById('e-date').value,
+    item:       document.getElementById('e-item').value,
+    category:   document.getElementById('e-cat').value,
+    amount_jpy: +document.getElementById('e-jpy').value
+  };
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload)
+    });
+    showToast('✓ 已記帳');
+    document.getElementById('e-item').value = '';
+    document.getElementById('e-jpy').value  = '';
+    document.getElementById('twd-preview').textContent = '≈ TWD —';
+  } catch {
+    showToast('送出失敗，請確認網路');
+  }
+}
+
+// ══════════════════════════════
+//  EXPENSE SUMMARY
+// ══════════════════════════════
+function buildSummary(data) {
+  const wrap = document.getElementById('summary-wrap');
+  if (!data?.total_jpy) return;
+
+  const cats = data.categories.filter(c => c.jpy > 0);
+  const maxJpy = Math.max(...cats.map(c => c.jpy), 1);
+
+  const bars = cats.map(c => `
+    <div class="chart-row">
+      <div class="chart-lbl">${c.name}</div>
+      <div class="chart-bar-bg">
+        <div class="chart-bar" style="width:${(c.jpy/maxJpy*100).toFixed(1)}%"></div>
+      </div>
+      <div class="chart-amt">¥${c.jpy.toLocaleString()}</div>
+    </div>`).join('');
+
+  const synced = data.last_synced
+    ? '上次同步：' + new Date(data.last_synced).toLocaleString('zh-TW',
+        { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
+
+  wrap.innerHTML = `
+    <div class="total-box">
+      <div class="total-lbl">旅遊總花費</div>
+      <div class="total-jpy">¥ ${data.total_jpy.toLocaleString()}</div>
+      <div class="total-twd">≈ TWD ${data.total_twd.toLocaleString()}</div>
+    </div>
+    <div class="chart">${bars}</div>
+    <div class="synced-at">${synced}</div>`;
+}
+
+// ══════════════════════════════
+//  TOAST
+// ══════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  clearTimeout(toastTimer);
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+</script>
+</body>
+</html>

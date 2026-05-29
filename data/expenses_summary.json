@@ -1,0 +1,14 @@
+{
+  "last_synced": null,
+  "total_jpy": 0,
+  "total_twd": 0,
+  "exchange_rate_jpy_to_twd": 0.215,
+  "categories": [
+    { "name": "餐飲", "jpy": 0, "percentage": 0 },
+    { "name": "交通", "jpy": 0, "percentage": 0 },
+    { "name": "體驗", "jpy": 0, "percentage": 0 },
+    { "name": "購物", "jpy": 0, "percentage": 0 },
+    { "name": "其他", "jpy": 0, "percentage": 0 }
+  ],
+  "daily_breakdown": []
+}
