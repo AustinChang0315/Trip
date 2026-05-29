@@ -911,6 +911,10 @@ function renderDetailRecords(date) {
 //  DELETE RECORD
 // ══════════════════════════════
 function showDeleteConfirm(rowIndex, itemName) {
+  if (!rowIndex) {
+    showToast('請先重新部署 GAS 才能使用刪除功能');
+    return;
+  }
   document.getElementById('modal-msg').textContent = `確定要刪除「${itemName}」這筆記錄嗎？`;
   document.getElementById('modal-confirm-btn').onclick = () => {
     closeModal();
