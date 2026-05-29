@@ -786,8 +786,9 @@ function buildSummary(data) {
       <div class="chart-amt">¥${c.jpy.toLocaleString()}</div>
     </div>`).join('');
 
-  const synced = data.last_synced
-    ? '上次同步：' + new Date(data.last_synced).toLocaleString('zh-TW',
+  const syncedDate = data.last_synced ? new Date(data.last_synced) : null;
+  const synced = syncedDate && !isNaN(syncedDate)
+    ? '上次同步：' + syncedDate.toLocaleString('zh-TW',
         { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
 
@@ -830,10 +831,18 @@ function switchDetailDay(btn, date) {
   renderDetailRecords(date);
 }
 
+function normalizeDate(s) {
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+  const d = new Date(s);
+  if (!isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return s;
+}
+
 function renderDetailRecords(date) {
   const list = document.getElementById('detail-list');
   if (!list) return;
-  const recs = (window._expRecords || []).filter(r => r.date === date);
+  const recs = (window._expRecords || []).filter(r => normalizeDate(r.date) === date);
   if (!recs.length) {
     list.innerHTML = '<div class="record-empty">此日無消費記錄</div>';
     return;
