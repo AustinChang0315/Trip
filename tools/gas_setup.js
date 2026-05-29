@@ -74,7 +74,9 @@ function doGet() {
     if (lastRow > 1) {
       var rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
       rows.forEach(function(row) {
-        var date = row[0] ? String(row[0]).substring(0, 10) : '';
+        var date = row[0] instanceof Date
+          ? Utilities.formatDate(row[0], 'Asia/Tokyo', 'yyyy-MM-dd')
+          : (row[0] ? String(row[0]).substring(0, 10) : '');
         var cat  = String(row[2] || '其他').trim();
         var jpy  = parseInt(row[3]) || 0;
 
