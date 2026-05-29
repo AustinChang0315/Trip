@@ -664,6 +664,15 @@ function buildExpForm() {
         <input type="text" id="e-item" placeholder="例：藏前咖啡" required>
       </div>
       <div class="field">
+        <label>支付方式</label>
+        <select id="e-pay">
+          <option>現金</option>
+          <option>寶寶信用卡</option>
+          <option>寶寶中信附卡</option>
+          <option>ㄚ鼻中信卡</option>
+        </select>
+      </div>
+      <div class="field">
         <label>金額（日圓 ¥）</label>
         <input type="number" id="e-jpy" placeholder="0" min="0" step="1"
                oninput="updTWD()" required>
@@ -685,6 +694,7 @@ async function submitExp(e) {
     date:       document.getElementById('e-date').value,
     item:       document.getElementById('e-item').value,
     category:   document.getElementById('e-cat').value,
+    payment:    document.getElementById('e-pay').value,
     amount_jpy: +document.getElementById('e-jpy').value
   };
   try {
