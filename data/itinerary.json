@@ -440,33 +440,85 @@
     {
       "day": 5,
       "date": "2026-06-28",
-      "day_title": "湘南日歸：極樂寺古道與江之島海風",
-      "note": "週日前往建議早出發避開人潮，搭乘小田急「江の島・鎌倉フリーパス」最划算（含 Enoden 全日通）。",
+      "day_title": "湘南日歸：鎌倉老街影巷與江之島神社",
+      "note": "週日前往建議早出發避開人潮，搭乘小田急「江の島・鎌倉フリーパス」最划算（含 Enoden 全日通）。路線：新宿 → 小田急 → 藤沢 → Enoden → 長谷，再一路往西至江ノ島，回程藤沢轉小田急。",
       "spots": [
         {
-          "time": "10:00",
-          "spot_name": "極樂寺（極楽寺）",
+          "time": "09:30",
+          "spot_name": "御霊神社（権五郎神社）",
+          "region_name": "鎌倉",
+          "latitude": 35.3186,
+          "longitude": 139.535,
+          "description": "江之電穿越鳥居正前方的奇景，是鎌倉最具電影感的神社。6月梅雨時節境內繡球花盛開，江之電 ＋ 鳥居 ＋ 紫陽花三重構圖是每位攝影迷必拍場景。注意境內禁止攝影，鳥居前可拍。",
+          "transport": {
+            "method": "從五反田站搭 JR 山手線至新宿站，轉小田急線急行至藤沢站，再搭 Enoden 至長谷站，步行約 5 分鐘",
+            "duration": "約 95 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=御霊神社+鎌倉&travelmode=transit"
+          }
+        },
+        {
+          "time": "10:15",
+          "spot_name": "Tanaka Barber Shop（田中理髪店）",
+          "region_name": "鎌倉",
+          "latitude": 35.3166,
+          "longitude": 139.5371,
+          "description": "坂ノ下的昭和老理髮廳，復古細緻的店面外觀是江ノ電沿線最受攝影師喜愛的靜物取景地。無需消費，站在店前感受老街留下的靜謐時光即是最美的旅行片段。",
+          "transport": {
+            "method": "從御霊神社步行",
+            "duration": "約 10 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=田中理髪店+鎌倉坂ノ下&travelmode=transit"
+          }
+        },
+        {
+          "time": "11:00",
+          "spot_name": "極楽寺（極楽寺）",
           "region_name": "鎌倉",
           "latitude": 35.3132,
           "longitude": 139.5359,
           "description": "江ノ電最神祕的小站，下車即是苔蘚覆蓋的山門與古寺。少有觀光客，6 月梅雨期青苔更是翠綠飽滿，氣氛幽靜如進入另一個時空。稻村崎海岸就在 3 分鐘步行處，可同時看海。",
           "transport": {
-            "method": "從五反田站搭 JR 山手線至新宿站，轉小田急線至藤沢站，再轉 Enoden（江ノ電）至極樂寺站",
-            "duration": "約 80 分鐘",
-            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=極楽寺駅&travelmode=transit"
+            "method": "從田中理髪店步行，或搭 Enoden 一站至極楽寺駅",
+            "duration": "步行約 20 分鐘 或 Enoden 3 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=極楽寺&travelmode=transit"
           }
         },
         {
-          "time": "12:00",
-          "spot_name": "江之島（江の島）",
+          "time": "12:30",
+          "spot_name": "片瀬漁港 白灯台",
           "region_name": "湘南・江之島",
-          "latitude": 35.299,
-          "longitude": 139.4822,
-          "description": "與本土相連的海中島嶼，島上有江島神社、展望台與新鮮海鮮丼。繞島主要路線約 2 小時，推薦走到岩屋洞窟看海蝕地形。6 月可能有薄霧但海風宜人，海鮮季節正好。",
+          "latitude": 35.3049,
+          "longitude": 139.4782,
+          "description": "片瀬漁港盡頭的白色小燈台，背景是平靜入江與江ノ島本島，是湘南海岸少有人知的清靜攝影點。漁船、白灯台與島嶼交疊，構成一幅天然明信片場景。",
           "transport": {
-            "method": "從極樂寺站搭 Enoden 往藤沢方向，至江ノ島站下車，步行 10 分鐘至島口",
-            "duration": "約 25 分鐘（Enoden）+ 步行",
-            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=江の島&travelmode=transit"
+            "method": "從極楽寺駅搭 Enoden 往藤沢方向至江ノ島駅，步行至片瀬漁港",
+            "duration": "Enoden 約 15 分鐘 ＋ 步行 10 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=片瀬漁港&travelmode=transit"
+          }
+        },
+        {
+          "time": "13:00",
+          "spot_name": "江ノ島郵便局（愛情故事取景地）",
+          "region_name": "湘南・江之島",
+          "latitude": 35.3019,
+          "longitude": 139.4816,
+          "description": "位於江ノ島入口的昭和紅色郵筒與木造外觀，是多部日本愛情故事的知名取景地。在此寄一張明信片回台灣，是最有紀念意義的旅行儀式。",
+          "transport": {
+            "method": "從片瀬漁港步行",
+            "duration": "約 10 分鐘",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=江の島郵便局&travelmode=transit"
+          }
+        },
+        {
+          "time": "13:30",
+          "spot_name": "江島神社（辺津宮・中津宮・奥津宮）",
+          "region_name": "湘南・江之島",
+          "latitude": 35.2997,
+          "longitude": 139.4831,
+          "description": "從島口沿參道依序走過三座神社：辺津宮（財運）→ 中津宮（藝術）→ 奥津宮（海洋守護），全程步行約 40 分鐘。江島神社是弁財天信仰的重要聖地，每座宮殿各有不同守護功能，推薦集齊三宮御守。",
+          "transport": {
+            "method": "從江ノ島郵便局步行進島",
+            "duration": "約 5 分鐘至島口",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=江島神社&travelmode=transit"
           }
         }
       ],
@@ -514,11 +566,11 @@
           "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=iL+CHIANTI+CAFE+江の島&travelmode=transit"
         },
         {
-          "name": "Bergfeld 鎌倉",
+          "name": "enzan lab.",
           "category": "咖啡廳",
-          "type": "德式咖啡廳",
-          "description": "長谷地區的德式糕點咖啡廳，以正統德國食譜製作的巴伐利亞甜點聞名鎌倉。古典歐風空間與鎌倉和式街景形成迷人反差。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Bergfeld+鎌倉&travelmode=transit"
+          "type": "精品咖啡",
+          "description": "湘南地區備受注目的精品咖啡廳，以職人手沖咖啡與在地食材輕食著稱。江之島散策途中最有格調的歇腳點，低調質感與湘南海岸氣息完美融合。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=enzan+lab&travelmode=transit"
         },
         {
           "name": "江の島 ENOSHIMA TERRACE",
