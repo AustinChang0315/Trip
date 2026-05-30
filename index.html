@@ -115,7 +115,9 @@
       box-shadow: 0 2px 0 var(--gold);
     }
     .hdr-title { font-size: 0.92rem; letter-spacing: 0.22em; font-weight: 400; }
+    .hdr-right { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
     .hdr-date  { font-size: 0.68rem; color: rgba(255,255,255,0.58); letter-spacing: 0.06em; }
+    #hdr-weather { font-size: 0.62rem; color: rgba(255,255,255,0.72); letter-spacing: 0.03em; }
 
     /* ── Tabs ── */
     .tabs {
@@ -410,7 +412,10 @@
 <div id="app" hidden>
   <header class="hdr">
     <div class="hdr-title">東京自由行 2026</div>
-    <div class="hdr-date" id="hdr-date"></div>
+    <div class="hdr-right">
+      <div class="hdr-date" id="hdr-date"></div>
+      <div id="hdr-weather"></div>
+    </div>
   </header>
 
   <div id="countdown" hidden></div>
@@ -534,6 +539,7 @@ async function boot() {
 
   // 2. 天氣在背景非阻塞載入
   fetchWeather(itinerary);
+  fetchTodayHeaderWeather();
 
   // 3. 統計資料在背景載入，不阻擋行程顯示
   const gasReady = GAS_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
@@ -638,6 +644,34 @@ function spotHTML(s, dayDate, spotIdx) {
         ${navBtn}
       </div>
     </div>`;
+}
+
+// ══════════════════════════════
+//  HEADER TODAY WEATHER（手機當下 GPS）
+// ══════════════════════════════
+function fetchTodayHeaderWeather() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+    try {
+      const today = todayStr();
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}`
+        + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max`
+        + `&timezone=auto&start_date=${today}&end_date=${today}`;
+      const r = await fetch(url);
+      const j = await r.json();
+      const d = j.daily;
+      if (!d?.time?.length) return;
+      const tMax = Math.round(d.temperature_2m_max[0]);
+      const tMin = Math.round(d.temperature_2m_min[0]);
+      const prob = d.precipitation_probability_max[0] ?? 0;
+      const rain = d.precipitation_sum[0] ?? 0;
+      const hdrEl = document.getElementById('hdr-weather');
+      if (!hdrEl) return;
+      let txt = `${tMax}°↕${tMin}° · ☔${prob}%`;
+      if (rain > 0 || prob > 30) txt += ' · ☂帶傘';
+      hdrEl.textContent = txt;
+    } catch {}
+  }, () => {}, { timeout: 8000 });
 }
 
 // ══════════════════════════════
