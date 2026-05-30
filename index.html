@@ -209,6 +209,37 @@
     }
     .transport-dur { color: #c0a0b0; }
 
+    /* dining */
+    .dining-section {
+      margin: 12px 16px 16px;
+      padding: 14px 16px;
+      background: rgba(250,245,236,0.9);
+      border-radius: 10px;
+      border: 1px solid rgba(196,144,90,0.28);
+    }
+    .dining-label {
+      font-size: 0.63rem; letter-spacing: 0.18em; color: var(--gold);
+      font-weight: 600; margin-bottom: 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dining-label::after { content: ''; flex: 1; height: 1px; background: rgba(196,144,90,0.2); }
+    .dining-card { padding: 10px 0; border-bottom: 1px solid rgba(196,144,90,0.12); }
+    .dining-card:last-child { border-bottom: none; padding-bottom: 0; }
+    .dining-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .dining-name { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+    .dining-type {
+      font-size: 0.58rem; color: var(--gold);
+      background: rgba(196,144,90,0.13); padding: 2px 7px;
+      border-radius: 10px; letter-spacing: 0.06em; flex-shrink: 0;
+    }
+    .dining-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.65; margin-bottom: 9px; }
+    .dining-nav {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.7rem; color: var(--gold);
+      border: 1px solid rgba(196,144,90,0.45); padding: 5px 12px; border-radius: 14px;
+    }
+    .dining-nav svg { width: 10px; height: 10px; fill: currentColor; }
+
     /* nav button */
     .nav-btn {
       display: inline-flex; align-items: center; gap: 5px;
@@ -612,9 +643,30 @@ function buildPanels(days) {
     } else {
       html += `<div class="timeline">` + day.spots.map((s, si) => spotHTML(s, day.date, si)).join('') + `</div>`;
     }
+    if (day.dining?.length) html += diningHTML(day.dining);
     div.innerHTML = html;
     main.appendChild(div);
   });
+}
+
+function diningHTML(items) {
+  const cards = items.map(d => `
+    <div class="dining-card">
+      <div class="dining-card-top">
+        <span class="dining-name">${d.name}</span>
+        <span class="dining-type">${d.type}</span>
+      </div>
+      <div class="dining-desc">${d.description}</div>
+      ${d.google_maps_url ? `
+        <a href="${d.google_maps_url}" target="_blank" rel="noopener" class="dining-nav">
+          <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>
+          前往導航
+        </a>` : ''}
+    </div>`).join('');
+  return `<div class="dining-section">
+    <div class="dining-label">🍽 周邊美食</div>
+    ${cards}
+  </div>`;
 }
 
 function spotHTML(s, dayDate, spotIdx) {

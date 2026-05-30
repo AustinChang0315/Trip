@@ -90,6 +90,14 @@
             "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=中目黒駅&travelmode=transit"
           }
         }
+      ],
+      "dining": [
+        {
+          "name": "NEEL コーヒー",
+          "type": "咖啡廳",
+          "description": "隱身中目黑的精品咖啡館，以嚴選單品豆與手工甜點著稱。低調的空間設計與目黑川散策節奏完全契合，是代官山行程最完美的句點。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=NEEL+coffee+中目黒&travelmode=transit"
+        }
       ]
     },
     {
@@ -122,6 +130,14 @@
             "duration": "約 20 分鐘",
             "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=雷門&travelmode=transit"
           }
+        }
+      ],
+      "dining": [
+        {
+          "name": "淺草 今半（今半）",
+          "type": "壽喜燒",
+          "description": "明治28年創業的百年壽喜燒老鋪，淺草本店就在雷門附近。選用黑毛和牛，以關東甜辛口割下鍋，是東京最具代表性的壽喜燒體驗之一。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=浅草今半+本店&travelmode=transit"
         }
       ]
     },
