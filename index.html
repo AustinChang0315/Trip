@@ -654,20 +654,32 @@ function fetchTodayHeaderWeather() {
   navigator.geolocation.getCurrentPosition(async ({ coords }) => {
     try {
       const today = todayStr();
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}`
+      const { latitude: lat, longitude: lon } = coords;
+      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
         + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max`
         + `&timezone=auto&start_date=${today}&end_date=${today}`;
-      const r = await fetch(url);
-      const j = await r.json();
+      const geoUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`;
+
+      const [weatherRes, geoRes] = await Promise.all([
+        fetch(weatherUrl),
+        fetch(geoUrl, { headers: { 'Accept-Language': 'zh-TW,zh' } })
+      ]);
+      const [j, geo] = await Promise.all([weatherRes.json(), geoRes.json()]);
+
       const d = j.daily;
       if (!d?.time?.length) return;
       const tMax = Math.round(d.temperature_2m_max[0]);
       const tMin = Math.round(d.temperature_2m_min[0]);
       const prob = d.precipitation_probability_max[0] ?? 0;
       const rain = d.precipitation_sum[0] ?? 0;
+
+      const a = geo.address || {};
+      const area = a.city || a.town || a.county || a.state || '';
+
       const hdrEl = document.getElementById('hdr-weather');
       if (!hdrEl) return;
-      let txt = `${tMax}°↕${tMin}° · ☔${prob}%`;
+      let txt = area ? `${area} · ` : '';
+      txt += `${tMax}°↕${tMin}° · ☔${prob}%`;
       if (rain > 0 || prob > 30) txt += ' · ☂帶傘';
       hdrEl.textContent = txt;
     } catch {}
