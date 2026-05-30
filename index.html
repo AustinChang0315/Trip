@@ -239,6 +239,13 @@
       border: 1px solid rgba(196,144,90,0.45); padding: 5px 12px; border-radius: 14px;
     }
     .dining-nav svg { width: 10px; height: 10px; fill: currentColor; }
+    .dining-group { margin-bottom: 12px; }
+    .dining-group:last-child { margin-bottom: 0; }
+    .dining-group-label {
+      font-size: 0.58rem; letter-spacing: 0.12em; color: var(--muted);
+      font-weight: 600; margin-bottom: 6px; padding-bottom: 4px;
+      border-bottom: 1px dashed rgba(196,144,90,0.22);
+    }
 
     /* nav button */
     .nav-btn {
@@ -650,7 +657,14 @@ function buildPanels(days) {
 }
 
 function diningHTML(items) {
-  const cards = items.map(d => `
+  const order = ['早餐', '午餐', '晚餐', '咖啡廳'];
+  const icons  = { '早餐': '☀', '午餐': '🍱', '晚餐': '🌙', '咖啡廳': '☕' };
+  const groups = {};
+  items.forEach(d => {
+    const cat = d.category || '其他';
+    (groups[cat] = groups[cat] || []).push(d);
+  });
+  const cardHTML = d => `
     <div class="dining-card">
       <div class="dining-card-top">
         <span class="dining-name">${d.name}</span>
@@ -662,10 +676,15 @@ function diningHTML(items) {
           <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>
           前往導航
         </a>` : ''}
+    </div>`;
+  const sections = order.filter(c => groups[c]).map(c => `
+    <div class="dining-group">
+      <div class="dining-group-label">${icons[c] || ''} ${c}</div>
+      ${groups[c].map(cardHTML).join('')}
     </div>`).join('');
   return `<div class="dining-section">
     <div class="dining-label">🍽 周邊美食</div>
-    ${cards}
+    ${sections}
   </div>`;
 }
 

@@ -93,10 +93,46 @@
       ],
       "dining": [
         {
+          "name": "AFURI 恵比寿",
+          "category": "午餐",
+          "type": "柚子拉麵",
+          "description": "招牌柚子鹽味拉麵以清爽高湯著稱，細麵搭配柴魚昆布湯底，是代官山散策後最清新的一頓午餐。惠比壽站附近步行可達。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=AFURI+恵比寿&travelmode=transit"
+        },
+        {
+          "name": "IVY PLACE",
+          "category": "午餐",
+          "type": "西式餐廳",
+          "description": "藏身代官山 T-SITE 蔦屋書店園區內的美式花園餐廳，全天候供應早午餐與輕食，逛完書店後在此坐下來用餐最完美。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=IVY+PLACE+代官山&travelmode=transit"
+        },
+        {
+          "name": "鳥しき",
+          "category": "晚餐",
+          "type": "焼き鳥",
+          "description": "米其林一星燒鳥名店，以備長炭仔細串烤地雞各部位，每一串都是主廚的精準作品。座位少需提前預約，中目黑站步行 3 分鐘。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=鳥しき+中目黒&travelmode=transit"
+        },
+        {
+          "name": "農家の台所 中目黒",
+          "category": "晚餐",
+          "type": "創作和食",
+          "description": "農家直送無農藥蔬菜為主角的創作和食，擺盤精緻自然。目黑川沿岸散步後的晚餐首選，供應多種蔬菜小菜與定食套餐。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=農家の台所+中目黒&travelmode=transit"
+        },
+        {
           "name": "NEEL コーヒー",
-          "type": "咖啡廳",
+          "category": "咖啡廳",
+          "type": "精品咖啡",
           "description": "隱身中目黑的精品咖啡館，以嚴選單品豆與手工甜點著稱。低調的空間設計與目黑川散策節奏完全契合，是代官山行程最完美的句點。",
           "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=NEEL+coffee+中目黒&travelmode=transit"
+        },
+        {
+          "name": "Onibus Coffee 代官山",
+          "category": "咖啡廳",
+          "type": "精品咖啡",
+          "description": "東京自家烘焙精品咖啡代表品牌，代官山店選址於安靜住宅區，空間小而精緻，是代官山散策中最推薦的咖啡停留點。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Onibus+Coffee+代官山&travelmode=transit"
         }
       ]
     },
@@ -134,10 +170,60 @@
       ],
       "dining": [
         {
-          "name": "淺草 今半（今半）",
+          "name": "ペリカンカフェ 浅草",
+          "category": "早餐",
+          "type": "咖啡廳",
+          "description": "昭和17年創業老舖麵包店「ペリカン」的直營咖啡館，厚切吐司搭配新鮮奶油是招牌，全天候供應早餐菜單。淺草寺散策前的最佳晨間選擇。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ペリカンカフェ+浅草&travelmode=transit"
+        },
+        {
+          "name": "MISOJYU",
+          "category": "早餐",
+          "type": "和食早餐",
+          "description": "以「一湯一飯」為概念的味噌湯專門店，每日提供多種食材的手工味噌湯定食，是感受下町生活節奏最在地的早晨體驗。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=MISOJYU+浅草&travelmode=transit"
+        },
+        {
+          "name": "四川担々麺 阿吽",
+          "category": "午餐",
+          "type": "四川擔擔麵",
+          "description": "正統四川麻辣擔擔麵，花椒香氣濃烈但層次分明，是淺草隱藏的高人氣餐廳。建議中午前往避開排隊人潮。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=四川担々麺+阿吽+浅草&travelmode=transit"
+        },
+        {
+          "name": "浅草ひら山",
+          "category": "午餐",
+          "type": "手打蕎麥麵",
+          "description": "淺草老牌手打蕎麥麵店，每日現磨蕎麥粉製作，湯底清澈甘甜。配上精緻的出汁小菜，是感受江戶正統蕎麥文化的好去處。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=浅草ひら山&travelmode=transit"
+        },
+        {
+          "name": "淺草 今半",
+          "category": "晚餐",
           "type": "壽喜燒",
           "description": "明治28年創業的百年壽喜燒老鋪，淺草本店就在雷門附近。選用黑毛和牛，以關東甜辛口割下鍋，是東京最具代表性的壽喜燒體驗之一。",
           "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=浅草今半+本店&travelmode=transit"
+        },
+        {
+          "name": "駒形どぜう",
+          "category": "晚餐",
+          "type": "江戶料理",
+          "description": "文化4年（1807年）創業，東京最古老餐廳之一。以泥鰍鍋（どぜう鍋）為招牌，坐在傳統榻榻米上品嚐江戶庶民料理，是淺草最不可取代的飲食體驗。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=駒形どぜう&travelmode=transit"
+        },
+        {
+          "name": "HAGI CAFE",
+          "category": "咖啡廳",
+          "type": "文青咖啡廳",
+          "description": "1955年築老公寓改建的咖啡廳，入選食べログ咖啡百名店2025。谷中銀座散策後在此歇腳，感受下町慢節奏最適合不過。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=HAGISO+谷中&travelmode=transit"
+        },
+        {
+          "name": "Yanaka Coffee",
+          "category": "咖啡廳",
+          "type": "老舖咖啡",
+          "description": "谷中銀座商店街的在地老舖，自家烘焙咖啡豆，可以外帶邊走邊喝。與周圍的貓咪老街完全融合，是谷中散策的定番停留點。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=谷中コーヒー&travelmode=transit"
         }
       ]
     },
@@ -159,6 +245,64 @@
             "duration": "約 50 分鐘",
             "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit"
           }
+        }
+      ],
+      "dining": [
+        {
+          "name": "東京豆漿生活 五反田",
+          "category": "早餐",
+          "type": "台式早餐",
+          "description": "出發前在五反田享用台灣式豆漿早餐，宮城縣產大豆現磨豆漿搭配燒餅油條。出發迪士尼前最有元氣的一頓，五反田站徒步約 5 分鐘。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=東京豆漿生活+五反田&travelmode=transit"
+        },
+        {
+          "name": "BECK'S COFFEE 五反田",
+          "category": "早餐",
+          "type": "輕食咖啡",
+          "description": "JR五反田站內的咖啡站，提供三明治與晨間套餐，適合趕往舞濱前快速補充能量，搭車前順手帶走。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=BECKS+COFFEE+五反田&travelmode=transit"
+        },
+        {
+          "name": "マゼランズ（Magellan's）",
+          "category": "午餐",
+          "type": "歐式料理",
+          "description": "迪士尼海洋最高人氣正式餐廳，大航海時代主題、歐式套餐料理。強烈建議事先在 Disney 官方 App 預約座位。【園內】",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit"
+        },
+        {
+          "name": "ケープコッド・クックオフ",
+          "category": "午餐",
+          "type": "美式料理",
+          "description": "新英格蘭海港主題的快餐廳，提供烤雞腿與豬肋排，性價比高，適合不想花太多時間排隊等座的輕鬆午餐。【園內】",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit"
+        },
+        {
+          "name": "リストランテ・ディ・カナレット",
+          "category": "晚餐",
+          "type": "義式料理",
+          "description": "俯瞰地中海港灣的義大利正式餐廳，夜景絕美。需在 Disney App 預約，是迪士尼海洋最具氣氛的晚餐選擇。【園內】",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit"
+        },
+        {
+          "name": "ヴォルケイニア・レストラン",
+          "category": "晚餐",
+          "type": "加勒比料理",
+          "description": "神秘火山背景的加勒比海風料理餐廳，提供雞肉咖哩飯，是迪士尼海洋價格最親民的正式餐廳之一。【園內】",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit"
+        },
+        {
+          "name": "スチーマーライン・カフェテリア",
+          "category": "咖啡廳",
+          "type": "園內輕食",
+          "description": "美國海濱港灣區的快取咖啡站，提供咖啡、可可與輕食，是在港邊歇腳的完美地點，邊喝邊欣賞地中海港景色。【園內】",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit"
+        },
+        {
+          "name": "スターバックス 舞浜イクスピアリ",
+          "category": "咖啡廳",
+          "type": "精品咖啡",
+          "description": "回程途中在舞濱 Ikspiari 商場內的星巴克做個甜蜜收尾，氣氛比一般門市更有度假感，適合坐下整理一天的美好回憶。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=スターバックス+舞浜イクスピアリ&travelmode=transit"
         }
       ]
     },
@@ -233,6 +377,64 @@
             "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=SHIBUYA+SKY&travelmode=transit"
           }
         }
+      ],
+      "dining": [
+        {
+          "name": "Cafe Patricia 川越",
+          "category": "早餐",
+          "type": "咖啡輕食",
+          "description": "川越站西口步行4分鐘，使用東京目黑名店 Prologue 豆子製作的本格咖啡，搭配季節限定餐點，是開始川越散策前的完美早晨。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=cafe+patricia+川越&travelmode=transit"
+        },
+        {
+          "name": "Tomarigi Coffee 川越",
+          "category": "早餐",
+          "type": "自家烘焙咖啡",
+          "description": "早上7時半開始營業的自家烘焙咖啡店，提供簡單早餐套餐，是川越在地人的早晨秘密基地。蔵造老街散策前先來補充能量。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=トマリギコーヒー+川越&travelmode=transit"
+        },
+        {
+          "name": "小川菊 川越",
+          "category": "午餐",
+          "type": "鰻魚飯",
+          "description": "文化12年（1815年）創業的川越老舖鰻魚飯名店，備長炭炭烤後再蒸製，鰻魚飽滿柔嫩，是川越最具代表性的午餐體驗。建議提早到店或電話預約。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=小川菊+川越&travelmode=transit"
+        },
+        {
+          "name": "百丈 川越",
+          "category": "午餐",
+          "type": "川越定食",
+          "description": "位於蔵造老街的川越名物料理餐廳，以川越產味噌與在地食材製作定食，蕎麥與豆腐套餐具有濃厚地方風情，感受小江戶飲食文化的好選擇。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=百丈+川越&travelmode=transit"
+        },
+        {
+          "name": "Legato 渋谷",
+          "category": "晚餐",
+          "type": "義式料理",
+          "description": "澀谷 Hikarie 11樓的空中義大利餐廳，居高臨下的城市夜景配上精緻義式料理，是澀谷 SKY 觀景台後的最佳晚餐選擇，強烈建議提前預約。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Legato+渋谷&travelmode=transit"
+        },
+        {
+          "name": "牛かつ もと村 渋谷",
+          "category": "晚餐",
+          "type": "牛排炸物",
+          "description": "以低溫油炸保留鮮嫩肉汁的牛排炸物專門店，搭配麥飯與山藥泥，是東京近年人氣高漲的新派炸物料理，澀谷店位置方便。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=牛かつもと村+渋谷&travelmode=transit"
+        },
+        {
+          "name": "8+8 Cafe 川越",
+          "category": "咖啡廳",
+          "type": "農業咖啡廳",
+          "description": "農家直送無農藥蔬菜入菜的農業咖啡廳，米飯與蔬菜皆出自自家農場，米粉製作的戚風蛋糕是招牌，是川越最具在地溫度的咖啡廳。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=8plus8cafe+川越&travelmode=transit"
+        },
+        {
+          "name": "大正浪漫喫茶 蔵里",
+          "category": "咖啡廳",
+          "type": "古民家咖啡",
+          "description": "蔵造街道上的大正浪漫風格咖啡廳，在保留昭和建築風情的空間裡品嚐手工甜點與咖啡，是川越最有時代感的下午茶空間。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=大正浪漫夢通り+川越&travelmode=transit"
+        }
       ]
     },
     {
@@ -267,6 +469,64 @@
             "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=江の島&travelmode=transit"
           }
         }
+      ],
+      "dining": [
+        {
+          "name": "ヨリドコロ 稲村ヶ崎",
+          "category": "早餐",
+          "type": "和食早餐",
+          "description": "大正時代民家改建的海濱早餐名店，以獨特的泡沫蛋黃卵かけご飯（TKG）聞名，從窗邊可望見江之電奔馳而過。是鎌倉最具詩意的晨間體驗，建議提早排隊。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ヨリドコロ+稲村ヶ崎&travelmode=transit"
+        },
+        {
+          "name": "BREEZE BIRD CAFE & BAKERY",
+          "category": "早餐",
+          "type": "麵包咖啡廳",
+          "description": "江之電和田塚站前的麵包咖啡廳，每日以天然酵母製作10種以上麵包，搭配手沖咖啡是鎌倉最清新的晨間選擇，在地人氣極高。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=BREEZE+BIRD+CAFE+鎌倉&travelmode=transit"
+        },
+        {
+          "name": "とびっちょ 江の島",
+          "category": "午餐",
+          "type": "生しらす丼",
+          "description": "江之島最具代表性的白魚丼（しらす丼）名店，使用當天早晨捕撈的鮮活白魚。6月正是白魚旺季，是江之島必吃的鮮味體驗，建議避開正午人潮。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=とびっちょ+江の島&travelmode=transit"
+        },
+        {
+          "name": "TODAI KITCHEN DELI & TEA",
+          "category": "午餐",
+          "type": "地產地消",
+          "description": "江之島海蠟燭瞭望台旁的地產地消餐廳，使用湘南藤沢產小麥製作漢堡麵包，搭配本地食材，可在絕景露台邊看海邊用餐。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=TODAI+KITCHEN+江の島&travelmode=transit"
+        },
+        {
+          "name": "Amalfi Della Sera 江の島",
+          "category": "晚餐",
+          "type": "義式料理",
+          "description": "江之島面海的露台義大利餐廳，以高溫石窯烤出的拿坡里披薩配上湘南海景，夕陽西沈時氣氛絕美，是江之島行程最完美的收尾。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=アマルフィ+デッラ+セーラ+江の島&travelmode=transit"
+        },
+        {
+          "name": "iL CHIANTI CAFE 江の島",
+          "category": "晚餐",
+          "type": "義式料理",
+          "description": "在迷人的海風中享用正統義大利料理，是江之島長期受在地人喜愛的名店。可於露台座位感受湘南海岸的暮色，讓時間在此放慢。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=iL+CHIANTI+CAFE+江の島&travelmode=transit"
+        },
+        {
+          "name": "Bergfeld 鎌倉",
+          "category": "咖啡廳",
+          "type": "德式咖啡廳",
+          "description": "長谷地區的德式糕點咖啡廳，以正統德國食譜製作的巴伐利亞甜點聞名鎌倉。古典歐風空間與鎌倉和式街景形成迷人反差。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Bergfeld+鎌倉&travelmode=transit"
+        },
+        {
+          "name": "江の島 ENOSHIMA TERRACE",
+          "category": "咖啡廳",
+          "type": "海景咖啡",
+          "description": "江之島神社參道途中的露天咖啡廳，邊喝咖啡邊俯瞰湘南海岸線。6月的薄霧與碧海交織，是逛完島嶼後最想回來歇腳的地方。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ENOSHIMA+TERRACE&travelmode=transit"
+        }
       ]
     },
     {
@@ -275,19 +535,6 @@
       "day_title": "最終早晨：麻布台之丘 → 羽田起飛",
       "note": "班機 14:30，國際線建議 12:30 前抵達羽田（提早 2 小時）。行李可寄放飯店，輕裝出發，11:00 前離開麻布台之丘直奔機場。",
       "spots": [
-        {
-          "time": "14:30",
-          "spot_name": "回程 CI 0221｜羽田 14:30 → 松山 16:55",
-          "region_name": "羽田・東京灣",
-          "latitude": 35.5494,
-          "longitude": 139.7798,
-          "description": "中華航空 CI 0221，飛行時間約 3 小時 25 分。東京羽田 (HND) 14:30 起飛，台北松山 (TSA) 16:55 抵達。訂位代號：DQ4JMF。國際線建議 12:30 前完成報到手續。",
-          "transport": {
-            "method": "羽田空港第3ターミナル 辦理登機手續，行李可事先寄放飯店輕裝出發",
-            "duration": "建議 12:30 前抵達機場",
-            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit"
-          }
-        },
         {
           "time": "09:00",
           "spot_name": "麻布台之丘（Azabudai Hills）",
@@ -313,6 +560,49 @@
             "duration": "約 40-50 分鐘",
             "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit"
           }
+        },
+        {
+          "time": "14:30",
+          "spot_name": "回程 CI 0221｜羽田 14:30 → 松山 16:55",
+          "region_name": "羽田・東京灣",
+          "latitude": 35.5494,
+          "longitude": 139.7798,
+          "description": "中華航空 CI 0221，飛行時間約 3 小時 25 分。東京羽田 (HND) 14:30 起飛，台北松山 (TSA) 16:55 抵達。訂位代號：DQ4JMF。國際線建議 12:30 前完成報到手續。",
+          "transport": {
+            "method": "羽田空港第3ターミナル 辦理登機手續，行李可事先寄放飯店輕裝出發",
+            "duration": "建議 12:30 前抵達機場",
+            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit"
+          }
+        }
+      ],
+      "dining": [
+        {
+          "name": "ペリカンカフェ 麻布台ヒルズ",
+          "category": "早餐",
+          "type": "咖啡廳",
+          "description": "昭和17年創業「ペリカン」麵包的麻布台之丘店，從早上8點起供應厚片吐司套餐。森JP塔下的從容早晨，是返台前最後一個東京記憶的最佳場景。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ペリカンカフェ+麻布台ヒルズ&travelmode=transit"
+        },
+        {
+          "name": "%Arabica 麻布台ヒルズ",
+          "category": "早餐",
+          "type": "精品咖啡",
+          "description": "以「%」LOGO聞名全球的京都精品咖啡品牌，麻布台之丘店設計極具未來感。一杯手沖單品咖啡搭配可頌，是出發機場前最有格調的旅程收尾。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=アラビカ+麻布台ヒルズ&travelmode=transit"
+        },
+        {
+          "name": "TOKYO JUICE 麻布台ヒルズ",
+          "category": "咖啡廳",
+          "type": "有機果汁",
+          "description": "以「Eat Clean, Be Happy」為理念的有機冷壓果汁吧，使用農藥零殘留蔬果製作。麻布台之丘的空中庭園裡喝一杯清爽果汁，為旅程畫下健康的句點。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=TOKYO+JUICE+麻布台ヒルズ&travelmode=transit"
+        },
+        {
+          "name": "Balcony by 6th 麻布台ヒルズ",
+          "category": "咖啡廳",
+          "type": "空中花園咖啡",
+          "description": "麻布台之丘空中庭園的高台咖啡吧，以森JP塔建築為背景，提供精選咖啡與甜點。整個旅程中最有設計感的最後一個咖啡廳，適合拍照留念。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Balcony+by+6th+麻布台ヒルズ&travelmode=transit"
         }
       ]
     }
