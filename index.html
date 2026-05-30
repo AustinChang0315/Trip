@@ -177,7 +177,14 @@
       border: 2px solid var(--bg);
       outline: 1px solid var(--accent);
     }
-    .spot.airport .spot-dot::before { background: var(--muted); outline-color: var(--muted); }
+    .spot.airport .spot-dot::before { background: var(--gold); outline-color: var(--gold); }
+    .spot.airport .spot-time { color: var(--gold); font-weight: 600; }
+    .spot.airport .spot-body {
+      background: rgba(245,238,218,0.85);
+      border-color: rgba(196,144,90,0.35);
+      border-left-color: var(--gold);
+    }
+    .spot.airport .spot-name { color: #7a5020; }
     .spot-body {
       flex: 1; margin-left: 16px;
       background: var(--surface); border: 1px solid var(--border);
