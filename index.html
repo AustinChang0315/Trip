@@ -2,337 +2,313 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#8a2040">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Tokyo 2026">
+  <meta name="apple-mobile-web-app-title" content="東京自由行">
+  <meta name="theme-color" content="#5c6b8a">
+  <title>東京自由行</title>
   <link rel="manifest" href="manifest.json">
-  <title>東京自由行 2026</title>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww&libraries=places&language=zh-TW" defer></script>
   <style>
-    /* ── Variables ── */
+    /* ── Design Tokens ─────────────────────────────────── */
     :root {
-      --bg:          #fdf0f3;
-      --surface:     #fff8fa;
-      --border:      #ecc5d0;
-      --text:        #3d2030;
-      --muted:       #9e7080;
-      --accent:      #c04068;
-      --accent-lt:   #f2c0d0;
-      --accent-deep: #8a2040;
-      --green:       #6b9e74;
-      --red:         #c04545;
-      --gold:        #c4905a;
-      --header-h:    54px;
-      --tab-h:       50px;
+      --bg:           #f4f2ee;
+      --surface:      #ffffff;
+      --surface-sub:  #fdfcfb;
+      --border:       #e5e0d8;
+      --border-lt:    #ede9e2;
+      --text-1:       #2a2520;
+      --text-2:       #6b6560;
+      --text-3:       #9c9790;
+      --accent:       #5c6b8a;
+      --accent-lt:    #edf0f5;
+      --accent-bd:    #c8d0de;
+      --accent-deep:  #3d4e6a;
+      --sage:         #7a8f7e;
+      --sage-lt:      #f0f5f1;
+      --red:          #b05a5a;
+      --gold:         #a07840;
+      --gold-lt:      #f7f2e8;
+      --tl-line:      #d8d3cc;
+      --r:            12px;
+      --r-sm:         8px;
+      --shadow:       0 1px 4px rgba(42,37,32,.06), 0 4px 16px rgba(42,37,32,.04);
+      --font:         -apple-system,'Hiragino Sans','Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;
     }
 
-    /* ── Reset ── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { -webkit-text-size-adjust: 100%; font-size: 15px; }
-    body {
-      font-family: -apple-system, 'Hiragino Sans', 'Noto Sans CJK TC', sans-serif;
-      background: var(--bg); color: var(--text); line-height: 1.65;
-    }
-    button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+    /* ── Reset ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html { font-size: 15px; -webkit-text-size-adjust: 100%; }
+    body { font-family: var(--font); background: var(--bg); color: var(--text-1); min-height: 100vh; line-height: 1.6; }
+    a    { text-decoration: none; }
+    button { font-family: var(--font); border: none; cursor: pointer; background: none; }
     input, select, textarea { font: inherit; }
-    a { color: inherit; text-decoration: none; }
 
-    /* ── Gate ── */
-    #gate {
-      position: fixed; inset: 0; z-index: 999;
-      background: linear-gradient(150deg, #fce8ef 0%, #f8d5e6 55%, #f6e2ec 100%);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 22px;
-      overflow: hidden;
+    /* ── Auth Overlay ──────────────────────────────────── */
+    #auth-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: var(--bg);
+      display: none; align-items: center; justify-content: center; padding: 32px;
     }
-    #gate::before {
-      content: ''; position: absolute; pointer-events: none;
-      width: 380px; height: 380px; border-radius: 50%;
-      border: 1px solid rgba(192,64,104,0.1);
-      top: 50%; left: 50%; transform: translate(-50%, -50%);
+    .auth-card { width: 100%; max-width: 300px; text-align: center; }
+    .auth-icon { font-size: 44px; display: block; margin-bottom: 20px; }
+    .auth-title { font-size: 1.25rem; font-weight: 700; color: var(--text-1); letter-spacing: .04em; margin-bottom: 4px; }
+    .auth-sub   { font-size: .78rem; color: var(--text-3); letter-spacing: .1em; margin-bottom: 44px; }
+    #auth-input {
+      width: 100%; padding: 16px 24px;
+      border: 1.5px solid var(--border); border-radius: var(--r);
+      font-size: 1.6rem; letter-spacing: .6em; text-align: center;
+      background: var(--surface); color: var(--text-1);
+      outline: none; -webkit-appearance: none; transition: border-color .2s; margin-bottom: 10px;
     }
-    #gate::after {
-      content: ''; position: absolute; pointer-events: none;
-      width: 560px; height: 560px; border-radius: 50%;
-      border: 1px solid rgba(192,64,104,0.06);
-      top: 50%; left: 50%; transform: translate(-50%, -50%);
-    }
-    #gate.hidden { display: none; }
+    #auth-input:focus { border-color: var(--accent); }
+    #auth-error { font-size: .78rem; color: var(--red); min-height: 20px; }
+    .auth-hint  { margin-top: 28px; font-size: .72rem; color: var(--text-3); letter-spacing: .05em; }
 
-    .gate-kamon {
-      width: 62px; height: 62px; border-radius: 50%;
-      border: 1.5px solid rgba(138,32,64,0.3);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.7rem; color: rgba(138,32,64,0.45);
-      position: relative; flex-shrink: 0; z-index: 1;
-    }
-    .gate-kamon::before {
-      content: ''; position: absolute; inset: 5px;
-      border: 1px solid rgba(138,32,64,0.15); border-radius: 50%;
-    }
-    .gate-title {
-      font-size: 2.4rem; letter-spacing: 0.5em;
-      color: var(--accent-deep); font-weight: 300; z-index: 1;
-    }
-    .gate-sub {
-      font-size: 0.7rem; letter-spacing: 0.32em;
-      color: var(--muted); margin-top: -14px; z-index: 1;
-    }
-    .gate-rule {
-      width: 72px; height: 1px; z-index: 1;
-      background: linear-gradient(90deg, transparent, var(--accent-lt), transparent);
-    }
-    .gate-box { display: flex; flex-direction: column; gap: 12px; width: 220px; z-index: 1; }
-    .gate-input {
-      text-align: center; font-size: 1.8rem; letter-spacing: 0.6em;
-      padding: 12px 8px; border: 1px solid var(--border);
-      background: rgba(255,255,255,0.75); border-radius: 10px; outline: none;
-      color: var(--text);
-    }
-    .gate-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(192,64,104,0.1); }
-    .gate-btn {
-      padding: 13px; background: var(--accent); color: #fff;
-      border-radius: 10px; font-size: 0.88rem; letter-spacing: 0.15em;
-    }
-    .gate-err {
-      font-size: 0.75rem; color: var(--red);
-      text-align: center; min-height: 1em;
-    }
+    /* ── App Shell ─────────────────────────────────────── */
+    #app { display: none; }
 
-    /* ── App ── */
-    #app { display: flex; flex-direction: column; min-height: 100dvh; }
-    #app[hidden] { display: none; }
-
-    /* ── Header ── */
-    .hdr {
+    /* ── Header ────────────────────────────────────────── */
+    .app-header {
       position: sticky; top: 0; z-index: 100;
-      height: var(--header-h);
-      background: var(--accent-deep);
+      background: var(--accent-deep); border-bottom: 1px solid var(--accent);
       color: #fff;
-      display: flex; align-items: center;
-      justify-content: space-between; padding: 0 18px;
-      box-shadow: 0 2px 0 var(--gold);
     }
-    .hdr-title { font-size: 0.92rem; letter-spacing: 0.22em; font-weight: 400; }
-    .hdr-right { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
-    .hdr-date  { font-size: 0.68rem; color: rgba(255,255,255,0.58); letter-spacing: 0.06em; }
-    #hdr-weather { font-size: 0.62rem; color: rgba(255,255,255,0.72); letter-spacing: 0.03em; }
+    .trip-banner {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 20px 8px;
+    }
+    .trip-banner-title { font-size: .92rem; font-weight: 600; letter-spacing: .12em; }
+    .trip-banner-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+    .trip-banner-dates { font-size: .68rem; color: rgba(255,255,255,.58); letter-spacing: .06em; }
+    #hdr-weather       { font-size: .62rem; color: rgba(255,255,255,.72); letter-spacing: .03em; }
 
-    /* ── Tabs ── */
-    .tabs {
-      position: sticky; top: var(--header-h); z-index: 99;
-      display: flex; overflow-x: auto; background: var(--surface);
-      border-bottom: 1px solid var(--border); scrollbar-width: none;
+    /* Day Tabs */
+    .day-tabs { display: flex; overflow-x: auto; gap: 8px; padding: 0 16px 12px; scrollbar-width: none; -ms-overflow-style: none; }
+    .day-tabs::-webkit-scrollbar { display: none; }
+    .day-tab {
+      flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 7px 14px; border-radius: var(--r-sm);
+      border: 1.5px solid rgba(255,255,255,.2);
+      background: transparent; color: rgba(255,255,255,.55);
+      transition: border-color .18s, background .18s, color .18s;
     }
-    .tabs::-webkit-scrollbar { display: none; }
-    .tab {
-      flex: 0 0 auto; padding: 9px 15px;
-      font-size: 0.73rem; color: var(--muted);
-      border-bottom: 2px solid transparent; text-align: center;
-      white-space: nowrap; line-height: 1.3;
-    }
-    .tab span { display: block; font-size: 0.62rem; color: #c8a0b8; margin-top: 1px; }
-    .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-    .tab.is-today { color: var(--green); }
-    .tab.is-today.active { border-bottom-color: var(--green); }
+    .day-tab:active { transform: scale(.97); }
+    .day-tab.active { border-color: rgba(255,255,255,.9); background: rgba(255,255,255,.15); color: #fff; }
+    .tab-label { font-size: .7rem; font-weight: 700; letter-spacing: .06em; }
+    .tab-date  { font-size: .65rem; white-space: nowrap; opacity: .85; }
 
-    /* ── Day panel ── */
-    .panel { display: none; padding: 16px; }
-    .panel.active { display: block; }
-    .panel-note {
-      background: rgba(255,240,246,0.9); border-left: 3px solid var(--accent-lt);
-      padding: 10px 12px; margin-bottom: 16px; border-radius: 0 6px 6px 0;
-      font-size: 0.78rem; color: var(--muted); line-height: 1.7;
+    /* ── Countdown ─────────────────────────────────────── */
+    #countdown {
+      background: var(--accent-lt); border-bottom: 1px solid var(--accent-bd);
+      text-align: center; padding: 9px 16px;
+      font-size: .74rem; color: var(--text-2); letter-spacing: .1em;
     }
-    .panel-empty {
-      text-align: center; padding: 48px 0;
-      font-size: 0.82rem; color: #d4a8bc; letter-spacing: 0.05em;
-    }
+    #countdown strong { color: var(--accent); font-size: 1.4rem; font-weight: 300; margin: 0 4px; }
 
-    /* ── Timeline ── */
-    .timeline { position: relative; }
-    .timeline::before {
-      content: ''; position: absolute;
-      left: 55px; top: 12px; bottom: 24px;
-      width: 1px; background: var(--border);
-    }
-    .spot {
-      display: flex; align-items: flex-start;
-      margin-bottom: 20px; position: relative;
-    }
-    .spot-time {
-      flex: 0 0 52px; font-size: 0.68rem; color: var(--muted);
-      text-align: right; padding-right: 11px; padding-top: 5px;
-      line-height: 1;
-    }
-    .spot-dot {
-      flex: 0 0 8px; display: flex;
-      flex-direction: column; align-items: center; padding-top: 5px;
-    }
-    .spot-dot::before {
-      content: ''; display: block;
-      width: 9px; height: 9px; border-radius: 50%;
-      background: var(--accent);
-      border: 2px solid var(--bg);
-      outline: 1px solid var(--accent);
-    }
-    .spot.airport .spot-dot::before { background: var(--gold); outline-color: var(--gold); }
-    .spot.airport .spot-time { color: var(--gold); font-weight: 600; }
-    .spot.airport .spot-body {
-      background: rgba(245,238,218,0.85);
-      border-color: rgba(196,144,90,0.35);
-      border-left-color: var(--gold);
-    }
-    .spot.airport .spot-name { color: #7a5020; }
-    .spot-body {
-      flex: 1; margin-left: 16px;
-      background: var(--surface); border: 1px solid var(--border);
-      border-left: 3px solid var(--accent-lt);
-      border-radius: 12px; padding: 13px 15px; overflow: hidden;
-    }
-    .spot-name { font-size: 0.94rem; font-weight: 600; margin-bottom: 4px; color: var(--accent-deep); }
-    .spot-desc {
-      font-size: 0.78rem; color: var(--muted);
-      margin-bottom: 10px; line-height: 1.65;
-    }
+    /* ── Content ───────────────────────────────────────── */
+    .app-content { padding-bottom: 0; }
+    .day-panel        { display: none; }
+    .day-panel.active { display: block; }
 
-    /* weather */
+    /* Day Header */
+    .day-header { padding: 24px 20px 12px; }
+    .day-number-badge {
+      display: inline-block; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
+      color: var(--accent); background: var(--accent-lt); padding: 3px 10px; border-radius: 100px; margin-bottom: 8px;
+    }
+    .day-panel-title { font-size: 1.05rem; font-weight: 700; color: var(--text-1); line-height: 1.4; margin-bottom: 3px; }
+    .day-panel-date  { font-size: .75rem; color: var(--text-3); letter-spacing: .04em; }
+
+    /* ── Timeline ──────────────────────────────────────── */
+    .timeline { padding: 4px 16px 0; }
+    .timeline-item { display: grid; grid-template-columns: 52px 20px 1fr; column-gap: 10px; }
+    .timeline-time { display: flex; align-items: flex-start; justify-content: flex-end; padding-top: 19px; }
+    .time-badge { font-size: .76rem; font-weight: 600; color: var(--text-2); letter-spacing: .02em; white-space: nowrap; }
+    .timeline-dot-col { position: relative; display: flex; justify-content: center; padding-top: 20px; }
+    .timeline-dot-col::before {
+      content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
+      width: 1.5px; background: var(--tl-line); transform: translateX(-50%);
+    }
+    .timeline-item--first .timeline-dot-col::before { top: 26px; }
+    .timeline-item--last  .timeline-dot-col::before { top: 0; bottom: auto; height: 26px; }
+    .timeline-item--first.timeline-item--last .timeline-dot-col::before { display: none; }
+    .timeline-dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--accent); border: 2.5px solid var(--bg);
+      box-shadow: 0 0 0 1.5px var(--accent);
+      position: relative; z-index: 1; flex-shrink: 0;
+    }
+    .timeline-dot--flight { background: var(--text-3); box-shadow: 0 0 0 1.5px var(--text-3); }
+    .timeline-card-col { padding: 12px 0 20px; }
+
+    /* Spot Card */
+    .spot-card {
+      background: var(--surface); border: 1px solid var(--border-lt);
+      border-radius: var(--r); padding: 14px 16px; box-shadow: var(--shadow);
+      position: relative;
+    }
+    .spot-card--flight { background: var(--surface-sub); border-style: dashed; box-shadow: none; }
+
+    /* Delete Button（景點右上角） */
+    .btn-del-spot {
+      position: absolute; top: 8px; right: 10px;
+      font-size: .8rem; color: var(--text-3);
+      padding: 3px 5px; border-radius: 5px; line-height: 1;
+      background: transparent; transition: color .15s;
+    }
+    .btn-del-spot:active { color: var(--red); }
+
+    /* Add Spot Button（每天底部） */
+    .add-spot-wrap { padding: 0 16px 20px; }
+    .btn-add-spot {
+      width: 100%; padding: 10px;
+      border: 1.5px dashed var(--accent-bd);
+      border-radius: var(--r-sm);
+      background: transparent; color: var(--accent);
+      font-size: .8rem; letter-spacing: .06em;
+      transition: background .15s;
+    }
+    .btn-add-spot:active { background: var(--accent-lt); }
+
+    /* Add Spot Modal */
+    .geocode-status { font-size: .75rem; color: var(--text-2); min-height: 18px; margin-top: 6px; line-height: 1.5; }
+    .modal-subtitle { font-size: .75rem; color: var(--text-3); text-align: center; margin-bottom: 18px; }
+    .spot-region-tag {
+      display: inline-block; font-size: .63rem; font-weight: 600; letter-spacing: .08em;
+      color: var(--sage); background: var(--sage-lt);
+      padding: 2px 8px; border-radius: 100px; margin-bottom: 6px;
+    }
+    .spot-name { font-size: .92rem; font-weight: 700; color: var(--text-1); line-height: 1.35; margin-bottom: 6px; }
+    .spot-desc { font-size: .78rem; color: var(--text-2); line-height: 1.7; margin-bottom: 8px; }
+
+    /* Weather (on spot card) */
     .weather {
-      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
-      margin-bottom: 10px; padding: 7px 10px;
-      background: rgba(235,248,238,0.8); border-radius: 6px; font-size: 0.75rem;
-      border: 1px solid rgba(107,158,116,0.22);
+      display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+      margin-bottom: 8px; padding: 6px 10px;
+      background: var(--sage-lt); border-radius: 6px;
+      font-size: .73rem; border: 1px solid rgba(122,143,126,.2);
     }
-    .w-temp { font-weight: 600; color: var(--green); }
+    .w-temp  { font-weight: 600; color: var(--sage); }
     .w-alert { color: var(--red); }
 
-    /* transport */
+    /* Transport */
     .transport {
-      background: rgba(253,240,243,0.7); border-radius: 7px;
-      padding: 8px 11px; margin-bottom: 10px;
-      font-size: 0.74rem; color: var(--muted); line-height: 1.6;
-      border: 1px solid rgba(236,197,208,0.55);
+      background: var(--accent-lt); border-radius: 7px;
+      padding: 7px 11px; margin-bottom: 10px;
+      font-size: .74rem; color: var(--text-2); line-height: 1.6;
+      border: 1px solid var(--accent-bd);
     }
-    .transport-dur { color: #c0a0b0; }
+    .transport-dur { color: var(--text-3); }
 
-    /* dining */
+    .spot-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .btn-nav {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 7px 14px; background: var(--accent); color: #fff;
+      border-radius: var(--r-sm); font-size: .76rem; font-weight: 600;
+      letter-spacing: .03em; transition: opacity .15s;
+    }
+    .btn-nav:active { opacity: .8; }
+    .spot-duration { font-size: .7rem; color: var(--text-3); letter-spacing: .03em; }
+
+    /* ── Dining Section ────────────────────────────────── */
     .dining-section {
-      margin: 12px 16px 16px;
-      padding: 14px 16px;
-      background: rgba(250,245,236,0.9);
-      border-radius: 10px;
-      border: 1px solid rgba(196,144,90,0.28);
+      margin: 0 16px 16px; padding: 14px 16px;
+      background: var(--gold-lt); border-radius: var(--r);
+      border: 1px solid rgba(160,120,64,.22);
     }
     .dining-label {
-      font-size: 0.63rem; letter-spacing: 0.18em; color: var(--gold);
-      font-weight: 600; margin-bottom: 10px;
+      font-size: .63rem; letter-spacing: .18em; color: var(--gold);
+      font-weight: 700; margin-bottom: 10px;
       display: flex; align-items: center; gap: 8px;
     }
-    .dining-label::after { content: ''; flex: 1; height: 1px; background: rgba(196,144,90,0.2); }
-    .dining-card { padding: 10px 0; border-bottom: 1px solid rgba(196,144,90,0.12); }
-    .dining-card:last-child { border-bottom: none; padding-bottom: 0; }
-    .dining-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
-    .dining-name { font-size: 0.88rem; font-weight: 600; color: var(--text); }
-    .dining-type {
-      font-size: 0.58rem; color: var(--gold);
-      background: rgba(196,144,90,0.13); padding: 2px 7px;
-      border-radius: 10px; letter-spacing: 0.06em; flex-shrink: 0;
-    }
-    .dining-desc { font-size: 0.75rem; color: var(--muted); line-height: 1.65; margin-bottom: 9px; }
-    .dining-nav {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 0.7rem; color: var(--gold);
-      border: 1px solid rgba(196,144,90,0.45); padding: 5px 12px; border-radius: 14px;
-    }
-    .dining-nav svg { width: 10px; height: 10px; fill: currentColor; }
+    .dining-label::after { content: ''; flex: 1; height: 1px; background: rgba(160,120,64,.2); }
     .dining-group { margin-bottom: 12px; }
     .dining-group:last-child { margin-bottom: 0; }
     .dining-group-label {
-      font-size: 0.58rem; letter-spacing: 0.12em; color: var(--muted);
+      font-size: .6rem; letter-spacing: .12em; color: var(--text-3);
       font-weight: 600; margin-bottom: 6px; padding-bottom: 4px;
-      border-bottom: 1px dashed rgba(196,144,90,0.22);
+      border-bottom: 1px dashed rgba(160,120,64,.2);
     }
-
-    /* nav button */
-    .nav-btn {
+    .dining-card { padding: 10px 0; border-bottom: 1px solid rgba(160,120,64,.1); }
+    .dining-card:last-child { border-bottom: none; padding-bottom: 0; }
+    .dining-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .dining-name { font-size: .88rem; font-weight: 600; color: var(--text-1); }
+    .dining-type {
+      font-size: .58rem; color: var(--gold); background: rgba(160,120,64,.12);
+      padding: 2px 7px; border-radius: 10px; letter-spacing: .06em; flex-shrink: 0;
+    }
+    .dining-desc { font-size: .75rem; color: var(--text-2); line-height: 1.65; margin-bottom: 8px; }
+    .dining-nav {
       display: inline-flex; align-items: center; gap: 5px;
-      background: var(--accent); color: #fff;
-      padding: 8px 16px; border-radius: 20px;
-      font-size: 0.76rem; letter-spacing: 0.06em;
+      font-size: .7rem; color: var(--gold);
+      border: 1px solid rgba(160,120,64,.4); padding: 5px 12px; border-radius: 14px;
     }
-    .nav-btn svg { width: 12px; height: 12px; fill: currentColor; }
 
-    /* ── Divider ── */
+    /* ── Divider ────────────────────────────────────────── */
     .divider {
-      height: 10px;
-      background: repeating-linear-gradient(
-        90deg,
-        var(--border) 0px, var(--border) 2px,
-        var(--bg) 2px, var(--bg) 6px
-      );
+      height: 10px; margin-top: 8px;
+      background: repeating-linear-gradient(90deg, var(--border) 0, var(--border) 2px, var(--bg) 2px, var(--bg) 6px);
     }
 
-    /* ── Section ── */
-    .section { padding: 20px 16px; }
+    /* ── Section ────────────────────────────────────────── */
+    .section { padding: 20px 20px; }
     .section-label {
-      font-size: 0.72rem; letter-spacing: 0.2em; color: var(--muted);
-      text-transform: uppercase; margin-bottom: 16px;
-      display: flex; align-items: center; gap: 8px;
+      font-size: .7rem; letter-spacing: .2em; color: var(--text-3);
+      margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
     }
-    .section-label::before { content: '✿'; color: var(--accent-lt); font-size: 1rem; }
+    .section-label::before { content: '·'; color: var(--accent); font-size: 1.2rem; line-height: 1; }
     .section-label::after  { content: ''; flex: 1; height: 1px; background: var(--border); }
 
-    /* ── Expense Form ── */
+    /* ── Expense Form ──────────────────────────────────── */
     .exp-form { display: flex; flex-direction: column; gap: 11px; }
-    .row { display: flex; gap: 10px; }
-    .field { display: flex; flex-direction: column; gap: 4px; flex: 1; }
-    .field label { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.06em; }
+    .row      { display: flex; gap: 10px; }
+    .field    { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .field label { font-size: .68rem; color: var(--text-3); letter-spacing: .06em; }
     .field input, .field select {
       padding: 10px 12px; border: 1px solid var(--border);
-      background: var(--surface); border-radius: 9px; width: 100%;
-      font-size: 0.9rem; outline: none;
-      -webkit-appearance: none; appearance: none;
+      background: var(--surface); border-radius: var(--r-sm);
+      width: 100%; font-size: .9rem; outline: none;
+      -webkit-appearance: none; appearance: none; color: var(--text-1);
     }
     .field input:focus, .field select:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(192,64,104,0.08);
+      border-color: var(--accent); box-shadow: 0 0 0 3px rgba(92,107,138,.08);
     }
-    .twd { font-size: 0.72rem; color: var(--muted); text-align: right; margin-top: -6px; min-height: 1em; }
+    .twd       { font-size: .72rem; color: var(--text-3); text-align: right; margin-top: -6px; min-height: 1em; }
     .submit-btn {
       padding: 13px; background: var(--accent); color: #fff;
-      border-radius: 10px; font-size: 0.88rem; letter-spacing: 0.1em;
+      border-radius: var(--r-sm); font-size: .88rem; letter-spacing: .1em;
     }
+    .submit-btn:active { opacity: .85; }
     .setup-hint {
-      background: rgba(255,248,245,0.9); border: 1px solid #f0d0c0;
-      border-radius: 9px; padding: 14px; font-size: 0.78rem;
-      color: var(--muted); line-height: 1.75;
+      background: var(--surface-sub); border: 1px solid var(--border);
+      border-radius: var(--r-sm); padding: 14px;
+      font-size: .78rem; color: var(--text-2); line-height: 1.75;
     }
-    .setup-hint code {
-      background: var(--border); padding: 1px 5px;
-      border-radius: 3px; font-size: 0.72rem;
-    }
+    .setup-hint code { background: var(--border-lt); padding: 1px 5px; border-radius: 3px; font-size: .72rem; }
 
-    /* ── Summary ── */
-    .total-box { text-align: center; margin-bottom: 22px; }
-    .total-lbl { font-size: 0.68rem; letter-spacing: 0.15em; color: var(--muted); margin-bottom: 6px; }
-    .total-jpy { font-size: 2.2rem; font-weight: 300; letter-spacing: 0.04em; color: var(--accent-deep); }
-    .total-twd { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
-    .chart { display: flex; flex-direction: column; gap: 12px; }
-    .chart-row { display: flex; align-items: center; gap: 10px; }
-    .chart-lbl { flex: 0 0 68px; font-size: 0.7rem; color: var(--muted); text-align: right; }
-    .chart-bar-bg { flex: 1; background: var(--border); border-radius: 4px; height: 7px; overflow: hidden; }
-    .chart-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width .5s ease; }
-    .chart-amt { flex: 0 0 62px; font-size: 0.7rem; color: var(--muted); text-align: right; }
-    .synced-at { font-size: 0.66rem; color: #c0a0b8; text-align: center; margin-top: 14px; }
+    /* ── Expense Summary ───────────────────────────────── */
+    .total-box  { text-align: center; margin-bottom: 22px; }
+    .total-lbl  { font-size: .68rem; letter-spacing: .15em; color: var(--text-3); margin-bottom: 6px; }
+    .total-jpy  { font-size: 2.1rem; font-weight: 300; letter-spacing: .04em; color: var(--text-1); }
+    .total-twd  { font-size: .82rem; color: var(--text-3); margin-top: 2px; }
+    .chart      { display: flex; flex-direction: column; gap: 12px; }
+    .chart-row  { display: flex; align-items: center; gap: 10px; }
+    .chart-lbl  { flex: 0 0 68px; font-size: .7rem; color: var(--text-2); text-align: right; }
+    .chart-bar-bg { flex: 1; background: var(--border-lt); border-radius: 4px; height: 7px; overflow: hidden; }
+    .chart-bar  { height: 100%; background: var(--accent); border-radius: 4px; transition: width .5s ease; }
+    .chart-amt  { flex: 0 0 66px; font-size: .7rem; color: var(--text-2); text-align: right; }
+    .synced-at  { font-size: .66rem; color: var(--text-3); text-align: center; margin-top: 14px; }
+    .panel-empty { text-align: center; padding: 40px 0; font-size: .82rem; color: var(--text-3); letter-spacing: .05em; }
 
-    /* ── Expense Detail ── */
+    /* ── Expense Detail ────────────────────────────────── */
     .detail-section { margin-top: 22px; }
     .detail-header {
-      font-size: 0.72rem; letter-spacing: 0.2em; color: var(--muted);
+      font-size: .7rem; letter-spacing: .2em; color: var(--text-3);
       margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
     }
-    .detail-header::before { content: '✿'; color: var(--accent-lt); font-size: 1rem; }
+    .detail-header::before { content: '·'; color: var(--accent); font-size: 1.2rem; line-height: 1; }
     .detail-header::after  { content: ''; flex: 1; height: 1px; background: var(--border); }
     .detail-tabs {
       display: flex; gap: 6px; overflow-x: auto;
@@ -341,133 +317,191 @@
     .detail-tabs::-webkit-scrollbar { display: none; }
     .detail-tab {
       flex: 0 0 auto; padding: 6px 13px; border-radius: 16px;
-      font-size: 0.7rem; font-weight: 500;
+      font-size: .7rem; font-weight: 500;
       border: 1px solid var(--border);
-      background: var(--surface); color: var(--muted);
+      background: var(--surface); color: var(--text-3);
       white-space: nowrap; line-height: 1.3; text-align: center;
     }
-    .detail-tab span { display: block; font-size: 0.6rem; color: #c8a0b8; margin-top: 1px; font-weight: 400; }
+    .detail-tab span { display: block; font-size: .6rem; color: var(--text-3); margin-top: 1px; font-weight: 400; }
     .detail-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .detail-tab.active span { color: rgba(255,255,255,0.7); }
-    .record-list { display: flex; flex-direction: column; gap: 8px; }
+    .detail-tab.active span { color: rgba(255,255,255,.7); }
+    .record-list    { display: flex; flex-direction: column; gap: 8px; }
     .record-item {
       display: flex; align-items: center; gap: 10px;
       padding: 10px 13px; background: var(--surface);
-      border: 1px solid var(--border); border-left: 3px solid var(--accent-lt);
-      border-radius: 10px;
+      border: 1px solid var(--border-lt); border-left: 3px solid var(--accent-bd);
+      border-radius: var(--r);
     }
-    .record-name { font-size: 0.85rem; font-weight: 500; }
-    .record-meta { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
-    .record-amount { font-size: 0.85rem; font-weight: 600; color: var(--accent-deep); white-space: nowrap; }
-    .record-empty { text-align: center; padding: 20px 0; font-size: 0.8rem; color: #d4a8bc; }
-    .record-subtotal {
-      text-align: right; font-size: 0.7rem; color: var(--muted);
-      margin-top: 8px; padding-right: 2px;
+    .record-name   { font-size: .85rem; font-weight: 500; color: var(--text-1); }
+    .record-meta   { font-size: .68rem; color: var(--text-3); margin-top: 2px; }
+    .record-amount { font-size: .85rem; font-weight: 600; color: var(--accent-deep); white-space: nowrap; }
+    .record-empty  { text-align: center; padding: 20px 0; font-size: .8rem; color: var(--text-3); }
+    .record-subtotal { text-align: right; font-size: .7rem; color: var(--text-3); margin-top: 8px; padding-right: 2px; }
+    .record-del {
+      font-size: .78rem; color: var(--text-3); padding: 4px 8px;
+      border-radius: 6px; flex-shrink: 0; line-height: 1;
     }
+    .record-del:active { color: var(--red); background: rgba(176,90,90,.08); }
 
-    /* ── Countdown ── */
-    #countdown {
-      background: linear-gradient(135deg, rgba(242,192,208,0.32) 0%, rgba(252,232,240,0.5) 100%);
-      border-bottom: 1px solid var(--border);
-      text-align: center; padding: 10px 16px;
-      font-size: 0.74rem; color: var(--muted); letter-spacing: 0.15em;
-    }
-    #countdown strong {
-      color: var(--accent); font-size: 1.5rem; font-weight: 300;
-      letter-spacing: 0.04em; margin: 0 4px;
-    }
-
-    /* ── Print btn ── */
-    .print-wrap { padding: 14px 16px 30px; }
+    /* ── Print Button ──────────────────────────────────── */
+    .print-wrap { padding: 14px 20px 36px; }
     .print-btn {
       width: 100%; padding: 12px;
-      border: 1px solid var(--border); border-radius: 10px;
-      background: var(--surface); color: var(--muted);
-      font-size: 0.82rem; letter-spacing: 0.08em;
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      background: var(--surface); color: var(--text-3);
+      font-size: .82rem; letter-spacing: .08em;
     }
 
-    /* ── Toast ── */
+    /* ── Toast ─────────────────────────────────────────── */
     #toast {
-      position: fixed; bottom: 28px; left: 50%;
-      transform: translateX(-50%);
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
       background: var(--accent-deep); color: #fff;
       padding: 10px 22px; border-radius: 20px;
-      font-size: 0.8rem; letter-spacing: 0.05em;
+      font-size: .8rem; letter-spacing: .05em;
       opacity: 0; transition: opacity .3s;
       pointer-events: none; white-space: nowrap; z-index: 9999;
     }
     #toast.show { opacity: 1; }
 
-    /* ── Confirm Modal ── */
+    /* ── Confirm Modal ─────────────────────────────────── */
     .modal { position: fixed; inset: 0; z-index: 9998; display: flex; align-items: center; justify-content: center; }
     .modal.hidden { display: none; }
-    .modal-overlay { position: absolute; inset: 0; background: rgba(61,32,48,0.45); }
+    .modal-overlay { position: absolute; inset: 0; background: rgba(42,37,32,.5); }
     .modal-box {
       position: relative; z-index: 1;
       background: var(--surface); border-radius: 18px;
       padding: 28px 22px 20px; width: 280px;
-      box-shadow: 0 8px 32px rgba(61,32,48,0.2);
+      box-shadow: 0 8px 32px rgba(42,37,32,.15);
     }
-    .modal-title { font-size: 1rem; font-weight: 600; color: var(--accent-deep); margin-bottom: 8px; text-align: center; }
-    .modal-msg { font-size: 0.85rem; color: var(--muted); text-align: center; margin-bottom: 22px; line-height: 1.6; }
+    .modal-title   { font-size: 1rem; font-weight: 600; color: var(--text-1); margin-bottom: 8px; text-align: center; }
+    .modal-msg     { font-size: .85rem; color: var(--text-2); text-align: center; margin-bottom: 22px; line-height: 1.6; }
     .modal-actions { display: flex; gap: 10px; }
-    .modal-cancel {
-      flex: 1; padding: 12px; border-radius: 10px;
-      border: 1px solid var(--border); color: var(--muted);
-      font-size: 0.88rem; background: var(--surface);
-    }
-    .modal-confirm {
-      flex: 1; padding: 12px; border-radius: 10px;
-      background: var(--red); color: #fff; font-size: 0.88rem;
-    }
-    .record-del {
-      font-size: 0.78rem; color: #d4b0bc; padding: 4px 8px;
-      border-radius: 6px; flex-shrink: 0; line-height: 1;
-    }
-    .record-del:active { color: var(--red); background: rgba(192,69,69,0.08); }
+    .modal-cancel  { flex: 1; padding: 12px; border-radius: var(--r-sm); border: 1px solid var(--border); color: var(--text-2); font-size: .88rem; background: var(--surface); }
+    .modal-confirm { flex: 1; padding: 12px; border-radius: var(--r-sm); background: var(--red); color: #fff; font-size: .88rem; }
 
-    /* ── Print ── */
+    /* ── Add Spot Modal (Full-Screen Override) ─────────── */
+    #spot-add-modal {
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: flex-start;
+      background: var(--surface);
+      height: 100vh;
+      height: 100dvh;
+    }
+    .modal-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 16px; flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .btn-modal-back {
+      background: none; border: none;
+      color: var(--text-2); font-size: .9rem;
+      padding: 6px 10px 6px 0; cursor: pointer; flex-shrink: 0;
+    }
+    .modal-header .modal-title { margin-bottom: 0; text-align: left; flex: 1; }
+    .modal-header-day { font-size: .7rem; color: var(--text-3); white-space: nowrap; }
+    .modal-search-bar {
+      display: flex; gap: 8px; padding: 10px 16px;
+      flex-shrink: 0; border-bottom: 1px solid var(--border);
+    }
+    #modal-search-input {
+      flex: 1; font-size: 16px; padding: 9px 12px;
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      background: var(--bg); color: var(--text-1); outline: none;
+    }
+    #modal-search-input:focus { border-color: var(--accent); }
+    #modal-search-btn {
+      flex-shrink: 0; padding: 0 16px; height: 44px;
+      background: var(--accent); color: #fff;
+      border-radius: var(--r-sm); font-size: .85rem; white-space: nowrap;
+    }
+    #modal-map { flex: 1; background: var(--bg); overflow: hidden; position: relative; }
+    .modal-map-placeholder {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-3); font-size: .8rem;
+      flex-direction: column; gap: 8px;
+    }
+    .modal-form {
+      padding: 12px 16px; display: flex; flex-direction: column;
+      gap: 10px; flex-shrink: 0; border-top: 1px solid var(--border);
+    }
+    #modal-spot-name {
+      width: 100%; font-size: 16px; padding: 9px 12px;
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      background: var(--bg); color: var(--text-1);
+      outline: none; box-sizing: border-box;
+    }
+    #modal-spot-name:focus { border-color: var(--accent); }
+    .modal-duration-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: .85rem; color: var(--text-2);
+    }
+    .modal-duration-row label { flex-shrink: 0; font-size: .8rem; color: var(--text-3); }
+    #spot-add-modal #add-duration {
+      width: 72px; font-size: 16px; padding: 8px 10px;
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      background: var(--bg); color: var(--text-1);
+      text-align: center; outline: none;
+    }
+    #spot-add-modal .modal-actions {
+      gap: 12px; padding: 12px 16px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      border-top: 1px solid var(--border); flex-shrink: 0;
+    }
+    #spot-add-modal .modal-actions button {
+      flex: 1; height: 48px; font-size: 16px;
+      border-radius: var(--r-sm); border: none; cursor: pointer;
+    }
+    .btn-modal-cancel {
+      background: var(--surface); border: 1px solid var(--border) !important;
+      color: var(--text-2);
+    }
+    .btn-modal-confirm { background: var(--accent); color: #fff; }
+    .btn-modal-confirm:disabled { opacity: .6; cursor: not-allowed; }
+
+    /* ── Print ─────────────────────────────────────────── */
     @media print {
-      #gate, .tabs, .nav-btn, .section, .print-wrap, #toast, .divider { display: none !important; }
-      .hdr { position: static; background: none; color: var(--text); padding: 0; box-shadow: none; }
-      .panel { display: block !important; page-break-inside: avoid; }
-      .spot-body { border: 1px solid #ccc; border-left-width: 1px; }
+      #auth-overlay, .app-header, .day-tabs, .btn-nav, .section, .print-wrap, #toast, .divider, #countdown { display: none !important; }
+      .day-panel { display: block !important; page-break-inside: avoid; }
       body { background: #fff; }
     }
   </style>
 </head>
 <body>
 
-<!-- ════════ GATE ════════ -->
-<div id="gate">
-  <div class="gate-kamon">✿</div>
-  <div class="gate-title">東 京</div>
-  <div class="gate-sub">TOKYO · 2026</div>
-  <div class="gate-rule"></div>
-  <div class="gate-box">
-    <input id="pwd" class="gate-input" type="password"
-           inputmode="numeric" maxlength="6"
-           placeholder="••••" autocomplete="off" autofocus>
-    <div id="gate-err" class="gate-err"></div>
-    <button class="gate-btn" onclick="auth()">進入</button>
+<!-- ── Password Overlay ─────────────────────────────────── -->
+<div id="auth-overlay">
+  <div class="auth-card">
+    <span class="auth-icon">⛩</span>
+    <h1 class="auth-title">東京自由行</h1>
+    <p class="auth-sub">2026.06.24 — 06.29</p>
+    <input
+      type="password" id="auth-input"
+      placeholder="・ ・ ・ ・"
+      maxlength="4" inputmode="numeric" autocomplete="off"
+    >
+    <p id="auth-error"></p>
+    <p class="auth-hint">輸入旅行密碼</p>
   </div>
 </div>
 
-<!-- ════════ APP ════════ -->
-<div id="app" hidden>
-  <header class="hdr">
-    <div class="hdr-title">東京自由行 2026</div>
-    <div class="hdr-right">
-      <div class="hdr-date" id="hdr-date"></div>
-      <div id="hdr-weather"></div>
+<!-- ── Main App ─────────────────────────────────────────── -->
+<div id="app">
+  <header class="app-header">
+    <div class="trip-banner">
+      <span class="trip-banner-title">東京自由行</span>
+      <div class="trip-banner-right">
+        <span class="trip-banner-dates">2026.06.24 — 06.29</span>
+        <div id="hdr-weather"></div>
+      </div>
     </div>
+    <nav class="day-tabs" id="day-tabs"></nav>
   </header>
 
   <div id="countdown" hidden></div>
 
-  <nav class="tabs" id="tabs"></nav>
-
-  <main id="panels"></main>
+  <main class="app-content" id="app-content"></main>
 
   <div class="divider"></div>
 
@@ -492,7 +526,47 @@
 
 <div id="toast"></div>
 
-<!-- ════════ CONFIRM MODAL ════════ -->
+<!-- ── Add Spot Modal (Full-Screen) ─────────────────────── -->
+<div id="spot-add-modal" class="modal hidden">
+  <!-- 頂部 Header -->
+  <div class="modal-header">
+    <button class="btn-modal-back" onclick="closeAddModal()">← 返回</button>
+    <span class="modal-title">新增景點</span>
+    <span id="add-day-label" class="modal-header-day"></span>
+  </div>
+
+  <!-- 搜尋列（Task 3 實作 Places API） -->
+  <div class="modal-search-bar">
+    <input id="modal-search-input" type="search" placeholder="搜尋景點名稱…" autocomplete="off" />
+    <button id="modal-search-btn" onclick="searchPlace()">🔍 查詢</button>
+  </div>
+
+  <!-- 地圖區域（Task 2 實作 Google Maps） -->
+  <div id="modal-map">
+    <div class="modal-map-placeholder">
+      <span style="font-size:2rem">🗺</span>
+      <span>地圖功能即將上線</span>
+    </div>
+  </div>
+
+  <!-- 景點表單欄位 -->
+  <div class="modal-form">
+    <input id="modal-spot-name" type="text" placeholder="景點名稱（可修改）" autocomplete="off" />
+    <div class="modal-duration-row">
+      <label for="add-duration">停留時間</label>
+      <input id="add-duration" type="number" value="60" min="10" step="10" />
+      <span>分鐘</span>
+    </div>
+  </div>
+
+  <!-- 底部按鈕（大拇指熱區 ≥48px） -->
+  <div class="modal-actions">
+    <button class="btn-modal-cancel" onclick="closeAddModal()">取消</button>
+    <button id="add-confirm-btn" class="btn-modal-confirm" onclick="confirmAddSpot()">💾 加入行程</button>
+  </div>
+</div>
+
+<!-- ── Confirm Modal ─────────────────────────────────────── -->
 <div id="confirm-modal" class="modal hidden">
   <div class="modal-overlay" onclick="closeModal()"></div>
   <div class="modal-box">
@@ -506,402 +580,479 @@
 </div>
 
 <script>
-// ══════════════════════════════
-//  CONFIG  ← 只需修改這裡
-// ══════════════════════════════
-const GAS_URL  = 'https://script.google.com/macros/s/AKfycbw2dnCQjJJv8yBo--WVmSJ5KxjlyHXl51ukr1hnPJ1CH9MuzPUGNPJi7x7X5UQqYhmaTw/exec';
-const PASSWORD = '0315';
-let tripDays = [];
-const AUTH_TTL = 3 * 24 * 60 * 60 * 1000; // 3 天
-const JPY_TWD  = 0.215;                    // 匯率，可自行調整
+/* ─── Config ──────────────────────────────────────────── */
+var API_URL   = 'https://script.google.com/macros/s/AKfycby7svh0OuxnA0fTOuXXjPIxJnwl63Js7-Hp7Kj5Al4mIXdvRNR3rgvWDjSu2bq8uNpf/exec';
+var GAS_URL   = 'https://script.google.com/macros/s/AKfycbw2dnCQjJJv8yBo--WVmSJ5KxjlyHXl51ukr1hnPJ1CH9MuzPUGNPJi7x7X5UQqYhmaTw/exec';
+var PASS_CODE = '2026';
+var AUTH_KEY  = 'tokyo_trip_auth';
+var AUTH_DAYS = 3;
+var JPY_TWD        = 0.215;
+var tripDays       = [];
+var itineraryState = [];   // Task 5：增刪操作的可變狀態
+var _addTargetDay  = null; // 新增 modal 的目標天數
+var modalMap       = null; // Google Maps 實例（建立後跨 modal 重複使用）
+var currentMarker  = null; // 地圖當前圖釘（永遠只保留一個）
+var tempPlaceData  = null; // 暫存選取的地點 { lat, lng, name, description, region }
 
-// ══════════════════════════════
-//  TIME HELPERS
-// ══════════════════════════════
-const toJST = d => new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
-const todayStr = () => {
-  const d = toJST(new Date());
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-};
-const pad = n => String(n).padStart(2, '0');
-const fmtDate = s => {
-  const d = new Date(s + 'T12:00:00+09:00');
-  const wd = ['日','一','二','三','四','五','六'][d.getDay()];
-  return `${d.getMonth()+1}/${d.getDate()}（${wd}）`;
-};
-
-// ══════════════════════════════
-//  AUTH
-// ══════════════════════════════
-function auth() {
-  if (document.getElementById('pwd').value === PASSWORD) {
-    localStorage.setItem('auth_exp', Date.now() + AUTH_TTL);
-    document.getElementById('gate').classList.add('hidden');
-    document.getElementById('app').removeAttribute('hidden');
-    boot();
-  } else {
-    document.getElementById('gate-err').textContent = '密碼錯誤';
-    document.getElementById('pwd').value = '';
-    document.getElementById('pwd').focus();
-  }
-}
-document.getElementById('pwd').addEventListener('keydown', e => { if (e.key === 'Enter') auth(); });
-
-(function checkSavedAuth() {
-  const exp = localStorage.getItem('auth_exp');
-  if (exp && Date.now() < +exp) {
-    document.getElementById('gate').classList.add('hidden');
-    document.getElementById('app').removeAttribute('hidden');
-    boot();
-  }
-})();
-
-// ══════════════════════════════
-//  BOOT
-// ══════════════════════════════
-async function boot() {
-  // Header date — use device local time
-  document.getElementById('hdr-date').textContent =
-    new Date().toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' });
-
-  // 1. 先載入行程，立刻顯示
-  let itinerary;
+/* ─── Auth ────────────────────────────────────────────── */
+function isAuthed() {
   try {
-    const r1 = await fetch('./data/itinerary.json');
-    itinerary = (await r1.json()).itinerary;
-  } catch {
-    document.getElementById('panels').innerHTML =
-      '<div class="panel active"><div class="panel-empty">⚠ 請透過本機伺服器開啟（python -m http.server 8000）</div></div>';
-    return;
+    var s = localStorage.getItem(AUTH_KEY);
+    return s ? Date.now() < JSON.parse(s).expiry : false;
+  } catch(e) { return false; }
+}
+
+function saveAuth() {
+  localStorage.setItem(AUTH_KEY, JSON.stringify({ expiry: Date.now() + AUTH_DAYS * 86400000 }));
+}
+
+function initAuth() {
+  if (isAuthed()) { boot(); return; }
+
+  var overlay = document.getElementById('auth-overlay');
+  var input   = document.getElementById('auth-input');
+  var errEl   = document.getElementById('auth-error');
+  overlay.style.display = 'flex';
+  setTimeout(function(){ input.focus(); }, 120);
+
+  function tryLogin() {
+    if (input.value === PASS_CODE) {
+      saveAuth();
+      overlay.style.display = 'none';
+      boot();
+    } else {
+      errEl.textContent = '密碼錯誤，請再試一次';
+      input.value = '';
+      input.focus();
+      setTimeout(function(){ errEl.textContent = ''; }, 2000);
+    }
+  }
+
+  input.addEventListener('input',   function(){ if (input.value.length === 4) tryLogin(); });
+  input.addEventListener('keydown', function(e){ if (e.key === 'Enter') tryLogin(); });
+}
+
+/* ─── Boot（Task 4：雙向 API 串接）─────────────────── */
+async function boot() {
+  document.getElementById('app').style.display = 'block';
+
+  // ── Step 1：先載入 itinerary.json（基礎資料，含 dining / note）
+  // dining 是靜態推薦資料，必須保留；以此為地基，GAS 只覆蓋 spots
+  var itinerary;
+  try {
+    var r1 = await fetch('./data/itinerary.json');
+    var j1 = await r1.json();
+    itinerary = (j1.itinerary || []).map(function(day) {
+      // 從第一個 duration > 0 且有 time 欄位的景點，自動抓當天起始時間
+      var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
+      return Object.assign({}, day, {
+        date:      dateToYMD(day.date),
+        day_start: firstReal ? firstReal.time : '09:00'
+      });
+    });
+  } catch(e) {
+    // itinerary.json 無法取得時使用內嵌備援
+    itinerary = PLACEHOLDER_DATA.itinerary.map(function(day) {
+      var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
+      return Object.assign({}, day, {
+        date:      dateToYMD(day.date),
+        day_start: firstReal ? firstReal.time : '09:00'
+      });
+    });
+  }
+
+  // ── Step 2：嘗試從 GAS API 撈最新景點，覆蓋各天的 spots
+  // dining / note 保持 itinerary.json 的資料不被覆蓋
+  if (API_URL) {
+    try {
+      showToast('載入行程中…');
+      var r2    = await fetch(API_URL);
+      var json2 = await r2.json();
+      if (json2.itinerary && json2.itinerary.length) {
+        var gasMap = {};
+        json2.itinerary.forEach(function(d){ gasMap[d.day] = d; });
+
+        itinerary = itinerary.map(function(day) {
+          var gas = gasMap[day.day];
+          if (!gas) return day;
+          // 用 GAS 景點取代 spots，但保留 itinerary.json 的 dining / note
+          return Object.assign({}, day, {
+            spots:     gas.spots,
+            day_title: gas.day_title || day.day_title,
+            date:      dateToYMD(gas.date) || day.date
+          });
+        });
+      }
+    } catch(e) { /* GAS 失敗，靜默沿用 itinerary.json 景點 */ }
   }
 
   tripDays = itinerary;
-  buildCountdown(itinerary);
-  buildTabs(itinerary);
-  buildPanels(itinerary);
-  buildExpForm();
-  autoTab(itinerary);
 
-  // 2. 天氣在背景非阻塞載入
+  // ── Step 3：確保每天都有 dining（三層保底）
+  // 1. itinerary.json 已有 → 保留  2. 無 → 用 STATIC_DINING  3. 都沒有 → []
+  itinerary = itinerary.map(function(day) {
+    if (!day.dining || !day.dining.length) {
+      return Object.assign({}, day, { dining: STATIC_DINING[day.day] || [] });
+    }
+    return day;
+  });
+
+  // ── Step 4：初始化可變狀態（Task 5 增刪操作用）
+  itineraryState = itinerary.map(function(d) {
+    return Object.assign({}, d, { spots: (d.spots || []).slice() });
+  });
+
+  // ── Step 5：渲染（GAS 資料無 time → Task 3 自動排序）
+  buildCountdown(itinerary);
+  renderTabs(itinerary);
+  renderItinerary(itinerary);
+  buildExpForm();
+  activateSmartTab(itinerary);
+
+  // ── 背景：天氣、記帳統計（不阻擋畫面）────────────
   fetchWeather(itinerary);
   fetchTodayHeaderWeather();
 
-  // 3. 統計資料在背景載入，不阻擋行程顯示
-  const gasReady = GAS_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
-  if (gasReady) {
+  if (GAS_URL && GAS_URL.indexOf('YOUR_') === -1) {
     fetch(GAS_URL)
-      .then(r => r.json())
-      .then(data => buildSummary(data))
-      .catch(() => {});
+      .then(function(r){ return r.json(); })
+      .then(function(data){ buildSummary(data); })
+      .catch(function(){});
   }
 }
 
-// ══════════════════════════════
-//  COUNTDOWN
-// ══════════════════════════════
+/* ─── Countdown ───────────────────────────────────────── */
 function buildCountdown(days) {
-  const tripStart = new Date(days[0].date + 'T00:00:00+09:00');
-  const now = toJST(new Date());
-  const todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diff = Math.round((tripStart - todayMid) / 86400000);
+  var tripStart = parseLocalDate(days[0].date);
+  var now = new Date();
+  var jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60000);
+  var todayMid = new Date(jst.getFullYear(), jst.getMonth(), jst.getDate());
+  var diff = Math.round((tripStart - todayMid) / 86400000);
   if (diff <= 0) return;
-  const el = document.getElementById('countdown');
-  el.innerHTML = `距離出發還有 <strong>${diff}</strong> 天`;
+  var el = document.getElementById('countdown');
+  el.innerHTML = '距離出發還有 <strong>' + diff + '</strong> 天';
   el.removeAttribute('hidden');
 }
 
-// ══════════════════════════════
-//  TABS
-// ══════════════════════════════
-function buildTabs(days) {
-  const nav = document.getElementById('tabs');
-  const today = todayStr();
-  days.forEach((day, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'tab' + (day.date === today ? ' is-today' : '');
-    btn.innerHTML = `Day ${day.day}<span>${fmtDate(day.date)}</span>`;
-    btn.onclick = () => switchTab(i);
-    nav.appendChild(btn);
+/* ─── Smart Tab：偵測 JST 自動切換 ───────────────────── */
+function getJSTDateStr() {
+  var now = new Date();
+  var jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60000);
+  return jst.toISOString().slice(0, 10);
+}
+
+function activateSmartTab(itinerary) {
+  var today  = getJSTDateStr();
+  var target = itinerary[0].day;
+  for (var i = 0; i < itinerary.length; i++) {
+    if (itinerary[i].date === today) { target = itinerary[i].day; break; }
+  }
+  switchDay(target);
+}
+
+/* ─── Tab Switcher ────────────────────────────────────── */
+var WKDAYS = ['日','一','二','三','四','五','六'];
+
+function switchDay(dayNum) {
+  document.querySelectorAll('.day-tab').forEach(function(el){
+    el.classList.toggle('active', Number(el.dataset.day) === dayNum);
   });
-}
-
-function switchTab(idx) {
-  document.querySelectorAll('.tab').forEach((b, i) => b.classList.toggle('active', i === idx));
-  document.querySelectorAll('.panel').forEach((p, i) => p.classList.toggle('active', i === idx));
-  document.querySelector('.tab.active')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-}
-
-function autoTab(days) {
-  const today = todayStr();
-  const tripStart = days[0]?.date, tripEnd = days[days.length-1]?.date;
-  let idx = 0;
-  if (today >= tripStart && today <= tripEnd) {
-    const found = days.findIndex(d => d.date === today);
-    if (found >= 0) idx = found;
-  } else if (today > tripEnd) idx = days.length - 1;
-  switchTab(idx);
-}
-
-// ══════════════════════════════
-//  DAY PANELS
-// ══════════════════════════════
-function buildPanels(days) {
-  const main = document.getElementById('panels');
-  days.forEach(day => {
-    const div = document.createElement('div');
-    div.className = 'panel';
-    let html = '';
-    if (day.note) html += `<div class="panel-note">${day.note}</div>`;
-    if (!day.spots?.length) {
-      html += `<div class="panel-empty">行程待填入</div>`;
-    } else {
-      html += `<div class="timeline">` + day.spots.map((s, si) => spotHTML(s, day.date, si)).join('') + `</div>`;
-    }
-    if (day.dining?.length) html += diningHTML(day.dining);
-    div.innerHTML = html;
-    main.appendChild(div);
+  document.querySelectorAll('.day-panel').forEach(function(el){
+    el.classList.toggle('active', Number(el.dataset.day) === dayNum);
   });
+  var active = document.querySelector('.day-tab.active');
+  if (active) active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 }
 
-function diningHTML(items) {
-  const order = ['早餐', '午餐', '晚餐', '咖啡廳'];
-  const icons  = { '早餐': '☀', '午餐': '🍱', '晚餐': '🌙', '咖啡廳': '☕' };
-  const groups = {};
-  items.forEach(d => {
-    const cat = d.category || '其他';
-    (groups[cat] = groups[cat] || []).push(d);
+/* ─── Render Tabs ─────────────────────────────────────── */
+function renderTabs(itinerary) {
+  document.getElementById('day-tabs').innerHTML = itinerary.map(function(d){
+    var dt   = parseLocalDate(d.date);
+    var mmdd = isNaN(dt) ? d.date : (dt.getMonth()+1) + '/' + dt.getDate();
+    var wday = isNaN(dt) ? '' : '（' + WKDAYS[dt.getDay()] + '）';
+    return '<button class="day-tab" data-day="' + d.day
+      + '" onclick="switchDay(' + d.day + ')">'
+      + '<span class="tab-label">Day ' + d.day + '</span>'
+      + '<span class="tab-date">' + mmdd + wday + '</span>'
+      + '</button>';
+  }).join('');
+}
+
+/* ─── Render Timeline ─────────────────────────────────── */
+function renderItinerary(itinerary) {
+  document.getElementById('app-content').innerHTML = itinerary.map(renderDayPanel).join('');
+}
+
+function renderDayPanel(dayData) {
+  var dt = parseLocalDate(dayData.date);
+  var dateLabel = isNaN(dt)
+    ? String(dayData.date)
+    : dt.getFullYear() + '.'
+      + String(dt.getMonth()+1).padStart(2,'0') + '.'
+      + String(dt.getDate()).padStart(2,'0')
+      + '（' + WKDAYS[dt.getDay()] + '）';
+  var rawSpots = dayData.spots || [];
+
+  // Task 3：若景點無預設 time（GAS API 資料），套用最短路由排序 + 時間重算
+  // 靜態 itinerary.json 的景點已有 time 欄位，直接保留不排序
+  // day_start 由 boot() 從 itinerary.json 第一個真實景點的 time 自動提取
+  var dayStartMins = parseTimeMins(dayData.day_start || '09:00');
+  var hasPresetTimes = rawSpots.some(function(s){ return !!s.time; });
+  var spots = hasPresetTimes ? rawSpots : optimizeDayRoute(rawSpots, dayData.day_start);
+
+  var timeMins = dayStartMins;  // fallback 計時器（僅在無預設 time 時使用）
+
+  var spotsHtml = spots.map(function(spot, i){
+    var isFlight = spot.duration === 0 || !spot.duration;
+    var timeStr  = spot.time ? spot.time : (!isFlight ? minsToTime(timeMins) : '');
+    if (!isFlight && !spot.time) timeMins += (spot.duration || 60);
+
+    var isFirst = i === 0;
+    var isLast  = i === spots.length - 1;
+    var mapsUrl = (spot.transport && spot.transport.google_maps_url)
+      ? spot.transport.google_maps_url
+      : buildMapsUrl(spot.spot_name);
+
+    var itemClass = 'timeline-item'
+      + (isFirst ? ' timeline-item--first' : '')
+      + (isLast  ? ' timeline-item--last'  : '');
+
+    var weatherHtml = (spot.latitude && spot.longitude)
+      ? '<div class="weather" id="w-' + dayData.date + '-' + i + '" style="display:none"></div>'
+      : '';
+
+    var transportHtml = (spot.transport && spot.transport.method)
+      ? '<div class="transport">🚃 ' + spot.transport.method
+          + (spot.transport.duration ? '<br><span class="transport-dur">⏱ ' + spot.transport.duration + '</span>' : '')
+        + '</div>'
+      : '';
+
+    return '<div class="' + itemClass + '">'
+      + '<div class="timeline-time">'
+        + (timeStr ? '<span class="time-badge">' + timeStr + '</span>' : '')
+      + '</div>'
+      + '<div class="timeline-dot-col">'
+        + '<div class="timeline-dot' + (isFlight ? ' timeline-dot--flight' : '') + '"></div>'
+      + '</div>'
+      + '<div class="timeline-card-col">'
+        + '<div class="spot-card' + (isFlight ? ' spot-card--flight' : '') + '">'
+          + (!isFlight
+            ? '<button class="btn-del-spot"'
+                + ' data-day="' + dayData.day + '"'
+                + ' data-name="' + spot.spot_name.replace(/"/g, '&quot;') + '"'
+                + ' onclick="confirmDeleteSpot(this)" title="移除景點">🗑</button>'
+            : '')
+          + '<span class="spot-region-tag">' + spot.region_name + '</span>'
+          + '<div class="spot-name">' + spot.spot_name + '</div>'
+          + weatherHtml
+          + '<div class="spot-desc">' + spot.description + '</div>'
+          + transportHtml
+          + (!isFlight
+            ? '<div class="spot-footer">'
+                + '<a href="' + mapsUrl + '" class="btn-nav" target="_blank" rel="noopener">'
+                  + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">'
+                  + '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>'
+                  + '<circle cx="12" cy="10" r="3"/></svg> 導航前往'
+                + '</a>'
+                + (spot.duration ? '<span class="spot-duration">' + spot.duration + ' 分鐘</span>' : '')
+              + '</div>'
+            : '')
+        + '</div>'
+      + '</div>'
+    + '</div>';
+  }).join('');
+
+  var diningStr  = (dayData.dining && dayData.dining.length) ? buildDiningHTML(dayData.dining) : '';
+  var addBtnHtml = '<div class="add-spot-wrap">'
+    + '<button class="btn-add-spot" onclick="showAddModal(' + dayData.day + ')">➕ 新增此日景點</button>'
+  + '</div>';
+
+  return '<section class="day-panel" data-day="' + dayData.day + '">'
+    + '<div class="day-header">'
+      + '<span class="day-number-badge">DAY ' + dayData.day + '</span>'
+      + '<h2 class="day-panel-title">' + dayData.day_title + '</h2>'
+      + '<p class="day-panel-date">' + dateLabel + '</p>'
+    + '</div>'
+    + '<div class="timeline">' + spotsHtml + '</div>'
+    + addBtnHtml
+    + diningStr
+  + '</section>';
+}
+
+/* ─── Dining HTML ─────────────────────────────────────── */
+function buildDiningHTML(items) {
+  var ORDER = ['早餐','午餐','晚餐','咖啡廳'];
+  var ICONS  = { '早餐':'☀', '午餐':'🍱', '晚餐':'🌙', '咖啡廳':'☕' };
+  var groups = {};
+  items.forEach(function(d){
+    var cat = d.category || '其他';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(d);
   });
-  const cardHTML = d => `
-    <div class="dining-card">
-      <div class="dining-card-top">
-        <span class="dining-name">${d.name}</span>
-        <span class="dining-type">${d.type}</span>
-      </div>
-      <div class="dining-desc">${d.description}</div>
-      ${d.google_maps_url ? `
-        <a href="${d.google_maps_url}" target="_blank" rel="noopener" class="dining-nav">
-          <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>
-          前往導航
-        </a>` : ''}
-    </div>`;
-  const sections = order.filter(c => groups[c]).map(c => `
-    <div class="dining-group">
-      <div class="dining-group-label">${icons[c] || ''} ${c}</div>
-      ${groups[c].map(cardHTML).join('')}
-    </div>`).join('');
-  return `<div class="dining-section">
-    <div class="dining-label">🍽 周邊美食</div>
-    ${sections}
-  </div>`;
+
+  var cardHTML = function(d) {
+    return '<div class="dining-card">'
+      + '<div class="dining-card-top">'
+        + '<span class="dining-name">' + d.name + '</span>'
+        + '<span class="dining-type">' + d.type + '</span>'
+      + '</div>'
+      + '<div class="dining-desc">' + d.description + '</div>'
+      + (d.google_maps_url
+        ? '<a href="' + d.google_maps_url + '" target="_blank" rel="noopener" class="dining-nav">'
+            + '<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>'
+            + ' 前往導航</a>'
+        : '')
+    + '</div>';
+  };
+
+  var sections = ORDER.filter(function(c){ return groups[c]; }).map(function(c){
+    return '<div class="dining-group">'
+      + '<div class="dining-group-label">' + (ICONS[c] || '') + ' ' + c + '</div>'
+      + groups[c].map(cardHTML).join('')
+    + '</div>';
+  }).join('');
+
+  return '<div class="dining-section">'
+    + '<div class="dining-label">🍽 周邊美食</div>'
+    + sections
+  + '</div>';
 }
 
-function spotHTML(s, dayDate, spotIdx) {
-  const isAirport = /空港|ターミナル|[A-Z]{2}\s*\d{4}/.test(s.spot_name);
-  const weather = (s.latitude && s.longitude)
-    ? `<div class="weather" id="w-${dayDate}-${spotIdx}" style="display:none"></div>`
-    : '';
-  const navBtn = (!isAirport && s.transport?.google_maps_url) ? `
-    <a href="${s.transport.google_maps_url}" target="_blank" rel="noopener">
-      <div class="nav-btn">
-        <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>
-        立即導航
-      </div>
-    </a>` : '';
-  return `
-    <div class="spot${isAirport ? ' airport' : ''}">
-      <div class="spot-time">${s.time}</div>
-      <div class="spot-dot"></div>
-      <div class="spot-body">
-        <div class="spot-name">${s.spot_name}</div>
-        ${weather}
-        <div class="spot-desc">${s.description}</div>
-        ${s.transport ? `<div class="transport">
-          🚃 ${s.transport.method}<br>
-          <span class="transport-dur">⏱ ${s.transport.duration}</span>
-        </div>` : ''}
-        ${navBtn}
-      </div>
-    </div>`;
-}
-
-// ══════════════════════════════
-//  HEADER TODAY WEATHER（手機當下 GPS）
-// ══════════════════════════════
+/* ─── Header GPS Weather ──────────────────────────────── */
 function fetchTodayHeaderWeather() {
   if (!navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition(async ({ coords }) => {
-    try {
-      const today = todayStr();
-      const { latitude: lat, longitude: lon } = coords;
-      const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`
-        + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max`
-        + `&timezone=auto&start_date=${today}&end_date=${today}`;
-      const geoUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&zoom=10`;
-
-      const [weatherRes, geoRes] = await Promise.all([
-        fetch(weatherUrl),
-        fetch(geoUrl, { headers: { 'Accept-Language': 'zh-TW,zh' } })
-      ]);
-      const [j, geo] = await Promise.all([weatherRes.json(), geoRes.json()]);
-
-      const d = j.daily;
-      if (!d?.time?.length) return;
-      const tMax = Math.round(d.temperature_2m_max[0]);
-      const tMin = Math.round(d.temperature_2m_min[0]);
-      const prob = d.precipitation_probability_max[0] ?? 0;
-      const rain = d.precipitation_sum[0] ?? 0;
-
-      const a = geo.address || {};
-      const area = a.city || a.town || a.county || a.state || '';
-
-      const hdrEl = document.getElementById('hdr-weather');
-      if (!hdrEl) return;
-      let txt = area ? `${area} · ` : '';
-      txt += `${tMax}°↕${tMin}° · ☔${prob}%`;
+  navigator.geolocation.getCurrentPosition(function(pos) {
+    var lat = pos.coords.latitude, lon = pos.coords.longitude;
+    var today = getJSTDateStr();
+    var wUrl = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon
+      + '&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max'
+      + '&timezone=auto&start_date=' + today + '&end_date=' + today;
+    var gUrl = 'https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lon
+      + '&format=json&zoom=10';
+    Promise.all([
+      fetch(wUrl).then(function(r){ return r.json(); }),
+      fetch(gUrl, { headers: { 'Accept-Language': 'zh-TW,zh' } }).then(function(r){ return r.json(); })
+    ]).then(function(results) {
+      var j = results[0], geo = results[1];
+      var d = j.daily;
+      if (!d || !d.time || !d.time.length) return;
+      var tMax = Math.round(d.temperature_2m_max[0]);
+      var tMin = Math.round(d.temperature_2m_min[0]);
+      var prob = d.precipitation_probability_max[0] || 0;
+      var rain = d.precipitation_sum[0] || 0;
+      var area = (geo.address || {}).city || (geo.address || {}).town || (geo.address || {}).county || '';
+      var el = document.getElementById('hdr-weather');
+      if (!el) return;
+      var txt = area ? area + ' · ' : '';
+      txt += tMax + '°↕' + tMin + '° · ☔' + prob + '%';
       if (rain > 0 || prob > 30) txt += ' · ☂帶傘';
-      hdrEl.textContent = txt;
-    } catch {}
-  }, () => {}, { timeout: 8000 });
+      el.textContent = txt;
+    }).catch(function(){});
+  }, function(){}, { timeout: 8000 });
 }
 
-// ══════════════════════════════
-//  WEATHER（Open-Meteo，無需 API Key）
-// ══════════════════════════════
+/* ─── Spot Weather (Open-Meteo) ───────────────────────── */
 async function fetchWeather(days) {
-  // 去重：以 region_name 為 key，每地區只發一次請求
-  const regionMap = new Map();
-  days.forEach(day => {
-    (day.spots || []).forEach(spot => {
-      if (spot.region_name && spot.latitude && spot.longitude && !regionMap.has(spot.region_name)) {
-        regionMap.set(spot.region_name, { lat: spot.latitude, lon: spot.longitude, data: null });
+  var regionMap = {};
+  days.forEach(function(day){
+    (day.spots || []).forEach(function(spot){
+      if (spot.region_name && spot.latitude && spot.longitude && !regionMap[spot.region_name]) {
+        regionMap[spot.region_name] = { lat: spot.latitude, lon: spot.longitude, data: null };
       }
     });
   });
 
-  const startDate = days[0].date;
-  const endDate   = days[days.length - 1].date;
+  var startDate = days[0].date, endDate = days[days.length-1].date;
 
-  // 並行發送請求
-  await Promise.all([...regionMap.entries()].map(async ([region, loc]) => {
+  await Promise.all(Object.keys(regionMap).map(async function(region) {
+    var loc = regionMap[region];
     try {
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}`
-        + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max`
-        + `&timezone=Asia%2FTokyo&start_date=${startDate}&end_date=${endDate}`;
-      const r = await fetch(url);
-      const j = await r.json();
-      if (j.daily?.time?.length) regionMap.get(region).data = j.daily;
-    } catch {}
+      var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + loc.lat + '&longitude=' + loc.lon
+        + '&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max'
+        + '&timezone=Asia%2FTokyo&start_date=' + startDate + '&end_date=' + endDate;
+      var r = await fetch(url);
+      var j = await r.json();
+      if (j.daily && j.daily.time && j.daily.time.length) regionMap[region].data = j.daily;
+    } catch(e) {}
   }));
 
-  // 將資料填入各景點 DOM
-  days.forEach(day => {
-    (day.spots || []).forEach((spot, si) => {
+  days.forEach(function(day){
+    (day.spots || []).forEach(function(spot, si){
       if (!spot.region_name) return;
-      const loc = regionMap.get(spot.region_name);
-      if (!loc?.data) return;
-
-      const di = loc.data.time.indexOf(day.date);
+      var loc = regionMap[spot.region_name];
+      if (!loc || !loc.data) return;
+      var di = loc.data.time.indexOf(day.date);
       if (di < 0) return;
-
-      const tMax = Math.round(loc.data.temperature_2m_max[di]);
-      const tMin = Math.round(loc.data.temperature_2m_min[di]);
-      const rain = loc.data.precipitation_sum[di] ?? 0;
-      const prob = loc.data.precipitation_probability_max[di] ?? 0;
-
-      const el = document.getElementById(`w-${day.date}-${si}`);
+      var tMax = Math.round(loc.data.temperature_2m_max[di]);
+      var tMin = Math.round(loc.data.temperature_2m_min[di]);
+      var rain = loc.data.precipitation_sum[di] || 0;
+      var prob = loc.data.precipitation_probability_max[di] || 0;
+      var el = document.getElementById('w-' + day.date + '-' + si);
       if (!el) return;
-
-      const alerts = [];
+      var alerts = [];
       if (rain > 0 || prob > 30) alerts.push('<span class="w-alert">☂ 帶傘</span>');
       if (tMax < 15) alerts.push('<span class="w-alert">🧥 外套</span>');
-
-      el.innerHTML = `
-        <span class="w-temp">${tMax}°C</span>
-        <span style="color:#ccc;font-size:0.65rem">↕</span>
-        <span style="color:var(--muted)">${tMin}°C</span>
-        <span style="color:#ccc">｜</span>
-        <span>☔ ${prob}%</span>
-        ${alerts.join('')}
-      `;
+      el.innerHTML = '<span class="w-temp">' + tMax + '°C</span>'
+        + '<span style="color:var(--border)">↕</span>'
+        + '<span style="color:var(--text-3)">' + tMin + '°C</span>'
+        + '<span style="color:var(--border)">｜</span>'
+        + '<span>☔ ' + prob + '%</span>'
+        + alerts.join('');
       el.style.display = 'flex';
     });
   });
 }
 
-// ══════════════════════════════
-//  EXPENSE FORM
-// ══════════════════════════════
+/* ─── Expense Form ────────────────────────────────────── */
 function buildExpForm() {
-  const wrap = document.getElementById('exp-wrap');
-  const ready = GAS_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE';
+  var wrap  = document.getElementById('exp-wrap');
+  var ready = GAS_URL && GAS_URL.indexOf('YOUR_') === -1;
 
   if (!ready) {
-    wrap.innerHTML = `<div class="setup-hint">
-      尚未設定 Google Apps Script。<br>
-      請參考 <code>tools/gas_setup.js</code> 完成設定，<br>
-      再將網址填入 <code>index.html</code> 的 <code>GAS_URL</code>。
-    </div>`;
+    wrap.innerHTML = '<div class="setup-hint">尚未設定 Google Apps Script。<br>請將記帳用的 GAS 網址填入 <code>GAS_URL</code>。</div>';
     return;
   }
 
-  const today = todayStr();
-  const defaultDate = tripDays.find(d => d.date === today)?.date || tripDays[0]?.date || today;
-  const dateOptions = tripDays.map(d =>
-    `<option value="${d.date}"${d.date === defaultDate ? ' selected' : ''}>Day ${d.day} · ${fmtDate(d.date)}</option>`
-  ).join('');
+  var today = getJSTDateStr();
+  var defDate = '';
+  for (var i = 0; i < tripDays.length; i++) { if (tripDays[i].date === today) { defDate = today; break; } }
+  if (!defDate && tripDays.length) defDate = tripDays[0].date;
 
-  wrap.innerHTML = `
-    <form class="exp-form" onsubmit="submitExp(event)">
-      <div class="field">
-        <label>日期</label>
-        <select id="e-date">${dateOptions}</select>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label>分類</label>
-          <select id="e-cat">
-            <option>餐飲</option>
-            <option>交通</option>
-            <option>體驗</option>
-            <option>購物</option>
-            <option>購物-寶寶</option>
-            <option>購物-ㄚ鼻</option>
-            <option>其他</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>支付方式</label>
-          <select id="e-pay">
-            <option>現金</option>
-            <option>寶寶信用卡</option>
-            <option>寶寶中信附卡</option>
-            <option>ㄚ鼻中信卡</option>
-          </select>
-        </div>
-      </div>
-      <div class="field">
-        <label>項目</label>
-        <input type="text" id="e-item" placeholder="例：藏前咖啡" required>
-      </div>
-      <div class="field">
-        <label>金額（日圓 ¥）</label>
-        <input type="number" id="e-jpy" placeholder="0" min="0" step="1"
-               oninput="updTWD()" required>
-        <div class="twd" id="twd-preview">≈ TWD —</div>
-      </div>
-      <button type="submit" class="submit-btn">記帳</button>
-    </form>`;
+  var dateOptions = tripDays.map(function(d){
+    var dt   = parseLocalDate(d.date);
+    var mmdd = isNaN(dt) ? d.date : (dt.getMonth()+1) + '/' + dt.getDate() + '（' + WKDAYS[dt.getDay()] + '）';
+    return '<option value="' + d.date + '"' + (d.date === defDate ? ' selected' : '') + '>Day ' + d.day + ' · ' + mmdd + '</option>';
+  }).join('');
+
+  wrap.innerHTML = '<form class="exp-form" onsubmit="submitExp(event)">'
+    + '<div class="field"><label>日期</label><select id="e-date">' + dateOptions + '</select></div>'
+    + '<div class="row">'
+      + '<div class="field"><label>分類</label><select id="e-cat">'
+        + '<option>餐飲</option><option>交通</option><option>體驗</option>'
+        + '<option>購物</option><option>購物-寶寶</option><option>購物-ㄚ鼻</option><option>其他</option>'
+      + '</select></div>'
+      + '<div class="field"><label>支付方式</label><select id="e-pay">'
+        + '<option>現金</option><option>寶寶信用卡</option><option>寶寶中信附卡</option><option>ㄚ鼻中信卡</option>'
+      + '</select></div>'
+    + '</div>'
+    + '<div class="field"><label>項目</label><input type="text" id="e-item" placeholder="例：藏前咖啡" required></div>'
+    + '<div class="field"><label>金額（日圓 ¥）</label>'
+      + '<input type="number" id="e-jpy" placeholder="0" min="0" step="1" oninput="updTWD()" required>'
+      + '<div class="twd" id="twd-preview">≈ TWD —</div>'
+    + '</div>'
+    + '<button type="submit" class="submit-btn">記帳</button>'
+  + '</form>';
 }
 
 function updTWD() {
-  const jpy = +document.getElementById('e-jpy').value;
+  var jpy = +document.getElementById('e-jpy').value;
   document.getElementById('twd-preview').textContent =
-    jpy > 0 ? `≈ TWD ${Math.round(jpy * JPY_TWD).toLocaleString()}` : '≈ TWD —';
+    jpy > 0 ? '≈ TWD ' + Math.round(jpy * JPY_TWD).toLocaleString() : '≈ TWD —';
 }
 
 async function submitExp(e) {
   e.preventDefault();
-  const payload = {
+  var payload = {
     date:       document.getElementById('e-date').value,
     item:       document.getElementById('e-item').value,
     category:   document.getElementById('e-cat').value,
@@ -918,74 +1069,617 @@ async function submitExp(e) {
     document.getElementById('e-item').value = '';
     document.getElementById('e-jpy').value  = '';
     document.getElementById('twd-preview').textContent = '≈ TWD —';
-
-    // GAS 寫入需要約 1-2 秒，稍後重新抓統計
-    setTimeout(() => {
+    setTimeout(function(){
       fetch(GAS_URL)
-        .then(r => r.json())
-        .then(data => { buildSummary(data); showToast('✓ 統計已更新'); })
-        .catch(() => {});
+        .then(function(r){ return r.json(); })
+        .then(function(data){ buildSummary(data); showToast('✓ 統計已更新'); })
+        .catch(function(){});
     }, 2000);
-  } catch {
-    showToast('送出失敗，請確認網路');
+  } catch(e) { showToast('送出失敗，請確認網路'); }
+}
+
+/* ─── Task 5：動態增刪景點 ────────────────────────────── */
+
+// 重新渲染單一天的 panel（增刪後呼叫）
+function updateDayPanel(dayData) {
+  var panel = document.querySelector('.day-panel[data-day="' + dayData.day + '"]');
+  if (!panel) return;
+  var tmp = document.createElement('div');
+  tmp.innerHTML = renderDayPanel(dayData);
+  panel.parentNode.replaceChild(tmp.firstChild, panel);
+  // 保持原本頁籤 active 狀態
+  var newPanel = document.querySelector('.day-panel[data-day="' + dayData.day + '"]');
+  if (newPanel) newPanel.classList.add('active');
+}
+
+// 顯示新增景點 Modal（全螢幕版）
+function showAddModal(dayNum) {
+  _addTargetDay = dayNum;
+  var day = itineraryState.filter(function(d){ return d.day === dayNum; })[0];
+  document.getElementById('add-day-label').textContent = 'Day ' + dayNum + '・' + (day ? day.day_title : '');
+  document.getElementById('modal-search-input').value = '';
+  document.getElementById('modal-spot-name').value    = '';
+  document.getElementById('add-duration').value       = '60';
+  var btn = document.getElementById('add-confirm-btn');
+  btn.disabled    = false;
+  btn.textContent = '💾 加入行程';
+  document.body.style.overflow = 'hidden'; // 鎖死底層滾動
+  document.getElementById('spot-add-modal').classList.remove('hidden');
+  // 地圖需容器可見後才能正確渲染，延遲一幀再初始化
+  setTimeout(function(){
+    initModalMap();
+    document.getElementById('modal-search-input').focus();
+  }, 80);
+}
+
+function closeAddModal() {
+  document.getElementById('spot-add-modal').classList.add('hidden');
+  document.body.style.overflow = ''; // 解鎖底層滾動
+  _addTargetDay = null;
+}
+
+// Places API 景點搜尋
+function searchPlace() {
+  document.activeElement.blur(); // 立刻收合虛擬鍵盤（在任何非同步作業前執行）
+
+  if (!modalMap) { showToast('地圖尚未準備好，請稍後再試'); return; }
+
+  var query = document.getElementById('modal-search-input').value.trim();
+  if (!query) return;
+
+  var searchBtn = document.getElementById('modal-search-btn');
+  searchBtn.disabled    = true;
+  searchBtn.textContent = '搜尋中…';
+
+  var service = new google.maps.places.PlacesService(modalMap);
+  service.findPlaceFromQuery(
+    {
+      query:  query,
+      fields: ['name', 'formatted_address', 'geometry', 'opening_hours'] // 只拿 4 個欄位（省費用）
+    },
+    function(results, status) {
+      searchBtn.disabled    = false;
+      searchBtn.textContent = '🔍 查詢';
+
+      if (status !== google.maps.places.PlacesServiceStatus.OK || !results || !results[0]) {
+        showToast('找不到景點，請換個關鍵字');
+        return;
+      }
+
+      var place = results[0];
+      var lat   = place.geometry.location.lat();
+      var lng   = place.geometry.location.lng();
+
+      // 序列化 opening_hours（陣列 → 換行純文字，避免後續寫入試算表變成 [object Object]）
+      var hoursText   = place.opening_hours && place.opening_hours.weekday_text
+                        ? place.opening_hours.weekday_text.join('\n')
+                        : '';
+      var description = (place.formatted_address || '') +
+                        (hoursText ? '\n\n⏰ 營業時間：\n' + hoursText : '');
+
+      // 從 formatted_address 字串推斷 region_name（不需額外 Nominatim 呼叫）
+      var region = inferRegionFromPlaceAddress(place.formatted_address || '');
+
+      // 放置圖釘、平移地圖
+      placeMarkerAt(lat, lng, place.name, description);
+      tempPlaceData.region = region;
+      modalMap.panTo({ lat: lat, lng: lng });
+      modalMap.setZoom(16);
+
+      // 自動填入景點名稱欄位
+      document.getElementById('modal-spot-name').value = place.name;
+    }
+  );
+}
+
+// 從 Places API 的 formatted_address 字串推斷 region_name
+// （鏡像 inferRegionFromAddr 的關鍵字邏輯，但輸入是純字串）
+function inferRegionFromPlaceAddress(addr) {
+  if (/鎌倉/.test(addr))                                                      return '鎌倉';
+  if (/江の島|江ノ島|片瀬|藤沢/.test(addr))                                   return '湘南・江之島';
+  if (/逗子|葉山|茅ヶ崎|平塚/.test(addr))                                     return '湘南';
+  if (/箱根/.test(addr))                                                       return '箱根';
+  if (/川越/.test(addr))                                                       return '川越';
+  if (/舞浜|浦安/.test(addr))                                                  return '舞濱・千葉';
+  if (/成田/.test(addr))                                                       return '成田';
+  if (/千葉/.test(addr))                                                       return '千葉';
+  if (/横浜|横濱/.test(addr))                                                  return '橫濱';
+  if (/羽田|大田区/.test(addr))                                                return '羽田・東京灣';
+  if (/埼玉/.test(addr))                                                       return '埼玉';
+  if (/東京|台東|渋谷|新宿|千代田|中央区|港区|品川|目黒|世田谷|杉並|豊島|文京|墨田|江東|荒川|足立|葛飾|江戸川|板橋|練馬|北区|中野/.test(addr)) return '東京市區';
+  if (/神奈川/.test(addr))                                                     return '神奈川';
+  return '東京市區';
+}
+
+// 初始化 Google Maps（Modal 開啟時呼叫）
+function initModalMap() {
+  if (!window.google || !window.google.maps) {
+    showToast('地圖載入中，請稍後再試');
+    return;
+  }
+  // 每次開啟 Modal 時清除舊圖釘與暫存資料
+  if (currentMarker) { currentMarker.setMap(null); currentMarker = null; }
+  tempPlaceData = null;
+
+  if (modalMap) {
+    // 地圖已初始化：通知重新計算尺寸（從 hidden 變回可見後必要）
+    google.maps.event.trigger(modalMap, 'resize');
+    modalMap.panTo({ lat: 35.6762, lng: 139.6503 });
+    modalMap.setZoom(13);
+    return;
+  }
+
+  // 首次初始化
+  var placeholder = document.querySelector('.modal-map-placeholder');
+  if (placeholder) placeholder.style.display = 'none';
+
+  modalMap = new google.maps.Map(document.getElementById('modal-map'), {
+    center: { lat: 35.6762, lng: 139.6503 }, // 東京市中心
+    zoom: 13,
+    gestureHandling: 'greedy',  // 單指拖曳（全螢幕 Modal 不需雙指鎖定）
+    disableDefaultUI: true,
+    zoomControl: true
+  });
+
+  // 點擊地圖 → 放置圖釘
+  modalMap.addListener('click', function(e) {
+    placeMarkerAt(e.latLng.lat(), e.latLng.lng(), null, null);
+  });
+}
+
+// 放置唯一圖釘（銷毀舊圖釘、建立新圖釘、暫存座標）
+function placeMarkerAt(lat, lng, name, description) {
+  if (currentMarker) { currentMarker.setMap(null); currentMarker = null; }
+
+  currentMarker = new google.maps.Marker({
+    position: { lat: lat, lng: lng },
+    map: modalMap,
+    animation: google.maps.Animation.DROP
+  });
+
+  tempPlaceData = { lat: lat, lng: lng, name: name || '', description: description || '', region: '' };
+
+  // 地圖點擊路徑（無景點名稱）：用 Nominatim 反向地理編碼推斷地區名
+  if (!name) {
+    reverseGeocodeAddr(lat, lng).then(function(addr) {
+      if (tempPlaceData) tempPlaceData.region = inferRegionFromAddr(addr) || '東京市區';
+    }).catch(function(){});
   }
 }
 
-// ══════════════════════════════
-//  EXPENSE SUMMARY
-// ══════════════════════════════
+// 從 Google Maps URL 解析座標
+// 優先順序：
+//   1. !8m2!3d{lat}!4d{lon}  ← 地點頁精確圖釘座標（最準確）
+//   2. !3d{lat}!4d{lon}       ← 其他圖釘格式
+//   3. /@lat,lon,zoom          ← 地圖畫面中心（較不精確，差距可達數百公尺）
+//   4. ?q=lat,lon / ?ll=lat,lon
+function parseGoogleMapsCoords(url) {
+  if (!url) return null;
+  var s = url.trim();
+
+  // 最優先：地點頁 data 參數中的 !8m2!3d{lat}!4d{lon}（精確圖釘）
+  var pin8 = s.match(/!8m2!3d([-\d.]+)!4d([-\d.]+)/);
+  if (pin8) return { lat: parseFloat(pin8[1]), lon: parseFloat(pin8[2]) };
+
+  // 次優先：其他 !3d{lat}!4d{lon} 格式
+  var pin3 = s.match(/!3d([-\d.]+)!4d([-\d.]+)/);
+  if (pin3) return { lat: parseFloat(pin3[1]), lon: parseFloat(pin3[2]) };
+
+  // 地圖中心 /@lat,lon,zoom（精度較低，但比無座標好）
+  var center = s.match(/@([-\d.]+),([-\d.]+)[,/z]/);
+  if (center) return { lat: parseFloat(center[1]), lon: parseFloat(center[2]) };
+
+  // ?q=lat,lon 或 ?ll=lat,lon
+  var q = s.match(/[?&](?:q|ll)=([-\d.]+),([-\d.]+)/);
+  if (q) return { lat: parseFloat(q[1]), lon: parseFloat(q[2]) };
+
+  return null;
+}
+
+// 短網址展開後再解析（maps.app.goo.gl）
+async function expandAndParseGoogleMapsUrl(url) {
+  // 先試直接解析（可能已是完整 URL）
+  var direct = parseGoogleMapsCoords(url);
+  if (direct) return direct;
+
+  // 短網址嘗試展開
+  if (/maps\.app\.goo\.gl|goo\.gl/i.test(url)) {
+    try {
+      // 透過 cors-anywhere 或直接 fetch（某些環境允許）
+      var r = await fetch('https://corsproxy.io/?' + encodeURIComponent(url), { redirect: 'follow' });
+      var text = await r.text();
+      // 從 HTML 找 canonical URL 或 meta refresh
+      var mm = text.match(/"(https:\/\/www\.google\.com\/maps\/[^"]+)"/);
+      if (mm) {
+        var expanded = parseGoogleMapsCoords(mm[1]);
+        if (expanded) return expanded;
+      }
+    } catch(e) {}
+  }
+
+  return null;
+}
+
+// Google Maps URL 貼入時即時解析
+async function onMapsUrlInput(val) {
+  var statusEl = document.getElementById('add-url-parse-status');
+  if (!val.trim()) { statusEl.textContent = ''; return; }
+
+  statusEl.textContent = '🔍 解析中…';
+  var coords = await expandAndParseGoogleMapsUrl(val.trim());
+  if (coords) {
+    document.getElementById('add-lat').value = coords.lat;
+    document.getElementById('add-lon').value = coords.lon;
+    document.getElementById('add-manual-coords').style.display = 'block';
+    statusEl.textContent = '✓ 解析成功：' + coords.lat.toFixed(4) + ', ' + coords.lon.toFixed(4);
+  } else {
+    statusEl.textContent = '⚠ 無法從連結解析座標，請手動輸入';
+    document.getElementById('add-manual-coords').style.display = 'block';
+  }
+}
+
+/* ─── Wikipedia 景點介紹自動生成（繁體中文）─────────── */
+
+// 相關性檢查：「查詢主詞」必須出現在文章標題內
+// 規則：取查詢字串的第一個詞（主要景點名），該詞必須被標題包含
+// 避免「今半 浅草」→「浅草」這種偷渡（浅草包含在查詢中但不是主詞）
+function isWikiRelevant(query, title) {
+  var q = query.trim().toLowerCase();
+  var t = title.trim().toLowerCase();
+
+  // 1. 標題完全包含查詢詞
+  if (t.includes(q)) return true;
+
+  // 2. 查詢詞以標題開頭（標題是查詢主詞的核心，如「今半」⊂「今半 浅草」）
+  if (q.startsWith(t) && t.length >= 2) return true;
+
+  // 3. 查詢第一詞（空白前）出現在標題中（長度需 ≥ 2 避免單字亂配）
+  var firstWord = q.split(/\s+/)[0];
+  if (firstWord.length >= 2 && t.includes(firstWord)) return true;
+
+  return false;
+}
+
+// 查詢 Wikipedia，支援 variant=zh-tw 繁體中文轉換
+async function queryWikipedia(lang, query, variant) {
+  try {
+    var vp = variant ? '&variant=' + variant : '';
+
+    // Step 1：搜尋最相關頁面標題
+    var searchRes = await fetch(
+      'https://' + lang + '.wikipedia.org/w/api.php'
+      + '?action=query&list=search&format=json&origin=*&srlimit=3'
+      + vp + '&srsearch=' + encodeURIComponent(query)
+    );
+    var searchJson = await searchRes.json();
+    var hits = ((searchJson.query || {}).search) || [];
+    if (!hits.length) return null;
+
+    // Step 2：從前 3 筆結果中找第一個標題相關的
+    var title = null;
+    for (var i = 0; i < hits.length; i++) {
+      if (isWikiRelevant(query, hits[i].title)) { title = hits[i].title; break; }
+    }
+    if (!title) return null; // 全部不相關 → 不顯示錯誤內容
+
+    // Step 3：用 MediaWiki API 取純文字摘要（支援 variant 繁體轉換）
+    var extractRes = await fetch(
+      'https://' + lang + '.wikipedia.org/w/api.php'
+      + '?action=query&prop=extracts&exintro=1&explaintext=1&format=json&origin=*'
+      + vp + '&titles=' + encodeURIComponent(title)
+    );
+    var extractJson = await extractRes.json();
+    var pages   = ((extractJson.query || {}).pages) || {};
+    var pageKey = Object.keys(pages)[0];
+    if (!pageKey || pageKey === '-1') return null;
+
+    var extract = (pages[pageKey].extract || '').trim();
+    if (extract.length < 20) return null;
+
+    // 取前 2 句、最多 120 字
+    var sentences = extract.split(/(?<=[。！？])|(?<=[.!?])\s+/).filter(Boolean);
+    var desc = sentences.slice(0, 2).join('');
+    return desc.length > 120 ? desc.slice(0, 117) + '…' : desc;
+
+  } catch(e) { return null; }
+}
+
+// 繁體中文優先，找不到再試英文
+// locationHint：從座標反查出的地名（如「浅草」「台東区」），加入查詢以精確比對
+async function fetchWikiDescription(name, locationHint) {
+  var hint = (locationHint || '').trim();
+
+  // 1. 繁中 Wikipedia：景點名稱 + 地名（最精確）
+  if (hint) {
+    var r1 = await queryWikipedia('zh', name + ' ' + hint, 'zh-tw');
+    if (r1) return r1;
+  }
+
+  // 2. 繁中 Wikipedia：僅景點名稱
+  var r2 = await queryWikipedia('zh', name, 'zh-tw');
+  if (r2) return r2;
+
+  // 3. 英文 Wikipedia：景點名稱 + 地名
+  if (hint) {
+    var r3 = await queryWikipedia('en', name + ' ' + hint, null);
+    if (r3) return r3;
+  }
+
+  // 4. 英文 Wikipedia：僅景點名稱
+  return await queryWikipedia('en', name, null);
+}
+
+/* ─── 反向地理編碼（共用，避免重複呼叫 Nominatim）───── */
+async function reverseGeocodeAddr(lat, lon) {
+  try {
+    var r = await fetch(
+      'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=14',
+      { headers: { 'Accept-Language': 'ja,zh-TW' } }
+    );
+    return ((await r.json()).address) || {};
+  } catch(e) { return {}; }
+}
+
+// 從 address 物件推斷地區標籤（純函數，不發網路請求）
+function inferRegionFromAddr(addr) {
+  var parts = [
+    addr.suburb, addr.neighbourhood, addr.city_district,
+    addr.quarter, addr.city, addr.town, addr.village,
+    addr.county, addr.state
+  ].filter(Boolean).join(' ');
+
+  if (/鎌倉/.test(parts))                          return '鎌倉';
+  if (/江の島|江ノ島|片瀬|藤沢/.test(parts))       return '湘南・江之島';
+  if (/逗子|葉山|茅ヶ崎|平塚/.test(parts))         return '湘南';
+  if (/箱根/.test(parts))                           return '箱根';
+  if (/川越/.test(parts))                           return '川越';
+  if (/舞浜|浦安/.test(parts))                      return '舞濱・千葉';
+  if (/成田/.test(parts))                           return '成田';
+  if (/千葉/.test(parts))                           return '千葉';
+  if (/横浜|横濱/.test(parts))                      return '橫濱';
+  if (/羽田|大田区/.test(parts))                    return '羽田・東京灣';
+  if (/埼玉/.test(parts))                           return '埼玉';
+  if (/東京|台東|渋谷|新宿|千代田|中央区|港区|品川|目黒|世田谷|杉並|豊島|文京|墨田|江東|荒川|足立|葛飾|江戸川|板橋|練馬|北区|中野/.test(parts)) return '東京市區';
+  if (/神奈川/.test(parts))                         return '神奈川';
+  return addr.city || addr.town || addr.county || '東京市區';
+}
+
+// 從 address 物件取最精確的地名（作為 Wikipedia 搜尋補充關鍵字）
+function locationHintFromAddr(addr) {
+  return addr.suburb || addr.neighbourhood || addr.city_district
+    || addr.quarter  || addr.city          || addr.town || '';
+}
+
+// 保留向後相容（外部仍可直接呼叫）
+async function inferRegionName(lat, lon) {
+  return inferRegionFromAddr(await reverseGeocodeAddr(lat, lon));
+}
+
+// 單次 Nominatim 查詢
+async function nominatimQuery(q) {
+  var url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=jp&q='
+    + encodeURIComponent(q);
+  var r    = await fetch(url, { headers: { 'Accept-Language': 'zh-TW,ja,en' } });
+  var data = await r.json();
+  if (data && data.length > 0) {
+    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), display: data[0].display_name };
+  }
+  return null;
+}
+
+// 多層重試地理編碼：
+//   1. 原始關鍵字
+//   2. 原始關鍵字 + 日本（去除「JAPAN」被誤判為國名的干擾）
+//   3. 只保留最後一個空格分隔的詞（通常是地區名，如 Asakusa）
+async function geocodeSpotName(name) {
+  // 嘗試 1：原始輸入
+  var r = await nominatimQuery(name);
+  if (r) return r;
+
+  // 嘗試 2：移除開頭的 "JAPAN" / "TOKYO" 等干擾字，讓 Nominatim 不混淆國名
+  var cleaned = name.replace(/^(JAPAN|TOKYO|OSAKA)\s+/i, '').trim();
+  if (cleaned !== name) {
+    r = await nominatimQuery(cleaned);
+    if (r) return r;
+  }
+
+  // 嘗試 3：只取最後一個空白後的地區詞（如 "Asakusa"、"浅草"）
+  var parts = name.trim().split(/\s+/);
+  if (parts.length > 1) {
+    r = await nominatimQuery(parts[parts.length - 1] + ' 日本');
+    if (r) return r;
+  }
+
+  return null;
+}
+
+// 確認新增（地理編碼 → 加入狀態 → 重排 → 同步 GAS）
+function confirmAddSpot() {
+  // 驗證：必須先透過搜尋或地圖點擊選取地點
+  if (!tempPlaceData || typeof tempPlaceData.lat !== 'number') {
+    showToast('請先搜尋景點或在地圖上點選位置');
+    return;
+  }
+
+  var spotName = document.getElementById('modal-spot-name').value.trim();
+  if (!spotName) { showToast('請輸入景點名稱'); return; }
+
+  // 4-1：防連擊鎖定（點擊瞬間立刻 disabled，使用者無法重複提交）
+  var btn     = document.getElementById('add-confirm-btn');
+  btn.disabled  = true;
+  btn.innerText = '⏳ 雲端同步中...';
+
+  var duration    = +document.getElementById('add-duration').value || 60;
+  var lat         = tempPlaceData.lat;
+  var lng         = tempPlaceData.lng;
+  var regionName  = tempPlaceData.region || '東京市區';
+  var description = tempPlaceData.description || '';
+
+  var dayIdx = -1;
+  for (var i = 0; i < itineraryState.length; i++) {
+    if (itineraryState[i].day === _addTargetDay) { dayIdx = i; break; }
+  }
+  if (dayIdx < 0) { closeAddModal(); return; }
+
+  var dayData = itineraryState[dayIdx];
+  var newSpot = {
+    spot_name:   spotName,
+    duration:    duration,
+    region_name: regionName,
+    latitude:    lat,
+    longitude:   lng,
+    description: description,
+    transport:   { google_maps_url: buildNavUrl(lat, lng, spotName) }
+  };
+
+  // 4-2 Layer 1：LocalStorage 立即寫入（GAS 同步前的離線防禦）
+  var pendingKey = 'pending_spot_' + Date.now();
+  try {
+    localStorage.setItem(pendingKey, JSON.stringify({ day: _addTargetDay, spot: newSpot }));
+  } catch(e) {}
+
+  // 4-2 Layer 2：立刻更新 UI（使用者體感「秒完成」）
+  var merged    = dayData.spots.concat([newSpot]);
+  var optimized = optimizeDayRoute(merged);
+  itineraryState[dayIdx] = Object.assign({}, dayData, { spots: optimized });
+
+  closeAddModal();                               // 同時解鎖 body scroll
+  updateDayPanel(itineraryState[dayIdx]);
+  showToast('✅ 已新增「' + spotName + '」並重新排序');
+
+  // 4-2 Layer 3：背景 GAS 同步（不阻擋 UI，網路不穩時 localStorage 保留備份）
+  if (API_URL) {
+    fetch(API_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action:      'add',
+        day:         dayData.day,
+        date:        dayData.date,
+        day_title:   dayData.day_title,
+        spot_name:   spotName,
+        duration:    duration,
+        region_name: regionName,
+        latitude:    lat,
+        longitude:   lng,
+        description: description
+      })
+    }).then(function() {
+      try { localStorage.removeItem(pendingKey); } catch(e) {}
+    }).catch(function() {
+      // 同步失敗：localStorage 保留，供日後手動核對
+    });
+  }
+}
+
+// Step 1：顯示確認 Modal（從按鈕的 data attribute 讀取）
+function confirmDeleteSpot(btn) {
+  var dayNum   = Number(btn.dataset.day);
+  var spotName = btn.dataset.name;
+
+  // 更新確認 Modal 內容
+  document.querySelector('#confirm-modal .modal-title').textContent = '刪除景點';
+  document.getElementById('modal-msg').textContent = '確認要刪除「' + spotName + '」嗎？';
+  document.getElementById('modal-confirm-btn').onclick = function() {
+    closeModal();
+    deleteSpot(dayNum, spotName);
+  };
+  document.getElementById('confirm-modal').classList.remove('hidden');
+}
+
+// Step 2：實際刪除（用 spot_name 查找，不用索引，避免排序後索引錯誤）
+function deleteSpot(dayNum, spotName) {
+  var dayIndex = -1;
+  for (var i = 0; i < itineraryState.length; i++) {
+    if (itineraryState[i].day === dayNum) { dayIndex = i; break; }
+  }
+  if (dayIndex < 0) return;
+
+  var dayData  = itineraryState[dayIndex];
+  var deleted  = null;
+
+  // 用名稱篩掉目標景點（只刪第一個符合的）
+  var remaining = dayData.spots.filter(function(s) {
+    if (!deleted && s.spot_name === spotName) { deleted = s; return false; }
+    return true;
+  });
+
+  if (!deleted) return;
+
+  var hasPreset = remaining.some(function(s){ return !!s.time; });
+  var optimized = remaining.length > 0
+    ? (hasPreset ? remaining : optimizeDayRoute(remaining, dayData.day_start))
+    : [];
+
+  itineraryState[dayIndex] = Object.assign({}, dayData, { spots: optimized });
+  updateDayPanel(itineraryState[dayIndex]);
+  showToast('✓ 已移除「' + spotName + '」');
+
+  // 背景同步 GAS
+  if (API_URL) {
+    fetch(API_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'delete', spot_name: spotName, day: dayNum })
+    }).catch(function(){});
+  }
+}
+
+/* ─── Expense Summary ─────────────────────────────────── */
 function buildSummary(data) {
-  const wrap = document.getElementById('summary-wrap');
-  if (!data?.total_jpy) return;
+  var wrap = document.getElementById('summary-wrap');
+  if (!data || !data.total_jpy) return;
 
-  const cats = data.categories.filter(c => c.jpy > 0);
-  const maxJpy = Math.max(...cats.map(c => c.jpy), 1);
+  var cats   = (data.categories || []).filter(function(c){ return c.jpy > 0; });
+  var maxJpy = Math.max.apply(null, cats.map(function(c){ return c.jpy; }).concat([1]));
 
-  const bars = cats.map(c => `
-    <div class="chart-row">
-      <div class="chart-lbl">${c.name}</div>
-      <div class="chart-bar-bg">
-        <div class="chart-bar" style="width:${(c.jpy/maxJpy*100).toFixed(1)}%"></div>
-      </div>
-      <div class="chart-amt">¥${c.jpy.toLocaleString()}</div>
-    </div>`).join('');
+  var bars = cats.map(function(c){
+    return '<div class="chart-row">'
+      + '<div class="chart-lbl">' + c.name + '</div>'
+      + '<div class="chart-bar-bg"><div class="chart-bar" style="width:' + (c.jpy/maxJpy*100).toFixed(1) + '%"></div></div>'
+      + '<div class="chart-amt">¥' + c.jpy.toLocaleString() + '</div>'
+    + '</div>';
+  }).join('');
 
-  const syncedDate = data.last_synced ? new Date(data.last_synced) : null;
-  const synced = syncedDate && !isNaN(syncedDate)
-    ? '上次同步：' + syncedDate.toLocaleString('zh-TW',
-        { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  var syncedDate = data.last_synced ? new Date(data.last_synced) : null;
+  var synced = (syncedDate && !isNaN(syncedDate))
+    ? '上次同步：' + syncedDate.toLocaleString('zh-TW', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     : '';
 
   window._expRecords = data.records || [];
 
-  // debug: will show in UI to diagnose
+  var today = getJSTDateStr();
+  var defDetailDate = '';
+  for (var i = 0; i < tripDays.length; i++) { if (tripDays[i].date === today) { defDetailDate = today; break; } }
+  if (!defDetailDate && tripDays.length) defDetailDate = tripDays[0].date;
 
-  const today = todayStr();
-  const defaultDetailDate = tripDays.find(d => d.date === today)?.date || tripDays[0]?.date || '';
-  const detailTabs = tripDays.map(d => `
-    <button type="button" class="detail-tab${d.date === defaultDetailDate ? ' active' : ''}"
-      onclick="switchDetailDay(this,'${d.date}')">Day ${d.day}<span>${fmtDate(d.date)}</span></button>`
-  ).join('');
+  var detailTabs = tripDays.map(function(d){
+    var dt   = parseLocalDate(d.date);
+    var mmdd = isNaN(dt) ? d.date : (dt.getMonth()+1) + '/' + dt.getDate();
+    var wday = isNaN(dt) ? '' : '（' + WKDAYS[dt.getDay()] + '）';
+    return '<button type="button" class="detail-tab' + (d.date === defDetailDate ? ' active' : '') + '"'
+      + ' onclick="switchDetailDay(this,\'' + d.date + '\')">'
+      + 'Day ' + d.day + '<span>' + mmdd + wday + '</span></button>';
+  }).join('');
 
-  wrap.innerHTML = `
-    <div class="total-box">
-      <div class="total-lbl">旅遊總花費</div>
-      <div class="total-jpy">¥ ${data.total_jpy.toLocaleString()}</div>
-      <div class="total-twd">≈ TWD ${data.total_twd.toLocaleString()}</div>
-    </div>
-    <div class="chart">${bars}</div>
-    <div class="synced-at">${synced}</div>
-    <div class="detail-section">
-      <div class="detail-header">消費明細</div>
-      <div class="detail-tabs">${detailTabs}</div>
-      <div id="detail-list"></div>
-    </div>`;
+  wrap.innerHTML = '<div class="total-box">'
+    + '<div class="total-lbl">旅遊總花費</div>'
+    + '<div class="total-jpy">¥ ' + data.total_jpy.toLocaleString() + '</div>'
+    + '<div class="total-twd">≈ TWD ' + data.total_twd.toLocaleString() + '</div>'
+  + '</div>'
+  + '<div class="chart">' + bars + '</div>'
+  + '<div class="synced-at">' + synced + '</div>'
+  + '<div class="detail-section">'
+    + '<div class="detail-header">消費明細</div>'
+    + '<div class="detail-tabs">' + detailTabs + '</div>'
+    + '<div id="detail-list"></div>'
+  + '</div>';
 
-  renderDetailRecords(defaultDetailDate);
+  renderDetailRecords(defDetailDate);
 }
 
 function switchDetailDay(btn, date) {
-  document.querySelectorAll('.detail-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.detail-tab').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
   renderDetailRecords(date);
 }
@@ -993,55 +1687,47 @@ function switchDetailDay(btn, date) {
 function normalizeDate(s) {
   if (!s) return '';
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
-  // Handle GAS format "Wed Jun 24" (no year) — extract month/day by regex
-  const MON = {Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
-  const m = s.match(/([A-Z][a-z]{2})\s+(\d{1,2})/);
+  var MON = {Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  var m = s.match(/([A-Z][a-z]{2})\s+(\d{1,2})/);
   if (m && MON[m[1]]) {
-    const yr = new Date().getFullYear();
-    return `${yr}-${String(MON[m[1]]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`;
+    var yr = new Date().getFullYear();
+    return yr + '-' + String(MON[m[1]]).padStart(2,'0') + '-' + String(m[2]).padStart(2,'0');
   }
   return s;
 }
 
 function renderDetailRecords(date) {
-  const list = document.getElementById('detail-list');
+  var list = document.getElementById('detail-list');
   if (!list) return;
-  const recs = (window._expRecords || []).filter(r => normalizeDate(r.date) === date);
-  if (!recs.length) {
-    list.innerHTML = '<div class="record-empty">此日無消費記錄</div>';
-    return;
-  }
-  const subtotal = recs.reduce((s, r) => s + r.amount_jpy, 0);
-  list.innerHTML = `<div class="record-list">` +
-    recs.map(r => `
-      <div class="record-item">
-        <div style="flex:1;min-width:0">
-          <div class="record-name">${r.item}</div>
-          <div class="record-meta">${r.category} · ${r.payment}</div>
-        </div>
-        <div class="record-amount">¥${r.amount_jpy.toLocaleString()}</div>
-        <button class="record-del" data-row="${r.rowIndex}" data-name="${r.item.replace(/"/g,'&quot;')}">✕</button>
-      </div>`).join('') +
-    `</div>
-    <div class="record-subtotal">小計 ¥${subtotal.toLocaleString()} ≈ TWD ${Math.round(subtotal * JPY_TWD).toLocaleString()}</div>`;
+  var recs = (window._expRecords || []).filter(function(r){ return normalizeDate(r.date) === date; });
+  if (!recs.length) { list.innerHTML = '<div class="record-empty">此日無消費記錄</div>'; return; }
 
-  list.querySelectorAll('.record-del').forEach(btn => {
-    btn.addEventListener('click', () => showDeleteConfirm(+btn.dataset.row, btn.dataset.name));
+  var subtotal = recs.reduce(function(s,r){ return s + r.amount_jpy; }, 0);
+  list.innerHTML = '<div class="record-list">'
+    + recs.map(function(r){
+      return '<div class="record-item">'
+        + '<div style="flex:1;min-width:0">'
+          + '<div class="record-name">' + r.item + '</div>'
+          + '<div class="record-meta">' + r.category + ' · ' + r.payment + '</div>'
+        + '</div>'
+        + '<div class="record-amount">¥' + r.amount_jpy.toLocaleString() + '</div>'
+        + '<button class="record-del" data-row="' + r.rowIndex + '" data-name="' + r.item.replace(/"/g,'&quot;') + '">✕</button>'
+      + '</div>';
+    }).join('')
+  + '</div>'
+  + '<div class="record-subtotal">小計 ¥' + subtotal.toLocaleString() + ' ≈ TWD ' + Math.round(subtotal * JPY_TWD).toLocaleString() + '</div>';
+
+  list.querySelectorAll('.record-del').forEach(function(btn){
+    btn.addEventListener('click', function(){ showDeleteConfirm(+btn.dataset.row, btn.dataset.name); });
   });
 }
 
-// ══════════════════════════════
-//  DELETE RECORD
-// ══════════════════════════════
+/* ─── Delete Record ───────────────────────────────────── */
 function showDeleteConfirm(rowIndex, itemName) {
-  if (!rowIndex) {
-    showToast('請先重新部署 GAS 才能使用刪除功能');
-    return;
-  }
-  document.getElementById('modal-msg').textContent = `確定要刪除「${itemName}」這筆記錄嗎？`;
-  document.getElementById('modal-confirm-btn').onclick = () => {
-    closeModal();
-    doDeleteRecord(rowIndex);
+  if (!rowIndex) { showToast('請先重新部署 GAS 才能使用刪除功能'); return; }
+  document.getElementById('modal-msg').textContent = '確定要刪除「' + itemName + '」這筆記錄嗎？';
+  document.getElementById('modal-confirm-btn').onclick = function() {
+    closeModal(); doDeleteRecord(rowIndex);
   };
   document.getElementById('confirm-modal').classList.remove('hidden');
 }
@@ -1055,46 +1741,293 @@ async function doDeleteRecord(rowIndex) {
     await fetch(GAS_URL, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'delete', rowIndex })
+      body: JSON.stringify({ action: 'delete', rowIndex: rowIndex })
     });
     showToast('✓ 已刪除');
-    setTimeout(() => {
-      fetch(GAS_URL)
-        .then(r => r.json())
-        .then(data => buildSummary(data))
-        .catch(() => {});
+    setTimeout(function(){
+      fetch(GAS_URL).then(function(r){ return r.json(); }).then(buildSummary).catch(function(){});
     }, 1500);
-  } catch {
-    showToast('刪除失敗，請確認網路');
-  }
+  } catch(e) { showToast('刪除失敗，請確認網路'); }
 }
 
-// ══════════════════════════════
-//  TOAST
-// ══════════════════════════════
-let toastTimer;
+/* ─── Toast ───────────────────────────────────────────── */
+var _toastTimer;
 function showToast(msg) {
-  clearTimeout(toastTimer);
-  const t = document.getElementById('toast');
+  clearTimeout(_toastTimer);
+  var t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  _toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').then(reg => {
-    reg.update(); // 每次開啟都強制檢查 SW 是否有新版
+/* ─── Helpers ─────────────────────────────────────────── */
+function minsToTime(m) {
+  return String(Math.floor(m/60)%24).padStart(2,'0') + ':' + String(m%60).padStart(2,'0');
+}
 
-    reg.addEventListener('updatefound', () => {
-      const newWorker = reg.installing;
-      newWorker.addEventListener('statechange', () => {
-        // 新 SW 啟動後（且非第一次安裝），自動重載取得最新內容
-        if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
+// 任何日期值 → YYYY-MM-DD 字串（一次性正規化用）
+function dateToYMD(val) {
+  if (!val) return '';
+  var s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  var d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  return d.getFullYear() + '-'
+    + String(d.getMonth()+1).padStart(2,'0') + '-'
+    + String(d.getDate()).padStart(2,'0');
+}
+
+// 強健日期解析：接受 YYYY-MM-DD 或 GAS 回傳的完整 Date 字串
+// YYYY-MM-DD → 本地時間（避免 UTC 偏移跨日）
+// 其他格式   → 直接餵給 Date 建構子
+function parseLocalDate(val) {
+  if (!val) return new Date(NaN);
+  var s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+  return new Date(s);
+}
+
+function buildMapsUrl(name) {
+  return 'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination='
+    + encodeURIComponent(name) + '&travelmode=transit';
+}
+
+// 優先用精確座標當 destination，避免同名店家導航跑錯
+function buildNavUrl(lat, lon, name) {
+  if (lat && lon) {
+    return 'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination='
+      + lat + ',' + lon + '&travelmode=transit';
+  }
+  return buildMapsUrl(name);
+}
+
+/* ─── Task 3：最短路由排序演算法 ────────────────────── */
+
+// Haversine 大圓距離公式（回傳公里）
+function haversineKm(lat1, lon1, lat2, lon2) {
+  var R   = 6371;
+  var d2r = Math.PI / 180;
+  var dLat = (lat2 - lat1) * d2r;
+  var dLon = (lon2 - lon1) * d2r;
+  var a = Math.sin(dLat/2) * Math.sin(dLat/2)
+        + Math.cos(lat1 * d2r) * Math.cos(lat2 * d2r)
+        * Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// 計算一組景點順序的總移動距離
+function routeTotalKm(arr) {
+  var total = 0;
+  for (var i = 0; i < arr.length - 1; i++) {
+    total += haversineKm(
+      arr[i].latitude, arr[i].longitude,
+      arr[i+1].latitude, arr[i+1].longitude
+    );
+  }
+  return total;
+}
+
+// 全排列產生器（N ≤ 8 時暴力搜最短）
+function allPermutations(arr) {
+  if (arr.length <= 1) return [arr.slice()];
+  var out = [];
+  for (var i = 0; i < arr.length; i++) {
+    var rest = arr.filter(function(_, j){ return j !== i; });
+    allPermutations(rest).forEach(function(p){
+      out.push([arr[i]].concat(p));
+    });
+  }
+  return out;
+}
+
+// 最近鄰貪婪法（N > 8 的 fallback）
+function nearestNeighborSort(arr) {
+  var rem    = arr.slice();
+  var sorted = [rem.shift()];
+  while (rem.length) {
+    var last = sorted[sorted.length - 1];
+    var bestIdx = 0, bestDist = Infinity;
+    for (var i = 0; i < rem.length; i++) {
+      var d = haversineKm(last.latitude, last.longitude, rem[i].latitude, rem[i].longitude);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    sorted.push(rem.splice(bestIdx, 1)[0]);
+  }
+  return sorted;
+}
+
+// 核心排序：分離航班節點，只對有座標的正常景點排序
+function sortSpotsOptimal(spots) {
+  var heads = [], tails = [], sortable = [];
+  var mid = spots.length / 2;
+
+  spots.forEach(function(s, i) {
+    var canSort = s.latitude && s.longitude && s.duration > 0;
+    if (!canSort) {
+      if (i < mid) heads.push(s); else tails.push(s);
+    } else {
+      sortable.push(s);
+    }
+  });
+
+  if (sortable.length <= 1) return spots;
+
+  var best;
+  if (sortable.length <= 8) {
+    var bestDist = Infinity;
+    allPermutations(sortable).forEach(function(perm) {
+      var d = routeTotalKm(perm);
+      if (d < bestDist) { bestDist = d; best = perm; }
+    });
+  } else {
+    best = nearestNeighborSort(sortable);
+  }
+
+  return heads.concat(best).concat(tails);
+}
+
+// 時間重算：從 startMins（預設 09:00 = 540 分）往後累加 duration
+function reindexTimes(spots, startMins) {
+  var mins = (startMins !== undefined) ? startMins : 9 * 60;
+  return spots.map(function(s) {
+    var copy = Object.assign({}, s);
+    if (copy.duration > 0) {
+      copy.time = minsToTime(mins);
+      mins += copy.duration;
+    }
+    return copy;
+  });
+}
+
+// 解析 "HH:MM" 字串為分鐘數，無法解析則回傳 540（09:00）
+function parseTimeMins(t) {
+  if (!t) return 540;
+  var parts = String(t).split(':');
+  if (parts.length < 2) return 540;
+  var h = parseInt(parts[0], 10);
+  var m = parseInt(parts[1], 10);
+  return (!isNaN(h) && !isNaN(m)) ? h * 60 + m : 540;
+}
+
+// 對外介面：排序 + 重算時間
+// startTime：可傳入 "HH:MM" 字串（day_start），預設 "09:00"
+function optimizeDayRoute(spots, startTime) {
+  if (!spots || spots.length <= 1) return spots;
+  return reindexTimes(sortSpotsOptimal(spots), parseTimeMins(startTime));
+}
+
+/* ─── Static Dining Data（永遠可用，不依賴網路）─────── */
+var STATIC_DINING = {
+  1: [
+    {name:'AFURI 恵比寿',        category:'午餐',  type:'柚子拉麵',   description:'招牌柚子鹽味拉麵以清爽高湯著稱，細麵搭配柴魚昆布湯底，惠比壽站步行可達。',                       google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=AFURI+恵比寿&travelmode=transit'},
+    {name:'IVY PLACE',           category:'午餐',  type:'西式餐廳',   description:'藏身代官山 T-SITE 蔦屋書店園區內的美式花園餐廳，全天候供應早午餐與輕食。',                         google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=IVY+PLACE+代官山&travelmode=transit'},
+    {name:'鳥しき',              category:'晚餐',  type:'焼き鳥',    description:'米其林一星燒鳥名店，以備長炭仔細串烤地雞各部位，座位少需提前預約，中目黑站步行 3 分鐘。',           google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=鳥しき+中目黒&travelmode=transit'},
+    {name:'農家の台所 中目黒',   category:'晚餐',  type:'創作和食',   description:'農家直送無農藥蔬菜為主角的創作和食，擺盤精緻自然，目黑川沿岸散步後的晚餐首選。',                   google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=農家の台所+中目黒&travelmode=transit'},
+    {name:'NEEL コーヒー',       category:'咖啡廳', type:'精品咖啡',  description:'隱身中目黑的精品咖啡館，以嚴選單品豆與手工甜點著稱，低調空間與目黑川散策節奏完全契合。',           google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=NEEL+coffee+中目黒&travelmode=transit'},
+    {name:'Onibus Coffee 代官山', category:'咖啡廳', type:'精品咖啡', description:'東京自家烘焙精品咖啡代表品牌，代官山店選址於安靜住宅區，空間小而精緻。',                            google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Onibus+Coffee+代官山&travelmode=transit'}
+  ],
+  2: [
+    {name:'ペリカンカフェ 浅草',  category:'早餐',  type:'咖啡廳',    description:'昭和17年創業老舖「ペリカン」麵包的直營咖啡館，厚切吐司搭配新鮮奶油是招牌。',                    google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ペリカンカフェ+浅草&travelmode=transit'},
+    {name:'MISOJYU',              category:'早餐',  type:'和食早餐',   description:'以「一湯一飯」為概念的味噌湯專門店，每日提供多種食材的手工味噌湯定食。',                           google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=MISOJYU+浅草&travelmode=transit'},
+    {name:'四川担々麺 阿吽',      category:'午餐',  type:'四川擔擔麵', description:'正統四川麻辣擔擔麵，花椒香氣濃烈但層次分明，淺草隱藏的高人氣餐廳。',                              google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=四川担々麺+阿吽+浅草&travelmode=transit'},
+    {name:'浅草ひら山',           category:'午餐',  type:'手打蕎麥麵', description:'淺草老牌手打蕎麥麵店，每日現磨蕎麥粉製作，湯底清澈甘甜。',                                          google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=浅草ひら山&travelmode=transit'},
+    {name:'淺草 今半',            category:'晚餐',  type:'壽喜燒',    description:'明治28年創業百年壽喜燒老鋪，選用黑毛和牛以關東甜辛口割下鍋，淺草本店就在雷門附近。',               google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=浅草今半+本店&travelmode=transit'},
+    {name:'駒形どぜう',           category:'晚餐',  type:'江戶料理',   description:'文化4年（1807年）創業，東京最古老餐廳之一，以泥鰍鍋（どぜう鍋）為招牌。',                          google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=駒形どぜう&travelmode=transit'},
+    {name:'HAGI CAFE',            category:'咖啡廳', type:'文青咖啡廳', description:'1955年築老公寓改建的咖啡廳，入選食べログ咖啡百名店2025，谷中銀座散策後在此歇腳。',              google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=HAGISO+谷中&travelmode=transit'},
+    {name:'Yanaka Coffee',        category:'咖啡廳', type:'老舖咖啡',  description:'谷中銀座商店街的在地老舖，自家烘焙咖啡豆，可以外帶邊走邊喝。',                                      google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=谷中コーヒー&travelmode=transit'}
+  ],
+  3: [
+    {name:'東京豆漿生活 五反田',  category:'早餐',  type:'台式早餐',   description:'宮城縣產大豆現磨豆漿搭配燒餅油條，出發迪士尼前最有元氣的一頓，五反田站徒步約 5 分鐘。',         google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=東京豆漿生活+五反田&travelmode=transit'},
+    {name:"BECK'S COFFEE 五反田", category:'早餐',  type:'輕食咖啡',   description:'JR五反田站內的咖啡站，提供三明治與晨間套餐，搭車前順手帶走。',                                      google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=BECKS+COFFEE+五反田&travelmode=transit'},
+    {name:'マゼランズ',           category:'午餐',  type:'歐式料理',   description:'迪士尼海洋最高人氣正式餐廳，大航海時代主題，強烈建議事先在 Disney App 預約。【園內】',            google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit'},
+    {name:'ケープコッド・クックオフ', category:'午餐', type:'美式料理', description:'新英格蘭海港主題的快餐廳，提供烤雞腿與豬肋排，性價比高。【園內】',                               google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit'},
+    {name:'リストランテ・ディ・カナレット', category:'晚餐', type:'義式料理', description:'俯瞰地中海港灣的義大利正式餐廳，夜景絕美，需在 Disney App 預約。【園內】',              google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit'},
+    {name:'ヴォルケイニア・レストラン', category:'晚餐', type:'加勒比料理', description:'神秘火山背景的加勒比海風料理餐廳，提供雞肉咖哩飯，是價格最親民的正式餐廳之一。【園內】', google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit'},
+    {name:'スターバックス 舞浜イクスピアリ', category:'咖啡廳', type:'精品咖啡', description:'回程途中在舞濱 Ikspiari 商場內的星巴克做個甜蜜收尾，氣氛比一般門市更有度假感。', google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=スターバックス+舞浜イクスピアリ&travelmode=transit'}
+  ],
+  4: [
+    {name:'Cafe Patricia 川越',   category:'早餐',  type:'咖啡輕食',   description:'川越站西口步行4分鐘，使用東京目黑名店 Prologue 豆子製作的本格咖啡。',                             google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=cafe+patricia+川越&travelmode=transit'},
+    {name:'Tomarigi Coffee 川越', category:'早餐',  type:'自家烘焙咖啡', description:'早上7時半開始營業的自家烘焙咖啡店，是川越在地人的早晨秘密基地。',                                google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=トマリギコーヒー+川越&travelmode=transit'},
+    {name:'小川菊 川越',          category:'午餐',  type:'鰻魚飯',     description:'文化12年（1815年）創業的川越老舖鰻魚飯名店，備長炭炭烤後再蒸製，鰻魚飽滿柔嫩。',                  google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=小川菊+川越&travelmode=transit'},
+    {name:'百丈 川越',            category:'午餐',  type:'川越定食',   description:'位於蔵造老街的川越名物料理餐廳，蕎麥與豆腐套餐具有濃厚地方風情。',                                  google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=百丈+川越&travelmode=transit'},
+    {name:'Legato 渋谷',          category:'晚餐',  type:'義式料理',   description:'澀谷 Hikarie 11樓的空中義大利餐廳，居高臨下的城市夜景配上精緻義式料理，強烈建議提前預約。',        google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Legato+渋谷&travelmode=transit'},
+    {name:'牛かつ もと村 渋谷',   category:'晚餐',  type:'牛排炸物',   description:'以低溫油炸保留鮮嫩肉汁的牛排炸物專門店，搭配麥飯與山藥泥，澀谷店位置方便。',                        google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=牛かつもと村+渋谷&travelmode=transit'},
+    {name:'8+8 Cafe 川越',        category:'咖啡廳', type:'農業咖啡廳', description:'農家直送無農藥蔬菜入菜的農業咖啡廳，米粉製作的戚風蛋糕是招牌。',                                    google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=8plus8cafe+川越&travelmode=transit'},
+    {name:'大正浪漫喫茶 蔵里',    category:'咖啡廳', type:'古民家咖啡', description:'蔵造街道上的大正浪漫風格咖啡廳，在保留昭和建築風情的空間裡品嚐手工甜點。',                         google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=大正浪漫夢通り+川越&travelmode=transit'}
+  ],
+  5: [
+    {name:'ヨリドコロ 稲村ヶ崎',  category:'早餐',  type:'和食早餐',   description:'大正時代民家改建的海濱早餐名店，以獨特的泡沫蛋黃卵かけご飯（TKG）聞名，建議提早排隊。',      google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ヨリドコロ+稲村ヶ崎&travelmode=transit'},
+    {name:'BREEZE BIRD CAFE & BAKERY', category:'早餐', type:'麵包咖啡廳', description:'江之電和田塚站前，每日以天然酵母製作10種以上麵包，搭配手沖咖啡。',                          google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=BREEZE+BIRD+CAFE+鎌倉&travelmode=transit'},
+    {name:'とびっちょ 江の島',    category:'午餐',  type:'生しらす丼',  description:'江之島最具代表性的白魚丼名店，使用當天早晨捕撈的鮮活白魚，6月正是白魚旺季。',                    google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=とびっちょ+江の島&travelmode=transit'},
+    {name:'TODAI KITCHEN DELI & TEA', category:'午餐', type:'地產地消', description:'江之島海蠟燭瞭望台旁，使用湘南藤沢產小麥製作漢堡麵包，可在絕景露台邊看海邊用餐。',             google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=TODAI+KITCHEN+江の島&travelmode=transit'},
+    {name:'Amalfi Della Sera 江の島', category:'晚餐', type:'義式料理', description:'江之島面海的露台義大利餐廳，以高溫石窯烤出的拿坡里披薩配上湘南海景，夕陽西沈時氣氛絕美。', google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=アマルフィ+デッラ+セーラ+江の島&travelmode=transit'},
+    {name:'iL CHIANTI CAFE 江の島', category:'晚餐', type:'義式料理', description:'在迷人海風中享用正統義大利料理，江之島長期受在地人喜愛的名店，可於露台感受湘南海岸暮色。', google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=iL+CHIANTI+CAFE+江の島&travelmode=transit'},
+    {name:'enzan lab.',           category:'咖啡廳', type:'精品咖啡',  description:'湘南地區備受注目的精品咖啡廳，以職人手沖咖啡與在地食材輕食著稱。',                              google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=enzan+lab&travelmode=transit'},
+    {name:'江の島 ENOSHIMA TERRACE', category:'咖啡廳', type:'海景咖啡', description:'江之島神社參道途中的露天咖啡廳，邊喝咖啡邊俯瞰湘南海岸線。',                                  google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ENOSHIMA+TERRACE&travelmode=transit'}
+  ],
+  6: [
+    {name:'ペリカンカフェ 麻布台ヒルズ', category:'早餐', type:'咖啡廳',  description:'「ペリカン」麵包的麻布台之丘店，從早上8點起供應厚片吐司套餐，森JP塔下的從容早晨。', google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ペリカンカフェ+麻布台ヒルズ&travelmode=transit'},
+    {name:'%Arabica 麻布台ヒルズ', category:'早餐', type:'精品咖啡',   description:'以「%」LOGO聞名全球的京都精品咖啡品牌，麻布台之丘店設計極具未來感。',                          google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=アラビカ+麻布台ヒルズ&travelmode=transit'},
+    {name:'TOKYO JUICE 麻布台ヒルズ', category:'咖啡廳', type:'有機果汁', description:'以「Eat Clean, Be Happy」為理念的有機冷壓果汁吧，麻布台之丘空中庭園裡喝一杯清爽果汁。', google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=TOKYO+JUICE+麻布台ヒルズ&travelmode=transit'},
+    {name:'Balcony by 6th 麻布台ヒルズ', category:'咖啡廳', type:'空中花園咖啡', description:'麻布台之丘空中庭園的高台咖啡吧，以森JP塔建築為背景，整個旅程中最有設計感的最後一個咖啡廳。', google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Balcony+by+6th+麻布台ヒルズ&travelmode=transit'}
+  ]
+};
+
+/* ─── Placeholder Data（itinerary.json 不可用時的備援）── */
+var PLACEHOLDER_DATA = {
+  itinerary: [
+    { day:1, date:'2026-06-24', day_title:'入境輕落地：五反田周邊三角散步', spots:[
+      { spot_name:'去程 CI 0220｜松山 09:00 → 羽田 13:10', time:'09:00', duration:0, region_name:'羽田・東京灣', latitude:35.5494, longitude:139.7798, description:'中華航空 CI 0220，入境後搭乘京急電鐵至五反田，辦理入住約 15:00。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit'} },
+      { spot_name:'惠比壽 ガーデンプレイス 散策', time:'15:30', duration:60, region_name:'東京市區', latitude:35.6467, longitude:139.7100, description:'昔日札幌啤酒廠改建的歐式廣場，下午茶氛圍絕佳。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=恵比寿ガーデンプレイス&travelmode=transit'} },
+      { spot_name:'代官山 蔦屋書店（T-SITE）', time:'16:30', duration:60, region_name:'東京市區', latitude:35.6485, longitude:139.7034, description:'日本最具代表性的選物型書店，三棟白色建築。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=代官山蔦屋書店&travelmode=transit'} },
+      { spot_name:'中目黑 目黑川沿岸', time:'17:30', duration:90, region_name:'東京市區', latitude:35.6441, longitude:139.6979, description:'目黑川兩側林立獨立咖啡廳、麵包店、選物店。傍晚水岸光線極美。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=中目黒駅&travelmode=transit'} }
+    ]},
+    { day:2, date:'2026-06-25', day_title:'下町時光：谷中老街與淺草燈火', spots:[
+      { spot_name:'谷中銀座商店街', time:'10:30', duration:90, region_name:'東京市區', latitude:35.7268, longitude:139.7698, description:'昭和氣息最濃厚的在地小商店街，貓咪遍佈的石板老巷。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=谷中銀座&travelmode=transit'} },
+      { spot_name:'淺草 雷門・仲見世通', time:'13:00', duration:90, region_name:'東京市區', latitude:35.7116, longitude:139.7964, description:'江戶風情的標誌大門，仲見世通可買到正統人形燒與草餅。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=雷門&travelmode=transit'} }
+    ]},
+    { day:3, date:'2026-06-26', day_title:'東京迪士尼海洋 全日沉浸', spots:[
+      { spot_name:'東京迪士尼海洋 (Tokyo DisneySea)', time:'08:30', duration:600, region_name:'舞濱・千葉', latitude:35.6270, longitude:139.8845, description:'全球唯一以「海洋」為主題的迪士尼樂園，建議 08:30 前抵達閘口。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit'} }
+    ]},
+    { day:4, date:'2026-06-27', day_title:'小江戶川越 + 回程澀谷天空', spots:[
+      { spot_name:'藏造老街（一番街）', time:'10:00', duration:60, region_name:'川越', latitude:35.9249, longitude:139.4878, description:'江戶時代商人街區，黑色蔵造倉庫連棟而立。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=川越一番街&travelmode=transit'} },
+      { spot_name:'時之鐘（時の鐘）', time:'11:00', duration:30, region_name:'川越', latitude:35.9239, longitude:139.4880, description:'每天 12:00、15:00、18:00 整點報時的木造地標。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=時の鐘+川越&travelmode=transit'} },
+      { spot_name:'菓子屋橫丁', time:'11:30', duration:30, region_name:'川越', latitude:35.9221, longitude:139.4894, description:'明治時代保留至今的糖果小巷。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=菓子屋横丁&travelmode=transit'} },
+      { spot_name:'川越冰川神社', time:'13:30', duration:45, region_name:'川越', latitude:35.9299, longitude:139.4843, description:'粉色系結緣神社，以緣結び聞名關東。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=川越氷川神社&travelmode=transit'} },
+      { spot_name:'澀谷 SKY 觀景台', time:'17:30', duration:90, region_name:'東京市區', latitude:35.6580, longitude:139.7016, description:'360 度全開放天空觀景台，務必提前線上購票。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=SHIBUYA+SKY&travelmode=transit'} }
+    ]},
+    { day:5, date:'2026-06-28', day_title:'湘南日歸：鎌倉老街影巷與江之島神社', spots:[
+      { spot_name:'御霊神社（権五郎神社）', time:'10:30', duration:45, region_name:'鎌倉', latitude:35.3186, longitude:139.5350, description:'江之電穿越鳥居的奇景，6月繡球花盛開。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=御霊神社+鎌倉&travelmode=transit'} },
+      { spot_name:'Tanaka Barber Shop（田中理髪店）', time:'11:15', duration:20, region_name:'鎌倉', latitude:35.3166, longitude:139.5371, description:'坂ノ下的昭和老理髮廳，最受攝影師喜愛的靜物取景地。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=田中理髪店+鎌倉坂ノ下&travelmode=transit'} },
+      { spot_name:'極楽寺（極楽寺）', time:'12:00', duration:45, region_name:'鎌倉', latitude:35.3132, longitude:139.5359, description:'苔蘚覆蓋的山門與古寺，氣氛幽靜如進入另一個時空。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=極楽寺&travelmode=transit'} },
+      { spot_name:'片瀬漁港 白灯台', time:'13:30', duration:30, region_name:'湘南・江之島', latitude:35.3049, longitude:139.4782, description:'片瀬漁港盡頭的白色小燈台，湘南海岸清靜攝影點。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=片瀬漁港&travelmode=transit'} },
+      { spot_name:'江ノ島郵便局（韓劇《愛情怎麼翻譯》取景地）', time:'14:00', duration:30, region_name:'湘南・江之島', latitude:35.3019, longitude:139.4816, description:'韓劇知名取景地，在此寄一張明信片回台灣。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=江の島郵便局&travelmode=transit'} },
+      { spot_name:'江島神社（辺津宮・中津宮・奥津宮）', time:'14:30', duration:60, region_name:'湘南・江之島', latitude:35.2997, longitude:139.4831, description:'依序走過三座神社，全程步行約 40 分鐘。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=江島神社&travelmode=transit'} }
+    ]},
+    { day:6, date:'2026-06-29', day_title:'最終早晨：麻布台之丘 → 羽田起飛', spots:[
+      { spot_name:'麻布台之丘（Azabudai Hills）', time:'09:00', duration:90, region_name:'東京市區', latitude:35.6596, longitude:139.7390, description:'早上 9 點人最少，悠閒欣賞森 JP 塔建築量體與空中花園。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=麻布台ヒルズ&travelmode=transit'} },
+      { spot_name:'羽田空港 國際線ターミナル', time:'11:00', duration:0, region_name:'羽田・東京灣', latitude:35.5494, longitude:139.7798, description:'班機 14:30，國際線建議 12:30 前抵達。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit'} },
+      { spot_name:'回程 CI 0221｜羽田 14:30 → 松山 16:55', time:'14:30', duration:0, region_name:'羽田・東京灣', latitude:35.5494, longitude:139.7798, description:'中華航空 CI 0221。東京羽田 14:30 → 台北松山 16:55。訂位代號：DQ4JMF。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit'} }
+    ]}
+  ]
+};
+
+/* ─── Service Worker ──────────────────────────────────── */
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').then(function(reg){
+    reg.update();
+    reg.addEventListener('updatefound', function(){
+      var nw = reg.installing;
+      nw.addEventListener('statechange', function(){
+        if (nw.state === 'activated' && navigator.serviceWorker.controller) {
           window.location.reload();
         }
       });
     });
-  }).catch(() => {});
+  }).catch(function(){});
 }
+
+/* ─── Bootstrap ───────────────────────────────────────── */
+initAuth();
 </script>
 </body>
 </html>
