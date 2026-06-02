@@ -1193,15 +1193,19 @@ function searchPlace() {
       tempPlaceData.region       = formatRegionFromAddress(place.formatted_address || '') || '東京';
       tempPlaceData.placeId      = place.place_id || '';
       tempPlaceData.address      = place.formatted_address || '';
-      tempPlaceData.openingHours = []; // 由 getDetails 填入
-      tempPlaceData.description  = ''; // 由 getDetails 填入
+      tempPlaceData.openingHours = [];
+      tempPlaceData.description  = '';
 
       modalMap.panTo({ lat: lat, lng: lng });
       modalMap.setZoom(16);
       document.getElementById('modal-spot-name').value = place.name;
 
-      // getDetails：一次取回 opening_hours.weekday_text + editorial_summary
-      // findPlaceFromQuery 的 opening_hours 只含 open_now，weekday_text 必須從 getDetails 取
+      // getDetails 回來前先 disable 確認按鈕，避免 race condition 導致 region 尚未更新就送出
+      var confirmBtn = document.getElementById('add-confirm-btn');
+      confirmBtn.disabled   = true;
+      confirmBtn.innerText  = '📍 取得地址中…';
+
+      // getDetails：取 address_components（region）+ opening_hours + editorial_summary
       if (place.place_id) {
         service.getDetails(
           { placeId: place.place_id, fields: ['address_components', 'formatted_address', 'opening_hours', 'editorial_summary'] },
@@ -1214,8 +1218,14 @@ function searchPlace() {
               var refined = regionFromComponents(details.address_components, details.formatted_address);
               if (refined) tempPlaceData.region = refined;
             }
+            // 無論成功失敗，getDetails 結束後才開放按鈕
+            confirmBtn.disabled  = false;
+            confirmBtn.innerText = '💾 加入行程';
           }
         );
+      } else {
+        confirmBtn.disabled  = false;
+        confirmBtn.innerText = '💾 加入行程';
       }
     }
   );
