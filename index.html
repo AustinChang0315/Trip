@@ -1188,11 +1188,9 @@ function searchPlace() {
       var lat   = place.geometry.location.lat();
       var lng   = place.geometry.location.lng();
 
-      var region = inferRegionFromPlaceAddress(place.formatted_address || '');
-
       // 放置圖釘、平移地圖
       placeMarkerAt(lat, lng, place.name, '');
-      tempPlaceData.region       = region;
+      tempPlaceData.region       = formatRegionFromAddress(place.formatted_address || '') || '東京';
       tempPlaceData.placeId      = place.place_id || '';
       tempPlaceData.address      = place.formatted_address || '';
       tempPlaceData.openingHours = []; // 由 getDetails 填入
@@ -1206,15 +1204,17 @@ function searchPlace() {
       // findPlaceFromQuery 的 opening_hours 只含 open_now，weekday_text 必須從 getDetails 取
       if (place.place_id) {
         service.getDetails(
-          { placeId: place.place_id, fields: ['address_components', 'opening_hours', 'editorial_summary'] },
+          { placeId: place.place_id, fields: ['formatted_address', 'opening_hours', 'editorial_summary'] },
           function(details, detailStatus) {
             if (detailStatus === google.maps.places.PlacesServiceStatus.OK && details) {
               tempPlaceData.openingHours = (details.opening_hours && details.opening_hours.weekday_text)
                                           ? details.opening_hours.weekday_text : [];
               tempPlaceData.description  = (details.editorial_summary && details.editorial_summary.overview)
                                           ? details.editorial_summary.overview : '';
-              if (details.address_components) {
-                tempPlaceData.region = formatRegionFromComponents(details.address_components);
+              // getDetails 的 formatted_address 有時比 findPlaceFromQuery 更完整，順便更新 region
+              if (details.formatted_address) {
+                var refined = formatRegionFromAddress(details.formatted_address);
+                if (refined) tempPlaceData.region = refined;
               }
             }
           }
@@ -1224,74 +1224,33 @@ function searchPlace() {
   );
 }
 
-// 英文/日文地名 → 繁體中文對照表
-// （Places API 對部分地點回傳英文 romanization，此表做轉換）
-var PLACE_NAME_CN = {
-  // 都道府縣
-  'tokyo': '東京', 'chiba': '千葉', 'kanagawa': '神奈川', 'saitama': '埼玉',
-  'tokyo prefecture': '東京', 'chiba prefecture': '千葉',
-  // 千葉
-  'maihama': '舞濱', 'urayasu': '浦安', 'narita': '成田', 'funabashi': '船橋',
-  // 神奈川
-  'kamakura': '鎌倉', 'yokohama': '橫濱', 'hakone': '箱根',
-  'fujisawa': '藤澤', 'enoshima': '江之島', 'zushi': '逗子',
-  'chigasaki': '茅崎', 'hiratsuka': '平塚',
-  // 埼玉
-  'kawagoe': '川越',
-  // 東京各區・町
-  'shibuya': '澀谷', 'shinjuku': '新宿', 'minato': '港區',
-  'chiyoda': '千代田', 'chuo': '中央', 'taito': '台東',
-  'asakusa': '淺草', 'ueno': '上野', 'yanaka': '谷中',
-  'akihabara': '秋葉原', 'kanda': '神田',
-  'sumida': '墨田', 'koto': '江東', 'katsushika': '葛飾',
-  'edogawa': '江戶川', 'adachi': '足立', 'arakawa': '荒川',
-  'harajuku': '原宿', 'omotesando': '表參道', 'aoyama': '青山',
-  'roppongi': '六本木', 'azabu': '麻布', 'azabujuban': '麻布十番',
-  'ginza': '銀座', 'tsukiji': '築地', 'shimbashi': '新橋',
-  'ikebukuro': '池袋', 'sugamo': '巢鴨', 'komagome': '駒込',
-  'shimokitazawa': '下北澤', 'sangenjaya': '三軒茶屋',
-  'daikanyama': '代官山', 'nakameguro': '中目黑', 'meguro': '目黑',
-  'ebisu': '惠比壽', 'gotanda': '五反田', 'shinagawa': '品川',
-  'jiyugaoka': '自由之丘', 'futako-tamagawa': '二子玉川',
-  'koenji': '高圓寺', 'kichijoji': '吉祥寺',
-  'kagurazaka': '神樂坂', 'iidabashi': '飯田橋',
-  'kuramae': '藏前', 'asakusabashi': '淺草橋',
-  'odaiba': '台場', 'ariake': '有明',
-  'osaki': '大崎', 'meguro-ku': '目黑',
-};
+// formatted_address 解析：直接從 zh-TW 的中文地址字串切出「府縣 町名」
+// 例：「〒279-0031 日本千葉縣浦安市舞濱1番地1」→「千葉 舞濱」
+//     「日本東京都台東區上野5丁目4-8」        →「東京 上野」
+function formatRegionFromAddress(addr) {
+  if (!addr) return '';
 
-// address_components 解析：回傳「都道府縣 町名」格式（例：東京 上野、千葉 舞濱）
-function formatRegionFromComponents(components) {
-  if (!components || !components.length) return '東京';
+  // 去掉郵遞區號、「日本」、逗號與空白
+  var s = addr.replace(/〒[\d-]+\s*/g, '').replace(/日本[,，、]?\s*/g, '').trim();
 
-  var find = function(type) {
-    for (var i = 0; i < components.length; i++) {
-      if (components[i].types.indexOf(type) >= 0) return components[i];
-    }
-    return null;
-  };
+  // 擷取都道府縣（CJK 字元 + 都/道/府/縣/県 結尾）
+  var prefMatch = s.match(/([　-鿿぀-ヿ]{1,6}[都道府縣県])/);
+  if (!prefMatch) return '';
 
-  // 將地名轉為繁體中文（英文 romanization → 查對照表；日/中文直接去後綴）
-  var toCN = function(name) {
-    if (!name) return '';
-    var mapped = PLACE_NAME_CN[name.toLowerCase()];
-    if (mapped) return mapped;
-    return name.replace(/[都道府県縣市区區町村郡]$/, '');
-  };
+  var prefFull = prefMatch[1];
+  var pref     = prefFull.replace(/[都道府縣県]$/, '');
+  var rest     = s.slice(s.indexOf(prefFull) + prefFull.length);
 
-  var prefComp = find('administrative_area_level_1');
-  var pref = prefComp ? toCN(prefComp.long_name) : '東京';
+  // 跳過「市/區/郡」層（浦安市、台東區…）
+  var cityMatch = rest.match(/^([　-鿿぀-ヿ]{1,8}[市区區郡])/);
+  var afterCity = cityMatch ? rest.slice(cityMatch[0].length) : rest;
+  var cityName  = cityMatch ? cityMatch[1].replace(/[市区區郡]$/, '') : '';
 
-  // 細部地名：優先取最小粒度（町 > 次町 > 鄰里 > 區 > 市）
-  var fine = find('sublocality_level_2')
-          || find('sublocality_level_1')
-          || find('neighborhood')
-          || find('ward')
-          || find('locality')
-          || find('administrative_area_level_2');
+  // 擷取町名（CJK 字元，遇到數字/丁目/番地/ー 停止）
+  var townMatch = afterCity.match(/^([　-鿿぀-ヿ]{1,8})/);
+  var town      = townMatch ? townMatch[1] : cityName; // 無町名則退用市名
 
-  var fineName = fine ? toCN(fine.long_name) : '';
-  return pref + (fineName ? ' ' + fineName : '');
+  return pref + (town ? ' ' + town : '');
 }
 
 // 從 Places API 的 formatted_address 字串推斷 region_name
@@ -1352,7 +1311,7 @@ function initModalMap() {
     if (e.placeId) {
       var svc = new google.maps.places.PlacesService(modalMap);
       svc.getDetails(
-        { placeId: e.placeId, fields: ['place_id', 'name', 'formatted_address', 'address_components', 'geometry', 'opening_hours', 'editorial_summary'] },
+        { placeId: e.placeId, fields: ['place_id', 'name', 'formatted_address', 'geometry', 'opening_hours', 'editorial_summary'] },
         function(details, status) {
           if (status !== google.maps.places.PlacesServiceStatus.OK || !details) {
             placeMarkerAt(lat, lng, null, null);
@@ -1361,9 +1320,7 @@ function initModalMap() {
           var detailLat = details.geometry.location.lat();
           var detailLng = details.geometry.location.lng();
           var addr      = details.formatted_address || '';
-          var region    = details.address_components
-                          ? formatRegionFromComponents(details.address_components)
-                          : inferRegionFromPlaceAddress(addr);
+          var region    = formatRegionFromAddress(addr) || '東京';
           var hours     = (details.opening_hours && details.opening_hours.weekday_text)
                           ? details.opening_hours.weekday_text : [];
           var desc      = (details.editorial_summary && details.editorial_summary.overview)
