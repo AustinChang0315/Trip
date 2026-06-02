@@ -1228,7 +1228,9 @@ function searchPlace() {
 // components 來自 getDetails，formattedAddr 作為 CJK fallback
 function regionFromComponents(components, formattedAddr) {
   function isCJK(s) { return /[一-鿿぀-ヿ]/.test(s || ''); }
-  function strip(s)  { return (s || '').replace(/[都道府縣県市区區町村郡]$/, ''); }
+  function strip(s) { return (s || '').replace(/[都道府縣県市区區町村郡]$/, ''); }
+
+  var pref = '';
 
   if (components && components.length) {
     var find = function(type) {
@@ -1239,19 +1241,29 @@ function regionFromComponents(components, formattedAddr) {
 
     var prefComp = find('administrative_area_level_1');
     if (prefComp && isCJK(prefComp.long_name)) {
-      var pref = strip(prefComp.long_name);
-      var FINE = ['sublocality_level_2','sublocality_level_1','neighborhood','ward','locality'];
+      pref = strip(prefComp.long_name);
+
+      // 日本地址 type 優先順序：
+      // sublocality_level_1 = 町名（西日暮里），level_2 = 丁目（略過）
+      // ward / administrative_area_level_2 = 区（荒川区）
+      // locality = 市/区（東京 23 区有時用此 type）
+      var FINE = ['sublocality_level_1','neighborhood','ward','administrative_area_level_2','locality'];
       var fine = null;
       for (var i = 0; i < FINE.length; i++) {
         var c = find(FINE[i]);
-        if (c && isCJK(c.long_name)) { fine = c; break; }
+        if (c && isCJK(c.long_name) && !/^\d/.test(c.long_name)) { fine = c; break; }
       }
-      var fineName = fine ? strip(fine.long_name) : '';
-      return pref + (fineName ? ' ' + fineName : '');
+
+      if (fine) return pref + ' ' + strip(fine.long_name);
+
+      // address_components 有 pref 但無細部町名 → 補問 formatted_address
+      var fromAddr = formatRegionFromAddress(formattedAddr);
+      if (fromAddr && fromAddr !== pref) return fromAddr;
+      return pref;
     }
   }
 
-  // Fallback：components 是英文 → 直接解析 formatted_address（zh-TW 通常是中文）
+  // address_components 是英文或不存在 → 全靠 formatted_address
   return formatRegionFromAddress(formattedAddr);
 }
 
