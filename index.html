@@ -1210,24 +1210,24 @@ function searchPlace() {
         service.getDetails(
           { placeId: place.place_id, fields: ['address_components', 'formatted_address', 'opening_hours', 'editorial_summary'] },
           function(details, detailStatus) {
-            if (detailStatus === google.maps.places.PlacesServiceStatus.OK && details) {
+            // ── DEBUG ──────────────────────────────────────────────────
+            if (detailStatus !== google.maps.places.PlacesServiceStatus.OK || !details) {
+              alert('[DEBUG] getDetails 失敗\nstatus: ' + detailStatus);
+            } else {
+              var compSummary = (details.address_components || []).map(function(c){
+                return c.types[0] + '=' + c.long_name;
+              }).join('\n');
+              var refined = regionFromComponents(details.address_components, details.formatted_address);
+              alert('[DEBUG] getDetails OK\nfmt: ' + (details.formatted_address || '(none)') +
+                    '\nrefined: ' + refined +
+                    '\n---\n' + (compSummary || '(none)'));
               tempPlaceData.openingHours = (details.opening_hours && details.opening_hours.weekday_text)
                                           ? details.opening_hours.weekday_text : [];
               tempPlaceData.description  = (details.editorial_summary && details.editorial_summary.overview)
                                           ? details.editorial_summary.overview : '';
-              var refined = regionFromComponents(details.address_components, details.formatted_address);
               if (refined) tempPlaceData.region = refined;
-
-              // ── DEBUG（確認問題後刪除）──────────────────────────────
-              var compSummary = (details.address_components || []).map(function(c){
-                return c.types[0] + '=' + c.long_name;
-              }).join(' | ');
-              alert('[DEBUG]\nfmt: ' + (details.formatted_address || '(none)') +
-                    '\nrefined: ' + refined +
-                    '\ncomps: ' + (compSummary || '(none)'));
-              // ────────────────────────────────────────────────────────
             }
-            // 無論成功失敗，getDetails 結束後才開放按鈕
+            // ───────────────────────────────────────────────────────────
             confirmBtn.disabled  = false;
             confirmBtn.innerText = '💾 加入行程';
           }
