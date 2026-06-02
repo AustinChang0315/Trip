@@ -1228,32 +1228,68 @@ function searchPlace() {
 // 例：「〒279-0031 日本千葉縣浦安市舞濱1番地1」→「千葉 舞濱」
 //     「〒116-0013 東京都荒川区西日暮里３丁目」→「東京 西日暮里」
 // 注意：使用 \u 跳脫序列，避免直接寫 Unicode 字元進 regex 造成瀏覽器解析不一致
-var _CJK = '[\\u4E00-\\u9FFF\\u3040-\\u30FF]'; // CJK 統一表意文字 + 平假名 + 片假名
+// 英文都道府縣 → 繁體中文（Places API 對部分地點回傳英文地址時使用）
+var _PREF_EN = {
+  'tokyo':'東京','chiba':'千葉','kanagawa':'神奈川','saitama':'埼玉',
+  'ibaraki':'茨城','tochigi':'栃木','gunma':'群馬','shizuoka':'靜岡',
+  'niigata':'新潟','nagano':'長野','yamanashi':'山梨'
+};
 
 function formatRegionFromAddress(addr) {
   if (!addr) return '';
 
-  // 去掉郵遞區號、「日本」、全形空白、逗號
+  // ── 路徑 A：CJK 中文/日文地址（zh-TW 格式）──────────────────
   var s = addr.replace(/〒[\d-]+\s*/g, '').replace(/日本[,，、]?\s*/g, '').trim();
+  var CJK = '\\u4E00-\\u9FFF\\u3040-\\u30FF';
 
-  // 擷取都道府縣（1-6 個 CJK 字元 + 都/道/府/縣/県）
-  var prefMatch = s.match(new RegExp('([' + _CJK.slice(1, -1) + ']{1,6}[都道府縣県])'));
-  if (!prefMatch) return '';
+  var prefMatch = s.match(new RegExp('([' + CJK + ']{1,6}[都道府縣県])'));
+  if (prefMatch) {
+    var prefFull = prefMatch[1];
+    var pref     = prefFull.replace(/[都道府縣県]$/, '');
+    var rest     = s.slice(s.indexOf(prefFull) + prefFull.length);
 
-  var prefFull = prefMatch[1];
-  var pref     = prefFull.replace(/[都道府縣県]$/, '');
-  var rest     = s.slice(s.indexOf(prefFull) + prefFull.length);
+    var cityMatch = rest.match(new RegExp('^([' + CJK + ']{1,8}[市区區郡])'));
+    var afterCity = cityMatch ? rest.slice(cityMatch[0].length) : rest;
+    var cityName  = cityMatch ? cityMatch[1].replace(/[市区區郡]$/, '') : '';
 
-  // 跳過「市/区/區/郡」層（浦安市、台東區、荒川区…）
-  var cityMatch = rest.match(new RegExp('^([' + _CJK.slice(1, -1) + ']{1,8}[市区區郡])'));
-  var afterCity = cityMatch ? rest.slice(cityMatch[0].length) : rest;
-  var cityName  = cityMatch ? cityMatch[1].replace(/[市区區郡]$/, '') : '';
+    var townMatch = afterCity.match(new RegExp('^([' + CJK + ']{1,10})'));
+    var town      = (townMatch && townMatch[1]) ? townMatch[1] : cityName;
 
-  // 擷取町名（CJK 字元連續段，遇到數字/全形數字就停止）
-  var townMatch = afterCity.match(new RegExp('^([' + _CJK.slice(1, -1) + ']{1,10})'));
-  var town      = (townMatch && townMatch[1]) ? townMatch[1] : cityName;
+    return pref + (town ? ' ' + town : '');
+  }
 
-  return pref + (town ? ' ' + town : '');
+  // ── 路徑 B：英文地址 fallback（如 "Arakawa City, Tokyo, Japan"）─
+  // 格式通常是：[番地] [町名Romaji], [Ward/City], [Prefecture], [Postal], Japan
+  var lower = addr.toLowerCase();
+
+  // 找都道府縣
+  var prefCN = '';
+  for (var en in _PREF_EN) {
+    if (lower.indexOf(en) >= 0) { prefCN = _PREF_EN[en]; break; }
+  }
+  if (!prefCN) return '';
+
+  // 嘗試從逗號分段擷取最細地名（通常在第一或第二段）
+  // 例：["3 Chome Nishinippori", "Arakawa City", "Tokyo 116-0013", "Japan"]
+  var parts = addr.split(',').map(function(p){ return p.trim(); });
+  var town2 = '';
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i];
+    // 含 CJK 的段（如混合地名）直接取
+    if (new RegExp('[' + CJK + ']').test(p)) {
+      town2 = p.replace(/[\d\s丁目番地号ー－\-]/g, '').trim();
+      break;
+    }
+    // 純英文段：取「Chome XXX」後的地名（如 "3 Chome Nishinippori" → "Nishinippori"）
+    var chomeMatch = p.match(/chome\s+([A-Za-z\-]+)/i);
+    if (chomeMatch) { town2 = chomeMatch[1]; break; }
+    // 排除含 City/Prefecture/Japan/郵遞區號的段
+    if (!/city|prefecture|japan|\d{3}-\d{4}/i.test(p) && /^[A-Za-z]/.test(p) && i === 0) {
+      town2 = p.replace(/^\d+\s+/, '').trim(); // 去掉前面的門牌號
+    }
+  }
+
+  return prefCN + (town2 ? ' ' + town2 : '');
 }
 
 // 從 Places API 的 formatted_address 字串推斷 region_name
