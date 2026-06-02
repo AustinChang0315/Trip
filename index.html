@@ -1202,40 +1202,38 @@ function searchPlace() {
 
       // getDetails 回來前先 disable 確認按鈕，避免 race condition 導致 region 尚未更新就送出
       var confirmBtn = document.getElementById('add-confirm-btn');
-      confirmBtn.disabled   = true;
-      confirmBtn.innerText  = '📍 取得地址中…';
+      confirmBtn.disabled  = true;
+      confirmBtn.innerText = '📍 取得地址中…';
 
-      // getDetails：取 address_components（region）+ opening_hours + editorial_summary
+      // 兩個非同步請求，都完成才開放按鈕
+      var _pending = 2;
+      var _done = function() { if (--_pending <= 0) { confirmBtn.disabled = false; confirmBtn.innerText = '💾 加入行程'; } };
+
+      // ① getDetails：只取 opening_hours + editorial_summary（不再靠它做 region）
       if (place.place_id) {
         service.getDetails(
-          { placeId: place.place_id, fields: ['address_components', 'formatted_address', 'opening_hours', 'editorial_summary'] },
+          { placeId: place.place_id, fields: ['opening_hours', 'editorial_summary'] },
           function(details, detailStatus) {
-            // ── DEBUG ──────────────────────────────────────────────────
-            if (detailStatus !== google.maps.places.PlacesServiceStatus.OK || !details) {
-              alert('[DEBUG] getDetails 失敗\nstatus: ' + detailStatus);
-            } else {
-              var compSummary = (details.address_components || []).map(function(c){
-                return c.types[0] + '=' + c.long_name;
-              }).join('\n');
-              var refined = regionFromComponents(details.address_components, details.formatted_address);
-              alert('[DEBUG] getDetails OK\nfmt: ' + (details.formatted_address || '(none)') +
-                    '\nrefined: ' + refined +
-                    '\n---\n' + (compSummary || '(none)'));
+            if (detailStatus === google.maps.places.PlacesServiceStatus.OK && details) {
               tempPlaceData.openingHours = (details.opening_hours && details.opening_hours.weekday_text)
                                           ? details.opening_hours.weekday_text : [];
               tempPlaceData.description  = (details.editorial_summary && details.editorial_summary.overview)
                                           ? details.editorial_summary.overview : '';
-              if (refined) tempPlaceData.region = refined;
             }
-            // ───────────────────────────────────────────────────────────
-            confirmBtn.disabled  = false;
-            confirmBtn.innerText = '💾 加入行程';
+            _done();
           }
         );
-      } else {
-        confirmBtn.disabled  = false;
-        confirmBtn.innerText = '💾 加入行程';
-      }
+      } else { _done(); }
+
+      // ② Geocoder：用座標反查地址，zh-TW 語言支援比 Places getDetails 更可靠
+      var _geocoder = new google.maps.Geocoder();
+      _geocoder.geocode({ location: { lat: lat, lng: lng } }, function(results, geoStatus) {
+        if (geoStatus === google.maps.GeocoderStatus.OK && results && results[0]) {
+          var geoRegion = regionFromComponents(results[0].address_components, results[0].formatted_address);
+          if (geoRegion) tempPlaceData.region = geoRegion;
+        }
+        _done();
+      });
     }
   );
 }
@@ -1361,7 +1359,7 @@ function initModalMap() {
     if (e.placeId) {
       var svc = new google.maps.places.PlacesService(modalMap);
       svc.getDetails(
-        { placeId: e.placeId, fields: ['place_id', 'name', 'address_components', 'formatted_address', 'geometry', 'opening_hours', 'editorial_summary'] },
+        { placeId: e.placeId, fields: ['place_id', 'name', 'formatted_address', 'geometry', 'opening_hours', 'editorial_summary'] },
         function(details, status) {
           if (status !== google.maps.places.PlacesServiceStatus.OK || !details) {
             placeMarkerAt(lat, lng, null, null);
@@ -1369,20 +1367,26 @@ function initModalMap() {
           }
           var detailLat = details.geometry.location.lat();
           var detailLng = details.geometry.location.lng();
-          var addr      = details.formatted_address || '';
-          var region    = regionFromComponents(details.address_components, addr) || '東京';
-          var hours     = (details.opening_hours && details.opening_hours.weekday_text)
-                          ? details.opening_hours.weekday_text : [];
-          var desc      = (details.editorial_summary && details.editorial_summary.overview)
-                          ? details.editorial_summary.overview : '';
+          var hours = (details.opening_hours && details.opening_hours.weekday_text)
+                      ? details.opening_hours.weekday_text : [];
+          var desc  = (details.editorial_summary && details.editorial_summary.overview)
+                      ? details.editorial_summary.overview : '';
 
           placeMarkerAt(detailLat, detailLng, details.name, desc);
           tempPlaceData.placeId      = details.place_id || '';
-          tempPlaceData.address      = addr;
+          tempPlaceData.address      = details.formatted_address || '';
           tempPlaceData.openingHours = hours;
-          tempPlaceData.region       = region;
 
           document.getElementById('modal-spot-name').value = details.name;
+
+          // Geocoder 取 region（比 getDetails address_components 更可靠的 zh-TW 支援）
+          var _gc = new google.maps.Geocoder();
+          _gc.geocode({ location: { lat: detailLat, lng: detailLng } }, function(results, geoStatus) {
+            if (geoStatus === google.maps.GeocoderStatus.OK && results && results[0]) {
+              var geoRegion = regionFromComponents(results[0].address_components, results[0].formatted_address);
+              if (geoRegion) tempPlaceData.region = geoRegion;
+            }
+          });
         }
       );
     } else {
