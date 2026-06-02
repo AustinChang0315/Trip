@@ -1146,7 +1146,7 @@ function searchPlace() {
   service.findPlaceFromQuery(
     {
       query:  query,
-      fields: ['name', 'formatted_address', 'geometry', 'opening_hours'] // 只拿 4 個欄位（省費用）
+      fields: ['place_id', 'name', 'formatted_address', 'geometry', 'opening_hours'] // place_id 為 basic field 不額外計費
     },
     function(results, status) {
       searchBtn.disabled    = false;
@@ -1173,7 +1173,8 @@ function searchPlace() {
 
       // 放置圖釘、平移地圖
       placeMarkerAt(lat, lng, place.name, description);
-      tempPlaceData.region = region;
+      tempPlaceData.region  = region;
+      tempPlaceData.placeId = place.place_id || ''; // 用於生成精確且顯示店名的導航 URL
       modalMap.panTo({ lat: lat, lng: lng });
       modalMap.setZoom(16);
 
@@ -1533,6 +1534,17 @@ function confirmAddSpot() {
   if (dayIdx < 0) { closeAddModal(); return; }
 
   var dayData = itineraryState[dayIdx];
+
+  // Places API 路徑：用 destination_place_id 讓 Google Maps 顯示店名而非「已放置圖釘」
+  // 地圖點擊路徑（無 place_id）：退回座標版 URL
+  var placeId = tempPlaceData.placeId || '';
+  var navUrl  = placeId
+    ? 'https://www.google.com/maps/dir/?api=1&origin=My+Location'
+        + '&destination=' + encodeURIComponent(spotName)
+        + '&destination_place_id=' + placeId
+        + '&travelmode=transit'
+    : buildNavUrl(lat, lng, spotName);
+
   var newSpot = {
     spot_name:   spotName,
     duration:    duration,
@@ -1540,7 +1552,7 @@ function confirmAddSpot() {
     latitude:    lat,
     longitude:   lng,
     description: description,
-    transport:   { google_maps_url: buildNavUrl(lat, lng, spotName) }
+    transport:   { google_maps_url: navUrl }
   };
 
   // 4-2 Layer 1：LocalStorage 立即寫入（GAS 同步前的離線防禦）
