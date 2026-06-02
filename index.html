@@ -1172,7 +1172,7 @@ function searchPlace() {
   service.findPlaceFromQuery(
     {
       query:  query,
-      fields: ['place_id', 'name', 'formatted_address', 'geometry', 'opening_hours'],
+      fields: ['place_id', 'name', 'formatted_address', 'geometry'],
       locationBias: { center: biasCenter, radius: 10000 } // 10km 半徑
     },
     function(results, status) {
@@ -1188,11 +1188,6 @@ function searchPlace() {
       var lat   = place.geometry.location.lat();
       var lng   = place.geometry.location.lng();
 
-      // 保留 weekday_text 陣列（供 confirmAddSpot 存入 GAS + 渲染當日營業時間）
-      var openingHours = (place.opening_hours && place.opening_hours.weekday_text)
-                         ? place.opening_hours.weekday_text
-                         : [];
-
       var region = inferRegionFromPlaceAddress(place.formatted_address || '');
 
       // 放置圖釘、平移地圖
@@ -1200,21 +1195,26 @@ function searchPlace() {
       tempPlaceData.region       = region;
       tempPlaceData.placeId      = place.place_id || '';
       tempPlaceData.address      = place.formatted_address || '';
-      tempPlaceData.openingHours = openingHours;
-      tempPlaceData.description  = ''; // editorial_summary 由 getDetails 非同步填入
+      tempPlaceData.openingHours = []; // 由 getDetails 填入
+      tempPlaceData.description  = ''; // 由 getDetails 填入
 
       modalMap.panTo({ lat: lat, lng: lng });
       modalMap.setZoom(16);
       document.getElementById('modal-spot-name').value = place.name;
 
-      // 非同步抓 editorial_summary（失敗靜默，description 維持空字串）
+      // getDetails：一次取回 opening_hours.weekday_text + editorial_summary
+      // findPlaceFromQuery 的 opening_hours 只含 open_now，weekday_text 必須從 getDetails 取
       if (place.place_id) {
         service.getDetails(
-          { placeId: place.place_id, fields: ['editorial_summary'] },
+          { placeId: place.place_id, fields: ['opening_hours', 'editorial_summary'] },
           function(details, detailStatus) {
-            if (detailStatus === google.maps.places.PlacesServiceStatus.OK
-                && details && details.editorial_summary) {
-              tempPlaceData.description = details.editorial_summary.overview || '';
+            if (detailStatus === google.maps.places.PlacesServiceStatus.OK && details) {
+              tempPlaceData.openingHours = (details.opening_hours && details.opening_hours.weekday_text)
+                                          ? details.opening_hours.weekday_text
+                                          : [];
+              tempPlaceData.description  = (details.editorial_summary && details.editorial_summary.overview)
+                                          ? details.editorial_summary.overview
+                                          : '';
             }
           }
         );
