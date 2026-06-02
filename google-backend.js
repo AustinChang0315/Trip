@@ -208,6 +208,33 @@ function jsonResponse(data) {
 }
 
 // ──────────────────────────────────────────
+//  欄位遷移（新增欄位時執行一次）
+// ──────────────────────────────────────────
+
+// 執行方式：Apps Script 編輯器 → 選擇 addMissingColumns → 點執行
+function addMissingColumns() {
+  var sheet   = getSheet();
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+  var toAdd = ['address', 'opening_hours'].filter(function(h) {
+    return headers.indexOf(h) === -1;
+  });
+
+  if (toAdd.length === 0) {
+    Logger.log('欄位已是最新，無需新增');
+    return;
+  }
+
+  toAdd.forEach(function(col) {
+    var nextCol = sheet.getLastColumn() + 1;
+    sheet.getRange(1, nextCol).setValue(col);
+    Logger.log('已新增欄位：' + col + '（第 ' + nextCol + ' 欄）');
+  });
+
+  Logger.log('遷移完成！新增了：' + toAdd.join(', '));
+}
+
+// ──────────────────────────────────────────
 //  初始化（只需執行一次）
 // ──────────────────────────────────────────
 
