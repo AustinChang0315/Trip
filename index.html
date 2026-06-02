@@ -181,6 +181,12 @@
       padding: 2px 8px; border-radius: 100px; margin-bottom: 6px;
     }
     .spot-name { font-size: .92rem; font-weight: 700; color: var(--text-1); line-height: 1.35; margin-bottom: 6px; }
+    .spot-address { font-size: .71rem; color: var(--text-3); line-height: 1.5; margin-bottom: 5px; }
+    .spot-hours {
+      font-size: .73rem; color: var(--text-2); line-height: 1.5;
+      background: var(--accent-lt); border: 1px solid var(--accent-bd);
+      border-radius: 6px; padding: 5px 10px; margin-bottom: 8px;
+    }
     .spot-desc { font-size: .78rem; color: var(--text-2); line-height: 1.7; margin-bottom: 8px; }
 
     /* Weather (on spot card) */
@@ -856,7 +862,16 @@ function renderDayPanel(dayData) {
           + '<span class="spot-region-tag">' + spot.region_name + '</span>'
           + '<div class="spot-name">' + spot.spot_name + '</div>'
           + weatherHtml
-          + '<div class="spot-desc">' + spot.description + '</div>'
+          + (spot.address ? '<div class="spot-address">📍 ' + spot.address + '</div>' : '')
+          + (spot.description ? '<div class="spot-desc">' + spot.description + '</div>' : '')
+          + (function() {
+              if (!spot.opening_hours || !spot.opening_hours.length) return '';
+              // Date.getDay(): 0=Sun,1=Mon...6=Sat → Google weekday_text: 0=Mon...6=Sun
+              var jsDay     = new Date(dayData.date + 'T00:00:00').getDay();
+              var googleDay = (jsDay + 6) % 7;
+              var todayStr  = spot.opening_hours[googleDay];
+              return todayStr ? '<div class="spot-hours">🕐 ' + todayStr + '</div>' : '';
+            })()
           + transportHtml
           + (!isFlight
             ? '<div class="spot-footer">'
@@ -1173,25 +1188,37 @@ function searchPlace() {
       var lat   = place.geometry.location.lat();
       var lng   = place.geometry.location.lng();
 
-      // 序列化 opening_hours（陣列 → 換行純文字，避免後續寫入試算表變成 [object Object]）
-      var hoursText   = place.opening_hours && place.opening_hours.weekday_text
-                        ? place.opening_hours.weekday_text.join('\n')
-                        : '';
-      var description = (place.formatted_address || '') +
-                        (hoursText ? '\n\n⏰ 營業時間：\n' + hoursText : '');
+      // 保留 weekday_text 陣列（供 confirmAddSpot 存入 GAS + 渲染當日營業時間）
+      var openingHours = (place.opening_hours && place.opening_hours.weekday_text)
+                         ? place.opening_hours.weekday_text
+                         : [];
 
-      // 從 formatted_address 字串推斷 region_name（不需額外 Nominatim 呼叫）
       var region = inferRegionFromPlaceAddress(place.formatted_address || '');
 
       // 放置圖釘、平移地圖
-      placeMarkerAt(lat, lng, place.name, description);
-      tempPlaceData.region  = region;
-      tempPlaceData.placeId = place.place_id || ''; // 用於生成精確且顯示店名的導航 URL
+      placeMarkerAt(lat, lng, place.name, '');
+      tempPlaceData.region       = region;
+      tempPlaceData.placeId      = place.place_id || '';
+      tempPlaceData.address      = place.formatted_address || '';
+      tempPlaceData.openingHours = openingHours;
+      tempPlaceData.description  = ''; // editorial_summary 由 getDetails 非同步填入
+
       modalMap.panTo({ lat: lat, lng: lng });
       modalMap.setZoom(16);
-
-      // 自動填入景點名稱欄位
       document.getElementById('modal-spot-name').value = place.name;
+
+      // 非同步抓 editorial_summary（失敗靜默，description 維持空字串）
+      if (place.place_id) {
+        service.getDetails(
+          { placeId: place.place_id, fields: ['editorial_summary'] },
+          function(details, detailStatus) {
+            if (detailStatus === google.maps.places.PlacesServiceStatus.OK
+                && details && details.editorial_summary) {
+              tempPlaceData.description = details.editorial_summary.overview || '';
+            }
+          }
+        );
+      }
     }
   );
 }
@@ -1533,11 +1560,13 @@ function confirmAddSpot() {
   btn.disabled  = true;
   btn.innerText = '⏳ 雲端同步中...';
 
-  var duration    = +document.getElementById('add-duration').value || 60;
-  var lat         = tempPlaceData.lat;
-  var lng         = tempPlaceData.lng;
-  var regionName  = tempPlaceData.region || '東京市區';
-  var description = tempPlaceData.description || '';
+  var duration     = +document.getElementById('add-duration').value || 60;
+  var lat          = tempPlaceData.lat;
+  var lng          = tempPlaceData.lng;
+  var regionName   = tempPlaceData.region || '東京市區';
+  var description  = tempPlaceData.description  || '';
+  var address      = tempPlaceData.address      || '';
+  var openingHours = tempPlaceData.openingHours || [];
 
   var dayIdx = -1;
   for (var i = 0; i < itineraryState.length; i++) {
@@ -1558,13 +1587,15 @@ function confirmAddSpot() {
     : buildNavUrl(lat, lng, spotName);
 
   var newSpot = {
-    spot_name:   spotName,
-    duration:    duration,
-    region_name: regionName,
-    latitude:    lat,
-    longitude:   lng,
-    description: description,
-    transport:   { google_maps_url: navUrl }
+    spot_name:     spotName,
+    duration:      duration,
+    region_name:   regionName,
+    latitude:      lat,
+    longitude:     lng,
+    description:   description,
+    address:       address,
+    opening_hours: openingHours,
+    transport:     { google_maps_url: navUrl }
   };
 
   // 4-2 Layer 1：LocalStorage 立即寫入（GAS 同步前的離線防禦）
@@ -1588,16 +1619,18 @@ function confirmAddSpot() {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
-        action:      'add',
-        day:         dayData.day,
-        date:        dayData.date,
-        day_title:   dayData.day_title,
-        spot_name:   spotName,
-        duration:    duration,
-        region_name: regionName,
-        latitude:    lat,
-        longitude:   lng,
-        description: description
+        action:        'add',
+        day:           dayData.day,
+        date:          dayData.date,
+        day_title:     dayData.day_title,
+        spot_name:     spotName,
+        duration:      duration,
+        region_name:   regionName,
+        latitude:      lat,
+        longitude:     lng,
+        description:   description,
+        address:       address,
+        opening_hours: JSON.stringify(openingHours)
       })
     }).then(function() {
       try { localStorage.removeItem(pendingKey); } catch(e) {}

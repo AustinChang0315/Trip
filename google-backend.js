@@ -30,7 +30,9 @@ const HEADERS = [
   'region_name',  // 地區名（用於天氣去重）
   'latitude',     // 緯度（float）
   'longitude',    // 經度（float）
-  'description'   // 景點描述
+  'description',  // 景點描述（editorial summary）
+  'address',      // Google formatted_address（顯示用）
+  'opening_hours' // JSON 字串，weekday_text 陣列（Mon-Sun）
 ];
 
 // ──────────────────────────────────────────
@@ -58,21 +60,26 @@ function doGet(e) {
       const region    = String(row[5]);
       const lat       = Number(row[6]);
       const lng       = Number(row[7]);
-      const desc      = String(row[8]);
+      const desc    = String(row[8]);
+      const address = String(row[9] || '');
+      var   opening_hours = [];
+      try { opening_hours = JSON.parse(String(row[10] || '[]')); } catch(e) {}
 
       if (!dayMap.has(day)) {
         dayMap.set(day, { day: day, date: date, day_title: day_title, spots: [] });
       }
 
       dayMap.get(day).spots.push({
-        spot_name:   spot_name,
-        duration:    duration,
-        region_name: region,
-        latitude:    lat,
-        longitude:   lng,
-        description: desc,
+        spot_name:     spot_name,
+        duration:      duration,
+        region_name:   region,
+        latitude:      lat,
+        longitude:     lng,
+        description:   desc,
+        address:       address,
+        opening_hours: opening_hours,
         transport: {
-          google_maps_url: buildNavUrl(lat, lng, spot_name) // 優先用座標，避免同名店家導航錯誤
+          google_maps_url: buildNavUrl(lat, lng, spot_name)
         }
       });
     });
@@ -120,7 +127,9 @@ function handleAdd(sheet, payload) {
     String(payload.region_name|| ''),
     Number(payload.latitude   || 0),
     Number(payload.longitude  || 0),
-    String(payload.description|| '')
+    String(payload.description|| ''),
+    String(payload.address    || ''),
+    String(payload.opening_hours || '[]')
   ]);
 
   return jsonResponse({ success: true, message: '景點已新增：' + payload.spot_name });
