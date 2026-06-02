@@ -676,8 +676,19 @@ async function boot() {
           var gas = gasMap[day.day];
           if (!gas) return day;
           // 用 GAS 景點取代 spots，但保留 itinerary.json 的 dining / note
+          // 同時用座標強制修正 google_maps_url（GAS 可能只回傳店名版 URL）
+          var fixedSpots = gas.spots.map(function(s) {
+            if (s.latitude && s.longitude) {
+              return Object.assign({}, s, {
+                transport: Object.assign({}, s.transport, {
+                  google_maps_url: buildNavUrl(s.latitude, s.longitude, s.spot_name)
+                })
+              });
+            }
+            return s;
+          });
           return Object.assign({}, day, {
-            spots:     gas.spots,
+            spots:     fixedSpots,
             day_title: gas.day_title || day.day_title,
             date:      dateToYMD(gas.date) || day.date
           });
