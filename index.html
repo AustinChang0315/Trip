@@ -1226,29 +1226,32 @@ function searchPlace() {
 
 // formatted_address 解析：直接從 zh-TW 的中文地址字串切出「府縣 町名」
 // 例：「〒279-0031 日本千葉縣浦安市舞濱1番地1」→「千葉 舞濱」
-//     「日本東京都台東區上野5丁目4-8」        →「東京 上野」
+//     「〒116-0013 東京都荒川区西日暮里３丁目」→「東京 西日暮里」
+// 注意：使用 \u 跳脫序列，避免直接寫 Unicode 字元進 regex 造成瀏覽器解析不一致
+var _CJK = '[\\u4E00-\\u9FFF\\u3040-\\u30FF]'; // CJK 統一表意文字 + 平假名 + 片假名
+
 function formatRegionFromAddress(addr) {
   if (!addr) return '';
 
-  // 去掉郵遞區號、「日本」、逗號與空白
+  // 去掉郵遞區號、「日本」、全形空白、逗號
   var s = addr.replace(/〒[\d-]+\s*/g, '').replace(/日本[,，、]?\s*/g, '').trim();
 
-  // 擷取都道府縣（CJK 字元 + 都/道/府/縣/県 結尾）
-  var prefMatch = s.match(/([　-鿿぀-ヿ]{1,6}[都道府縣県])/);
+  // 擷取都道府縣（1-6 個 CJK 字元 + 都/道/府/縣/県）
+  var prefMatch = s.match(new RegExp('([' + _CJK.slice(1, -1) + ']{1,6}[都道府縣県])'));
   if (!prefMatch) return '';
 
   var prefFull = prefMatch[1];
   var pref     = prefFull.replace(/[都道府縣県]$/, '');
   var rest     = s.slice(s.indexOf(prefFull) + prefFull.length);
 
-  // 跳過「市/區/郡」層（浦安市、台東區…）
-  var cityMatch = rest.match(/^([　-鿿぀-ヿ]{1,8}[市区區郡])/);
+  // 跳過「市/区/區/郡」層（浦安市、台東區、荒川区…）
+  var cityMatch = rest.match(new RegExp('^([' + _CJK.slice(1, -1) + ']{1,8}[市区區郡])'));
   var afterCity = cityMatch ? rest.slice(cityMatch[0].length) : rest;
   var cityName  = cityMatch ? cityMatch[1].replace(/[市区區郡]$/, '') : '';
 
-  // 擷取町名（CJK 字元，遇到數字/丁目/番地/ー 停止）
-  var townMatch = afterCity.match(/^([　-鿿぀-ヿ]{1,8})/);
-  var town      = townMatch ? townMatch[1] : cityName; // 無町名則退用市名
+  // 擷取町名（CJK 字元連續段，遇到數字/全形數字就停止）
+  var townMatch = afterCity.match(new RegExp('^([' + _CJK.slice(1, -1) + ']{1,10})'));
+  var town      = (townMatch && townMatch[1]) ? townMatch[1] : cityName;
 
   return pref + (town ? ' ' + town : '');
 }
