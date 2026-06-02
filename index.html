@@ -1224,6 +1224,42 @@ function searchPlace() {
   );
 }
 
+// 英文/日文地名 → 繁體中文對照表
+// （Places API 對部分地點回傳英文 romanization，此表做轉換）
+var PLACE_NAME_CN = {
+  // 都道府縣
+  'tokyo': '東京', 'chiba': '千葉', 'kanagawa': '神奈川', 'saitama': '埼玉',
+  'tokyo prefecture': '東京', 'chiba prefecture': '千葉',
+  // 千葉
+  'maihama': '舞濱', 'urayasu': '浦安', 'narita': '成田', 'funabashi': '船橋',
+  // 神奈川
+  'kamakura': '鎌倉', 'yokohama': '橫濱', 'hakone': '箱根',
+  'fujisawa': '藤澤', 'enoshima': '江之島', 'zushi': '逗子',
+  'chigasaki': '茅崎', 'hiratsuka': '平塚',
+  // 埼玉
+  'kawagoe': '川越',
+  // 東京各區・町
+  'shibuya': '澀谷', 'shinjuku': '新宿', 'minato': '港區',
+  'chiyoda': '千代田', 'chuo': '中央', 'taito': '台東',
+  'asakusa': '淺草', 'ueno': '上野', 'yanaka': '谷中',
+  'akihabara': '秋葉原', 'kanda': '神田',
+  'sumida': '墨田', 'koto': '江東', 'katsushika': '葛飾',
+  'edogawa': '江戶川', 'adachi': '足立', 'arakawa': '荒川',
+  'harajuku': '原宿', 'omotesando': '表參道', 'aoyama': '青山',
+  'roppongi': '六本木', 'azabu': '麻布', 'azabujuban': '麻布十番',
+  'ginza': '銀座', 'tsukiji': '築地', 'shimbashi': '新橋',
+  'ikebukuro': '池袋', 'sugamo': '巢鴨', 'komagome': '駒込',
+  'shimokitazawa': '下北澤', 'sangenjaya': '三軒茶屋',
+  'daikanyama': '代官山', 'nakameguro': '中目黑', 'meguro': '目黑',
+  'ebisu': '惠比壽', 'gotanda': '五反田', 'shinagawa': '品川',
+  'jiyugaoka': '自由之丘', 'futako-tamagawa': '二子玉川',
+  'koenji': '高圓寺', 'kichijoji': '吉祥寺',
+  'kagurazaka': '神樂坂', 'iidabashi': '飯田橋',
+  'kuramae': '藏前', 'asakusabashi': '淺草橋',
+  'odaiba': '台場', 'ariake': '有明',
+  'osaki': '大崎', 'meguro-ku': '目黑',
+};
+
 // address_components 解析：回傳「都道府縣 町名」格式（例：東京 上野、千葉 舞濱）
 function formatRegionFromComponents(components) {
   if (!components || !components.length) return '東京';
@@ -1235,11 +1271,18 @@ function formatRegionFromComponents(components) {
     return null;
   };
 
-  // 都道府縣名（去掉「都/道/府/縣/県」後綴）
-  var prefComp = find('administrative_area_level_1');
-  var pref = prefComp ? prefComp.long_name.replace(/[都道府県縣]$/, '') : '東京';
+  // 將地名轉為繁體中文（英文 romanization → 查對照表；日/中文直接去後綴）
+  var toCN = function(name) {
+    if (!name) return '';
+    var mapped = PLACE_NAME_CN[name.toLowerCase()];
+    if (mapped) return mapped;
+    return name.replace(/[都道府県縣市区區町村郡]$/, '');
+  };
 
-  // 細部地名：優先取最小粒度（町 > 丁目區段 > 區 > 市）
+  var prefComp = find('administrative_area_level_1');
+  var pref = prefComp ? toCN(prefComp.long_name) : '東京';
+
+  // 細部地名：優先取最小粒度（町 > 次町 > 鄰里 > 區 > 市）
   var fine = find('sublocality_level_2')
           || find('sublocality_level_1')
           || find('neighborhood')
@@ -1247,7 +1290,7 @@ function formatRegionFromComponents(components) {
           || find('locality')
           || find('administrative_area_level_2');
 
-  var fineName = fine ? fine.long_name.replace(/[都道府県縣市区區町村郡]$/, '') : '';
+  var fineName = fine ? toCN(fine.long_name) : '';
   return pref + (fineName ? ' ' + fineName : '');
 }
 
