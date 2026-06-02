@@ -1228,15 +1228,26 @@ function searchPlace() {
       confirmBtn.disabled  = true;
       confirmBtn.innerText = '📍 取得地址中…';
 
-      // 兩個非同步請求，都完成才開放按鈕
+      // 兩個非同步請求，都完成才開放按鈕；若 Google APIs 全失敗，Nominatim 保底
       var _pending = 2;
-      var _done = function() { if (--_pending <= 0) { confirmBtn.disabled = false; confirmBtn.innerText = '💾 加入行程'; } };
+      var _done = function() {
+        if (--_pending > 0) return;
+        if (tempPlaceData.region) { confirmBtn.disabled = false; confirmBtn.innerText = '💾 加入行程'; return; }
+        // Google 全失敗 → Nominatim 保底
+        reverseGeocodeNominatim(lat, lng).then(function(addr) {
+          var nr = regionFromNominatim(addr);
+          console.log('[region] Nominatim fallback result:', nr);
+          if (nr && !tempPlaceData.region) tempPlaceData.region = nr;
+          confirmBtn.disabled = false; confirmBtn.innerText = '💾 加入行程';
+        }).catch(function() { confirmBtn.disabled = false; confirmBtn.innerText = '💾 加入行程'; });
+      };
 
       // ① getDetails：取 address_components（繁體中文 region 主要來源）+ opening_hours + editorial_summary
       if (place.place_id) {
         service.getDetails(
           { placeId: place.place_id, fields: ['address_components', 'opening_hours', 'editorial_summary'] },
           function(details, detailStatus) {
+            console.log('[region] getDetails status:', detailStatus, 'address_components:', details && JSON.stringify((details.address_components||[]).slice(0,3)));
             if (detailStatus === google.maps.places.PlacesServiceStatus.OK && details) {
               tempPlaceData.openingHours = (details.opening_hours && details.opening_hours.weekday_text)
                                           ? details.opening_hours.weekday_text : [];
@@ -1244,6 +1255,7 @@ function searchPlace() {
                                           ? details.editorial_summary.overview : '';
               if (details.address_components) {
                 var r = regionFromComponents(details.address_components);
+                console.log('[region] regionFromComponents result:', r);
                 if (r) tempPlaceData.region = r;
               }
             }
@@ -1395,6 +1407,20 @@ function initModalMap() {
           reverseGeocodeAddr(detailLat, detailLng).then(function(components) {
             var region = regionFromComponents(components);
             if (region) tempPlaceData.region = region;
+            if (tempPlaceData.region) {
+              _confirmBtn.disabled  = false;
+              _confirmBtn.innerText = '💾 加入行程';
+              return;
+            }
+            // Google 全失敗 → Nominatim 保底
+            return reverseGeocodeNominatim(detailLat, detailLng).then(function(addr) {
+              var nr = regionFromNominatim(addr);
+              console.log('[region] Nominatim fallback (map click):', nr);
+              if (nr && !tempPlaceData.region) tempPlaceData.region = nr;
+              _confirmBtn.disabled  = false;
+              _confirmBtn.innerText = '💾 加入行程';
+            });
+          }).then(function() {
             _confirmBtn.disabled  = false;
             _confirmBtn.innerText = '💾 加入行程';
           }).catch(function(){
@@ -1592,6 +1618,26 @@ async function fetchWikiDescription(name, locationHint) {
   return await queryWikipedia('en', name, null);
 }
 
+/* ─── Nominatim 反向地理編碼（保底 fallback，Accept-Language: zh-TW 優先）── */
+async function reverseGeocodeNominatim(lat, lon) {
+  try {
+    var r = await fetch(
+      'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=14',
+      { headers: { 'Accept-Language': 'zh-TW,zh-Hant;q=0.9,ja;q=0.5' } }
+    );
+    return ((await r.json()).address) || {};
+  } catch(e) { return {}; }
+}
+
+function regionFromNominatim(addr) {
+  if (!addr) return '';
+  var strip = function(s) { return (s || '').replace(/[都道府縣県市区區町村郡]$/, ''); };
+  var pref = strip(addr.state || addr.province || '');
+  if (!pref) return '';
+  var town = strip(addr.suburb || addr.neighbourhood || addr.quarter || addr.city_district || '');
+  return pref + (town ? ' ' + town : '');
+}
+
 /* ─── 反向地理編碼（Google Geocoding REST API，per-request language=zh-TW）── */
 async function reverseGeocodeAddr(lat, lon) {
   try {
@@ -1600,8 +1646,10 @@ async function reverseGeocodeAddr(lat, lon) {
       '&language=zh-TW&key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww'
     );
     var d = await r.json();
+    var pref = d.results && d.results[0] && (d.results[0].address_components||[]).filter(function(c){return c.types.indexOf('administrative_area_level_1')>=0;})[0];
+    console.log('[region] REST geocode status:', d.status, 'pref:', pref && pref.long_name);
     return (d.results && d.results[0] && d.results[0].address_components) || [];
-  } catch(e) { return []; }
+  } catch(e) { console.log('[region] REST geocode error:', e); return []; }
 }
 
 // 從 Google Geocoder address_components 推斷地區標籤
