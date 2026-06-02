@@ -1217,6 +1217,15 @@ function searchPlace() {
                                           ? details.editorial_summary.overview : '';
               var refined = regionFromComponents(details.address_components, details.formatted_address);
               if (refined) tempPlaceData.region = refined;
+
+              // ── DEBUG（確認問題後刪除）──────────────────────────────
+              var compSummary = (details.address_components || []).map(function(c){
+                return c.types[0] + '=' + c.long_name;
+              }).join(' | ');
+              alert('[DEBUG]\nfmt: ' + (details.formatted_address || '(none)') +
+                    '\nrefined: ' + refined +
+                    '\ncomps: ' + (compSummary || '(none)'));
+              // ────────────────────────────────────────────────────────
             }
             // 無論成功失敗，getDetails 結束後才開放按鈕
             confirmBtn.disabled  = false;
