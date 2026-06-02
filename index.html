@@ -161,7 +161,7 @@
     .btn-del-spot:active { color: var(--red); }
 
     /* Add Spot Button（每天底部） */
-    .add-spot-wrap { padding: 0 16px 20px; }
+    .add-spot-wrap { padding: 12px 16px 4px; }
     .btn-add-spot {
       width: 100%; padding: 10px;
       border: 1.5px dashed var(--accent-bd);
@@ -899,8 +899,8 @@ function renderDayPanel(dayData) {
       + '<h2 class="day-panel-title">' + dayData.day_title + '</h2>'
       + '<p class="day-panel-date">' + dateLabel + '</p>'
     + '</div>'
-    + '<div class="timeline">' + spotsHtml + '</div>'
     + addBtnHtml
+    + '<div class="timeline">' + spotsHtml + '</div>'
     + diningStr
   + '</section>';
 }
