@@ -1142,11 +1142,23 @@ function searchPlace() {
   searchBtn.disabled    = true;
   searchBtn.textContent = '搜尋中…';
 
+  // 動態 locationBias：以當天第一個景點為中心往外 10km
+  // 涵蓋範圍：淺草↔代官山 約 8km、鎌倉市區約 3km、川越市區約 2km，10km 剛好不會跨區
+  var biasCenter = { lat: 35.6762, lng: 139.6503 }; // 預設：東京市中心
+  if (_addTargetDay !== null) {
+    var targetDay = itineraryState.filter(function(d){ return d.day === _addTargetDay; })[0];
+    if (targetDay && targetDay.spots) {
+      var anchor = targetDay.spots.filter(function(s){ return s.latitude && s.longitude; })[0];
+      if (anchor) biasCenter = { lat: anchor.latitude, lng: anchor.longitude };
+    }
+  }
+
   var service = new google.maps.places.PlacesService(modalMap);
   service.findPlaceFromQuery(
     {
       query:  query,
-      fields: ['place_id', 'name', 'formatted_address', 'geometry', 'opening_hours'] // place_id 為 basic field 不額外計費
+      fields: ['place_id', 'name', 'formatted_address', 'geometry', 'opening_hours'],
+      locationBias: { center: biasCenter, radius: 10000 } // 10km 半徑
     },
     function(results, status) {
       searchBtn.disabled    = false;
