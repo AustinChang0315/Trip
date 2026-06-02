@@ -1225,20 +1225,12 @@ function searchPlace() {
         );
       } else { _done(); }
 
-      // ② Geocoder：用座標反查地址，zh-TW 語言支援比 Places getDetails 更可靠
-      var _geocoder = new google.maps.Geocoder();
-      _geocoder.geocode({ location: { lat: lat, lng: lng } }, function(results, geoStatus) {
-        if (geoStatus === google.maps.GeocoderStatus.OK && results && results[0]) {
-          var geoRegion = regionFromComponents(results[0].address_components, results[0].formatted_address);
-          if (geoRegion) tempPlaceData.region = geoRegion;
-          // DEBUG
-          var dbg = (results[0].address_components || []).map(function(c){ return c.types[0]+'='+c.long_name; }).join('\n');
-          alert('[Geocoder]\nfmt: '+results[0].formatted_address+'\nregion: '+geoRegion+'\n---\n'+dbg);
-        } else {
-          alert('[Geocoder] 失敗 status='+geoStatus);
-        }
+      // ② Nominatim 反查地址取 region（Google API 對此語言設定不可靠，改用 OSM）
+      reverseGeocodeAddr(lat, lng).then(function(addr) {
+        var region = regionFromNominatim(addr);
+        if (region) tempPlaceData.region = region;
         _done();
-      });
+      }).catch(function() { _done(); });
     }
   );
 }
@@ -1287,6 +1279,18 @@ function regionFromComponents(components, formattedAddr) {
 
   // address_components 是英文或不存在 → 全靠 formatted_address
   return formatRegionFromAddress(formattedAddr);
+}
+
+// Nominatim 反向地理編碼結果 → 「都道府縣 町名」格式
+// addr 是 reverseGeocodeAddr() 回傳的 address 物件（日文欄位名）
+function regionFromNominatim(addr) {
+  if (!addr) return '';
+  var strip = function(s) { return (s || '').replace(/[都道府縣県市区區町村郡]$/, ''); };
+  var pref  = strip(addr.state || addr.province || '');
+  if (!pref) return '';
+  // suburb = 丁目以上的町名（如「西日暮里」），city_district = 区
+  var town  = strip(addr.suburb || addr.neighbourhood || addr.quarter || addr.city_district || '');
+  return pref + (town ? ' ' + town : '');
 }
 
 // formatted_address 字串解析（僅作 fallback，當 address_components 是英文時使用）
@@ -1384,14 +1388,11 @@ function initModalMap() {
 
           document.getElementById('modal-spot-name').value = details.name;
 
-          // Geocoder 取 region（比 getDetails address_components 更可靠的 zh-TW 支援）
-          var _gc = new google.maps.Geocoder();
-          _gc.geocode({ location: { lat: detailLat, lng: detailLng } }, function(results, geoStatus) {
-            if (geoStatus === google.maps.GeocoderStatus.OK && results && results[0]) {
-              var geoRegion = regionFromComponents(results[0].address_components, results[0].formatted_address);
-              if (geoRegion) tempPlaceData.region = geoRegion;
-            }
-          });
+          // Nominatim 反查地址取 region
+          reverseGeocodeAddr(detailLat, detailLng).then(function(addr) {
+            var region = regionFromNominatim(addr);
+            if (region) tempPlaceData.region = region;
+          }).catch(function(){});
         }
       );
     } else {
