@@ -1261,66 +1261,26 @@ function searchPlace() {
 // formatted_address 解析：直接從 zh-TW 的中文地址字串切出「府縣 町名」
 // 例：「〒279-0031 日本千葉縣浦安市舞濱1番地1」→「千葉 舞濱」
 //     「〒116-0013 東京都荒川区西日暮里３丁目」→「東京 西日暮里」
-// address_components 結構化解析（主要方法）
-// components 來自 getDetails，formattedAddr 作為 CJK fallback
-function regionFromComponents(components, formattedAddr) {
-  function isCJK(s) { return /[一-鿿぀-ヿ]/.test(s || ''); }
-  function strip(s) { return (s || '').replace(/[都道府縣県市区區町村郡]$/, ''); }
-
-  var pref = '';
-
-  if (components && components.length) {
-    var find = function(type) {
-      for (var i = 0; i < components.length; i++)
-        if (components[i].types.indexOf(type) >= 0) return components[i];
-      return null;
-    };
-
-    var prefComp = find('administrative_area_level_1');
-    if (prefComp && isCJK(prefComp.long_name)) {
-      pref = strip(prefComp.long_name);
-
-      // 日本地址 type 優先順序：
-      // sublocality_level_1 = 町名（西日暮里），level_2 = 丁目（略過）
-      // ward / administrative_area_level_2 = 区（荒川区）
-      // locality = 市/区（東京 23 区有時用此 type）
-      var FINE = ['sublocality_level_1','neighborhood','ward','administrative_area_level_2','locality'];
-      var fine = null;
-      for (var i = 0; i < FINE.length; i++) {
-        var c = find(FINE[i]);
-        if (c && isCJK(c.long_name) && !/^\d/.test(c.long_name)) { fine = c; break; }
-      }
-
-      if (fine) return pref + ' ' + strip(fine.long_name);
-
-      // address_components 有 pref 但無細部町名 → 補問 formatted_address
-      var fromAddr = formatRegionFromAddress(formattedAddr);
-      if (fromAddr && fromAddr !== pref) return fromAddr;
-      return pref;
-    }
-  }
-
-  // address_components 是英文或不存在 → 全靠 formatted_address
-  return formatRegionFromAddress(formattedAddr);
-}
-
-// Google Geocoder address_components → 「都道府縣 町名」格式（繁體中文，由 language=zh-TW 保證）
+// Google Geocoding REST API address_components → 「都道府縣 町名」格式
+// isCJK 守護：若 API 回傳英文（"Tokyo"）則回傳 '' 防止顯示英文
 function regionFromComponents(components) {
   if (!components || !components.length) return '';
+  var isCJK = function(s) { return /[一-鿿぀-ヿ]/.test(s || ''); };
+  var strip = function(s) { return (s || '').replace(/[都道府縣県市区區町村郡]$/, ''); };
   var find = function(type) {
     for (var i = 0; i < components.length; i++)
       if (components[i].types.indexOf(type) >= 0) return components[i].long_name;
     return '';
   };
-  var strip = function(s) { return (s || '').replace(/[都道府縣県市区區町村郡]$/, ''); };
-  var pref = strip(find('administrative_area_level_1'));
-  if (!pref) return '';
-  var town = strip(
-    find('sublocality_level_2') ||
-    find('sublocality_level_1') ||
-    find('sublocality') ||
-    find('locality') || ''
-  );
+  var rawPref = find('administrative_area_level_1');
+  if (!isCJK(rawPref)) return '';
+  var pref = strip(rawPref);
+  var town = '';
+  var townTypes = ['sublocality_level_2', 'sublocality_level_1', 'sublocality', 'locality'];
+  for (var i = 0; i < townTypes.length; i++) {
+    var v = find(townTypes[i]);
+    if (isCJK(v)) { town = strip(v); break; }
+  }
   return pref + (town ? ' ' + town : '');
 }
 
@@ -1623,19 +1583,16 @@ async function fetchWikiDescription(name, locationHint) {
   return await queryWikipedia('en', name, null);
 }
 
-/* ─── 反向地理編碼（Google Geocoder，language=zh-TW，回傳 address_components）── */
+/* ─── 反向地理編碼（Google Geocoding REST API，per-request language=zh-TW）── */
 async function reverseGeocodeAddr(lat, lon) {
-  return new Promise(function(resolve) {
-    if (!window.google || !window.google.maps) { resolve([]); return; }
-    new google.maps.Geocoder().geocode(
-      { location: { lat: lat, lng: lon } },
-      function(results, status) {
-        resolve((status === 'OK' && results && results[0])
-          ? results[0].address_components
-          : []);
-      }
+  try {
+    var r = await fetch(
+      'https://maps.googleapis.com/maps/api/geocode/json?latlng=' + lat + ',' + lon +
+      '&language=zh-TW&key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww'
     );
-  });
+    var d = await r.json();
+    return (d.results && d.results[0] && d.results[0].address_components) || [];
+  } catch(e) { return []; }
 }
 
 // 從 Google Geocoder address_components 推斷地區標籤
