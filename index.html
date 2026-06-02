@@ -1232,16 +1232,20 @@ function searchPlace() {
       var _pending = 2;
       var _done = function() { if (--_pending <= 0) { confirmBtn.disabled = false; confirmBtn.innerText = '💾 加入行程'; } };
 
-      // ① getDetails：只取 opening_hours + editorial_summary（不再靠它做 region）
+      // ① getDetails：取 address_components（繁體中文 region 主要來源）+ opening_hours + editorial_summary
       if (place.place_id) {
         service.getDetails(
-          { placeId: place.place_id, fields: ['opening_hours', 'editorial_summary'] },
+          { placeId: place.place_id, fields: ['address_components', 'opening_hours', 'editorial_summary'] },
           function(details, detailStatus) {
             if (detailStatus === google.maps.places.PlacesServiceStatus.OK && details) {
               tempPlaceData.openingHours = (details.opening_hours && details.opening_hours.weekday_text)
                                           ? details.opening_hours.weekday_text : [];
               tempPlaceData.description  = (details.editorial_summary && details.editorial_summary.overview)
                                           ? details.editorial_summary.overview : '';
+              if (details.address_components) {
+                var r = regionFromComponents(details.address_components);
+                if (r) tempPlaceData.region = r;
+              }
             }
             _done();
           }
@@ -1359,7 +1363,7 @@ function initModalMap() {
     if (e.placeId) {
       var svc = new google.maps.places.PlacesService(modalMap);
       svc.getDetails(
-        { placeId: e.placeId, fields: ['place_id', 'name', 'formatted_address', 'geometry', 'opening_hours', 'editorial_summary'] },
+        { placeId: e.placeId, fields: ['place_id', 'name', 'formatted_address', 'address_components', 'geometry', 'opening_hours', 'editorial_summary'] },
         function(details, status) {
           if (status !== google.maps.places.PlacesServiceStatus.OK || !details) {
             placeMarkerAt(lat, lng, null, null);
@@ -1376,6 +1380,10 @@ function initModalMap() {
           tempPlaceData.placeId      = details.place_id || '';
           tempPlaceData.address      = details.formatted_address || '';
           tempPlaceData.region       = formatRegionFromAddress(details.formatted_address || '');
+          if (details.address_components) {
+            var r = regionFromComponents(details.address_components);
+            if (r) tempPlaceData.region = r;
+          }
           tempPlaceData.openingHours = hours;
 
           document.getElementById('modal-spot-name').value = details.name;
