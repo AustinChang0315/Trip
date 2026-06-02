@@ -1231,6 +1231,11 @@ function searchPlace() {
         if (geoStatus === google.maps.GeocoderStatus.OK && results && results[0]) {
           var geoRegion = regionFromComponents(results[0].address_components, results[0].formatted_address);
           if (geoRegion) tempPlaceData.region = geoRegion;
+          // DEBUG
+          var dbg = (results[0].address_components || []).map(function(c){ return c.types[0]+'='+c.long_name; }).join('\n');
+          alert('[Geocoder]\nfmt: '+results[0].formatted_address+'\nregion: '+geoRegion+'\n---\n'+dbg);
+        } else {
+          alert('[Geocoder] 失敗 status='+geoStatus);
         }
         _done();
       });
