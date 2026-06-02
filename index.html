@@ -1279,7 +1279,6 @@ function initModalMap() {
     var lng = e.latLng.lng();
 
     if (e.placeId) {
-      e.stop(); // 阻止預設的 Google Maps POI 資訊視窗彈出
       var svc = new google.maps.places.PlacesService(modalMap);
       svc.getDetails(
         { placeId: e.placeId, fields: ['place_id', 'name', 'formatted_address', 'geometry', 'opening_hours', 'editorial_summary'] },
