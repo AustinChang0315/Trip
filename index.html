@@ -719,6 +719,29 @@ async function boot() {
     return Object.assign({}, d, { spots: (d.spots || []).slice() });
   });
 
+  // ── Step 4b：背景修正 GAS 舊資料的籠統地區名（Maps API load 後執行）
+  window.addEventListener('load', function() {
+    if (!window.google || !window.google.maps) return;
+    (async function() {
+      var changed = {};
+      for (var i = 0; i < itineraryState.length; i++) {
+        var day = itineraryState[i];
+        for (var j = 0; j < day.spots.length; j++) {
+          var s = day.spots[j];
+          if (s.region_name === '東京市區' && s.latitude && s.longitude) {
+            var comps = await reverseGeocodeAddr(s.latitude, s.longitude);
+            var region = inferRegionFromAddr(comps);
+            if (region) {
+              day.spots[j] = Object.assign({}, s, { region_name: region });
+              changed[day.day] = day;
+            }
+          }
+        }
+      }
+      Object.keys(changed).forEach(function(d) { updateDayPanel(changed[+d]); });
+    })();
+  }, { once: true });
+
   // ── Step 5：渲染（GAS 資料無 time → Task 3 自動排序）
   buildCountdown(itinerary);
   renderTabs(itinerary);
@@ -859,7 +882,7 @@ function renderDayPanel(dayData) {
                 + ' data-name="' + spot.spot_name.replace(/"/g, '&quot;') + '"'
                 + ' onclick="confirmDeleteSpot(this)" title="移除景點">🗑</button>'
             : '')
-          + '<span class="spot-region-tag">' + spot.region_name + '</span>'
+          + (spot.region_name ? '<span class="spot-region-tag">' + spot.region_name + '</span>' : '')
           + '<div class="spot-name">' + spot.spot_name + '</div>'
           + weatherHtml
           + (spot.address ? '<div class="spot-address">📍 ' + spot.address + '</div>' : '')
@@ -1190,7 +1213,7 @@ function searchPlace() {
 
       // 放置圖釘、平移地圖
       placeMarkerAt(lat, lng, place.name, '');
-      tempPlaceData.region       = formatRegionFromAddress(place.formatted_address || '') || '東京';
+      tempPlaceData.region       = formatRegionFromAddress(place.formatted_address || '');
       tempPlaceData.placeId      = place.place_id || '';
       tempPlaceData.address      = place.formatted_address || '';
       tempPlaceData.openingHours = [];
@@ -1225,9 +1248,9 @@ function searchPlace() {
         );
       } else { _done(); }
 
-      // ② Nominatim 反查地址取 region（Google API 對此語言設定不可靠，改用 OSM）
-      reverseGeocodeAddr(lat, lng).then(function(addr) {
-        var region = regionFromNominatim(addr);
+      // ② Google Geocoder 反查地址取 region（language=zh-TW，繁體中文）
+      reverseGeocodeAddr(lat, lng).then(function(components) {
+        var region = regionFromComponents(components);
         if (region) tempPlaceData.region = region;
         _done();
       }).catch(function() { _done(); });
@@ -1281,15 +1304,23 @@ function regionFromComponents(components, formattedAddr) {
   return formatRegionFromAddress(formattedAddr);
 }
 
-// Nominatim 反向地理編碼結果 → 「都道府縣 町名」格式
-// addr 是 reverseGeocodeAddr() 回傳的 address 物件（日文欄位名）
-function regionFromNominatim(addr) {
-  if (!addr) return '';
+// Google Geocoder address_components → 「都道府縣 町名」格式（繁體中文，由 language=zh-TW 保證）
+function regionFromComponents(components) {
+  if (!components || !components.length) return '';
+  var find = function(type) {
+    for (var i = 0; i < components.length; i++)
+      if (components[i].types.indexOf(type) >= 0) return components[i].long_name;
+    return '';
+  };
   var strip = function(s) { return (s || '').replace(/[都道府縣県市区區町村郡]$/, ''); };
-  var pref  = strip(addr.state || addr.province || '');
+  var pref = strip(find('administrative_area_level_1'));
   if (!pref) return '';
-  // suburb = 丁目以上的町名（如「西日暮里」），city_district = 区
-  var town  = strip(addr.suburb || addr.neighbourhood || addr.quarter || addr.city_district || '');
+  var town = strip(
+    find('sublocality_level_2') ||
+    find('sublocality_level_1') ||
+    find('sublocality') ||
+    find('locality') || ''
+  );
   return pref + (town ? ' ' + town : '');
 }
 
@@ -1326,7 +1357,7 @@ function inferRegionFromPlaceAddress(addr) {
   if (/埼玉/.test(addr))                                                       return '埼玉';
   if (/東京|台東|渋谷|新宿|千代田|中央区|港区|品川|目黒|世田谷|杉並|豊島|文京|墨田|江東|荒川|足立|葛飾|江戸川|板橋|練馬|北区|中野/.test(addr)) return '東京市區';
   if (/神奈川/.test(addr))                                                     return '神奈川';
-  return '東京市區';
+  return '';
 }
 
 // 初始化 Google Maps（Modal 開啟時呼叫）
@@ -1388,11 +1419,19 @@ function initModalMap() {
 
           document.getElementById('modal-spot-name').value = details.name;
 
-          // Nominatim 反查地址取 region
-          reverseGeocodeAddr(detailLat, detailLng).then(function(addr) {
-            var region = regionFromNominatim(addr);
+          // Google Geocoder 反查地址取 region（鎖住確認按鈕直到回傳）
+          var _confirmBtn = document.getElementById('add-confirm-btn');
+          _confirmBtn.disabled  = true;
+          _confirmBtn.innerText = '📍 取得地址中…';
+          reverseGeocodeAddr(detailLat, detailLng).then(function(components) {
+            var region = regionFromComponents(components);
             if (region) tempPlaceData.region = region;
-          }).catch(function(){});
+            _confirmBtn.disabled  = false;
+            _confirmBtn.innerText = '💾 加入行程';
+          }).catch(function(){
+            _confirmBtn.disabled  = false;
+            _confirmBtn.innerText = '💾 加入行程';
+          });
         }
       );
     } else {
@@ -1414,10 +1453,10 @@ function placeMarkerAt(lat, lng, name, description) {
 
   tempPlaceData = { lat: lat, lng: lng, name: name || '', description: description || '', region: '' };
 
-  // 地圖點擊路徑（無景點名稱）：用 Nominatim 反向地理編碼推斷地區名
+  // 地圖點擊路徑（無景點名稱）：用 Google Geocoder 反向地理編碼推斷地區名
   if (!name) {
-    reverseGeocodeAddr(lat, lng).then(function(addr) {
-      if (tempPlaceData) tempPlaceData.region = inferRegionFromAddr(addr) || '東京市區';
+    reverseGeocodeAddr(lat, lng).then(function(components) {
+      if (tempPlaceData) tempPlaceData.region = inferRegionFromAddr(components);
     }).catch(function(){});
   }
 }
@@ -1584,45 +1623,58 @@ async function fetchWikiDescription(name, locationHint) {
   return await queryWikipedia('en', name, null);
 }
 
-/* ─── 反向地理編碼（共用，避免重複呼叫 Nominatim）───── */
+/* ─── 反向地理編碼（Google Geocoder，language=zh-TW，回傳 address_components）── */
 async function reverseGeocodeAddr(lat, lon) {
-  try {
-    var r = await fetch(
-      'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=14',
-      { headers: { 'Accept-Language': 'ja,zh-TW' } }
+  return new Promise(function(resolve) {
+    if (!window.google || !window.google.maps) { resolve([]); return; }
+    new google.maps.Geocoder().geocode(
+      { location: { lat: lat, lng: lon } },
+      function(results, status) {
+        resolve((status === 'OK' && results && results[0])
+          ? results[0].address_components
+          : []);
+      }
     );
-    return ((await r.json()).address) || {};
-  } catch(e) { return {}; }
+  });
 }
 
-// 從 address 物件推斷地區標籤（純函數，不發網路請求）
-function inferRegionFromAddr(addr) {
+// 從 Google Geocoder address_components 推斷地區標籤
+function inferRegionFromAddr(components) {
+  if (!components || !components.length) return '';
+  var find = function(type) {
+    for (var i = 0; i < components.length; i++)
+      if (components[i].types.indexOf(type) >= 0) return components[i].long_name;
+    return '';
+  };
   var parts = [
-    addr.suburb, addr.neighbourhood, addr.city_district,
-    addr.quarter, addr.city, addr.town, addr.village,
-    addr.county, addr.state
+    find('sublocality_level_2'), find('sublocality_level_1'), find('sublocality'),
+    find('locality'), find('administrative_area_level_2'), find('administrative_area_level_1')
   ].filter(Boolean).join(' ');
 
-  if (/鎌倉/.test(parts))                          return '鎌倉';
-  if (/江の島|江ノ島|片瀬|藤沢/.test(parts))       return '湘南・江之島';
-  if (/逗子|葉山|茅ヶ崎|平塚/.test(parts))         return '湘南';
-  if (/箱根/.test(parts))                           return '箱根';
-  if (/川越/.test(parts))                           return '川越';
-  if (/舞浜|浦安/.test(parts))                      return '舞濱・千葉';
-  if (/成田/.test(parts))                           return '成田';
-  if (/千葉/.test(parts))                           return '千葉';
-  if (/横浜|横濱/.test(parts))                      return '橫濱';
-  if (/羽田|大田区/.test(parts))                    return '羽田・東京灣';
-  if (/埼玉/.test(parts))                           return '埼玉';
-  if (/東京|台東|渋谷|新宿|千代田|中央区|港区|品川|目黒|世田谷|杉並|豊島|文京|墨田|江東|荒川|足立|葛飾|江戸川|板橋|練馬|北区|中野/.test(parts)) return '東京市區';
-  if (/神奈川/.test(parts))                         return '神奈川';
-  return addr.city || addr.town || addr.county || '東京市區';
+  if (/鎌倉/.test(parts))                                             return '鎌倉';
+  if (/江の島|江ノ島|江之島|片瀬|片瀨|藤沢|藤澤/.test(parts))       return '湘南・江之島';
+  if (/逗子|葉山|茅ヶ崎|平塚/.test(parts))                           return '湘南';
+  if (/箱根/.test(parts))                                             return '箱根';
+  if (/川越/.test(parts))                                             return '川越';
+  if (/舞浜|舞濱|浦安/.test(parts))                                  return '千葉 舞濱';
+  if (/成田/.test(parts))                                             return '成田';
+  if (/横浜|橫濱|横濱/.test(parts))                                  return '橫濱';
+  if (/羽田|大田区|大田區/.test(parts))                              return '羽田・東京灣';
+  if (/埼玉/.test(parts))                                             return '埼玉';
+  // 其他地區（含東京各區）直接用 Google API 回傳的繁體中文名稱
+  return regionFromComponents(components);
 }
 
-// 從 address 物件取最精確的地名（作為 Wikipedia 搜尋補充關鍵字）
-function locationHintFromAddr(addr) {
-  return addr.suburb || addr.neighbourhood || addr.city_district
-    || addr.quarter  || addr.city          || addr.town || '';
+// 從 address_components 取最精確的地名（作為 Wikipedia 搜尋補充關鍵字）
+function locationHintFromAddr(components) {
+  if (!components || !components.length) return '';
+  var find = function(type) {
+    for (var i = 0; i < components.length; i++)
+      if (components[i].types.indexOf(type) >= 0) return components[i].long_name;
+    return '';
+  };
+  return find('sublocality_level_2') || find('sublocality_level_1') ||
+         find('sublocality') || find('locality') || '';
 }
 
 // 保留向後相容（外部仍可直接呼叫）
@@ -1687,7 +1739,7 @@ function confirmAddSpot() {
   var duration     = +document.getElementById('add-duration').value || 60;
   var lat          = tempPlaceData.lat;
   var lng          = tempPlaceData.lng;
-  var regionName   = tempPlaceData.region || '東京市區';
+  var regionName   = tempPlaceData.region || '';
   var description  = tempPlaceData.description  || '';
   var address      = tempPlaceData.address      || '';
   var openingHours = tempPlaceData.openingHours || [];
@@ -2169,13 +2221,13 @@ var PLACEHOLDER_DATA = {
   itinerary: [
     { day:1, date:'2026-06-24', day_title:'入境輕落地：五反田周邊三角散步', spots:[
       { spot_name:'去程 CI 0220｜松山 09:00 → 羽田 13:10', time:'09:00', duration:0, region_name:'羽田・東京灣', latitude:35.5494, longitude:139.7798, description:'中華航空 CI 0220，入境後搭乘京急電鐵至五反田，辦理入住約 15:00。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit'} },
-      { spot_name:'惠比壽 ガーデンプレイス 散策', time:'15:30', duration:60, region_name:'東京市區', latitude:35.6467, longitude:139.7100, description:'昔日札幌啤酒廠改建的歐式廣場，下午茶氛圍絕佳。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=恵比寿ガーデンプレイス&travelmode=transit'} },
-      { spot_name:'代官山 蔦屋書店（T-SITE）', time:'16:30', duration:60, region_name:'東京市區', latitude:35.6485, longitude:139.7034, description:'日本最具代表性的選物型書店，三棟白色建築。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=代官山蔦屋書店&travelmode=transit'} },
-      { spot_name:'中目黑 目黑川沿岸', time:'17:30', duration:90, region_name:'東京市區', latitude:35.6441, longitude:139.6979, description:'目黑川兩側林立獨立咖啡廳、麵包店、選物店。傍晚水岸光線極美。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=中目黒駅&travelmode=transit'} }
+      { spot_name:'惠比壽 ガーデンプレイス 散策', time:'15:30', duration:60, region_name:'東京 惠比壽', latitude:35.6467, longitude:139.7100, description:'昔日札幌啤酒廠改建的歐式廣場，下午茶氛圍絕佳。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=恵比寿ガーデンプレイス&travelmode=transit'} },
+      { spot_name:'代官山 蔦屋書店（T-SITE）', time:'16:30', duration:60, region_name:'東京 代官山', latitude:35.6485, longitude:139.7034, description:'日本最具代表性的選物型書店，三棟白色建築。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=代官山蔦屋書店&travelmode=transit'} },
+      { spot_name:'中目黑 目黑川沿岸', time:'17:30', duration:90, region_name:'東京 中目黑', latitude:35.6441, longitude:139.6979, description:'目黑川兩側林立獨立咖啡廳、麵包店、選物店。傍晚水岸光線極美。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=中目黒駅&travelmode=transit'} }
     ]},
     { day:2, date:'2026-06-25', day_title:'下町時光：谷中老街與淺草燈火', spots:[
-      { spot_name:'谷中銀座商店街', time:'10:30', duration:90, region_name:'東京市區', latitude:35.7268, longitude:139.7698, description:'昭和氣息最濃厚的在地小商店街，貓咪遍佈的石板老巷。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=谷中銀座&travelmode=transit'} },
-      { spot_name:'淺草 雷門・仲見世通', time:'13:00', duration:90, region_name:'東京市區', latitude:35.7116, longitude:139.7964, description:'江戶風情的標誌大門，仲見世通可買到正統人形燒與草餅。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=雷門&travelmode=transit'} }
+      { spot_name:'谷中銀座商店街', time:'10:30', duration:90, region_name:'東京 谷中', latitude:35.7268, longitude:139.7698, description:'昭和氣息最濃厚的在地小商店街，貓咪遍佈的石板老巷。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=谷中銀座&travelmode=transit'} },
+      { spot_name:'淺草 雷門・仲見世通', time:'13:00', duration:90, region_name:'東京 淺草', latitude:35.7116, longitude:139.7964, description:'江戶風情的標誌大門，仲見世通可買到正統人形燒與草餅。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=雷門&travelmode=transit'} }
     ]},
     { day:3, date:'2026-06-26', day_title:'東京迪士尼海洋 全日沉浸', spots:[
       { spot_name:'東京迪士尼海洋 (Tokyo DisneySea)', time:'08:30', duration:600, region_name:'舞濱・千葉', latitude:35.6270, longitude:139.8845, description:'全球唯一以「海洋」為主題的迪士尼樂園，建議 08:30 前抵達閘口。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Tokyo+DisneySea&travelmode=transit'} }
@@ -2185,7 +2237,7 @@ var PLACEHOLDER_DATA = {
       { spot_name:'時之鐘（時の鐘）', time:'11:00', duration:30, region_name:'川越', latitude:35.9239, longitude:139.4880, description:'每天 12:00、15:00、18:00 整點報時的木造地標。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=時の鐘+川越&travelmode=transit'} },
       { spot_name:'菓子屋橫丁', time:'11:30', duration:30, region_name:'川越', latitude:35.9221, longitude:139.4894, description:'明治時代保留至今的糖果小巷。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=菓子屋横丁&travelmode=transit'} },
       { spot_name:'川越冰川神社', time:'13:30', duration:45, region_name:'川越', latitude:35.9299, longitude:139.4843, description:'粉色系結緣神社，以緣結び聞名關東。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=川越氷川神社&travelmode=transit'} },
-      { spot_name:'澀谷 SKY 觀景台', time:'17:30', duration:90, region_name:'東京市區', latitude:35.6580, longitude:139.7016, description:'360 度全開放天空觀景台，務必提前線上購票。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=SHIBUYA+SKY&travelmode=transit'} }
+      { spot_name:'澀谷 SKY 觀景台', time:'17:30', duration:90, region_name:'東京 澀谷', latitude:35.6580, longitude:139.7016, description:'360 度全開放天空觀景台，務必提前線上購票。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=SHIBUYA+SKY&travelmode=transit'} }
     ]},
     { day:5, date:'2026-06-28', day_title:'湘南日歸：鎌倉老街影巷與江之島神社', spots:[
       { spot_name:'御霊神社（権五郎神社）', time:'10:30', duration:45, region_name:'鎌倉', latitude:35.3186, longitude:139.5350, description:'江之電穿越鳥居的奇景，6月繡球花盛開。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=御霊神社+鎌倉&travelmode=transit'} },
@@ -2196,7 +2248,7 @@ var PLACEHOLDER_DATA = {
       { spot_name:'江島神社（辺津宮・中津宮・奥津宮）', time:'14:30', duration:60, region_name:'湘南・江之島', latitude:35.2997, longitude:139.4831, description:'依序走過三座神社，全程步行約 40 分鐘。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=江島神社&travelmode=transit'} }
     ]},
     { day:6, date:'2026-06-29', day_title:'最終早晨：麻布台之丘 → 羽田起飛', spots:[
-      { spot_name:'麻布台之丘（Azabudai Hills）', time:'09:00', duration:90, region_name:'東京市區', latitude:35.6596, longitude:139.7390, description:'早上 9 點人最少，悠閒欣賞森 JP 塔建築量體與空中花園。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=麻布台ヒルズ&travelmode=transit'} },
+      { spot_name:'麻布台之丘（Azabudai Hills）', time:'09:00', duration:90, region_name:'東京 麻布台', latitude:35.6596, longitude:139.7390, description:'早上 9 點人最少，悠閒欣賞森 JP 塔建築量體與空中花園。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=麻布台ヒルズ&travelmode=transit'} },
       { spot_name:'羽田空港 國際線ターミナル', time:'11:00', duration:0, region_name:'羽田・東京灣', latitude:35.5494, longitude:139.7798, description:'班機 14:30，國際線建議 12:30 前抵達。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit'} },
       { spot_name:'回程 CI 0221｜羽田 14:30 → 松山 16:55', time:'14:30', duration:0, region_name:'羽田・東京灣', latitude:35.5494, longitude:139.7798, description:'中華航空 CI 0221。東京羽田 14:30 → 台北松山 16:55。訂位代號：DQ4JMF。', transport:{google_maps_url:'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit'} }
     ]}
