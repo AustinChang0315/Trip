@@ -1375,6 +1375,7 @@ function initModalMap() {
           placeMarkerAt(detailLat, detailLng, details.name, desc);
           tempPlaceData.placeId      = details.place_id || '';
           tempPlaceData.address      = details.formatted_address || '';
+          tempPlaceData.region       = formatRegionFromAddress(details.formatted_address || '');
           tempPlaceData.openingHours = hours;
 
           document.getElementById('modal-spot-name').value = details.name;
