@@ -1273,8 +1273,45 @@ function initModalMap() {
   });
 
   // 點擊地圖 → 放置圖釘
+  // e.placeId 存在表示使用者點了 Google Maps 上的 POI（店家/景點），可直接取完整資料
   modalMap.addListener('click', function(e) {
-    placeMarkerAt(e.latLng.lat(), e.latLng.lng(), null, null);
+    var lat = e.latLng.lat();
+    var lng = e.latLng.lng();
+
+    if (e.placeId) {
+      e.stop(); // 阻止預設的 Google Maps POI 資訊視窗彈出
+      var svc = new google.maps.places.PlacesService(modalMap);
+      svc.getDetails(
+        { placeId: e.placeId, fields: ['place_id', 'name', 'formatted_address', 'geometry', 'opening_hours', 'editorial_summary'] },
+        function(details, status) {
+          if (status !== google.maps.places.PlacesServiceStatus.OK || !details) {
+            // getDetails 失敗：退回座標模式
+            placeMarkerAt(lat, lng, null, null);
+            return;
+          }
+          var detailLat = details.geometry.location.lat();
+          var detailLng = details.geometry.location.lng();
+          var addr      = details.formatted_address || '';
+          var region    = inferRegionFromPlaceAddress(addr);
+          var hours     = (details.opening_hours && details.opening_hours.weekday_text)
+                          ? details.opening_hours.weekday_text : [];
+          var desc      = (details.editorial_summary && details.editorial_summary.overview)
+                          ? details.editorial_summary.overview : '';
+
+          placeMarkerAt(detailLat, detailLng, details.name, desc);
+          tempPlaceData.placeId      = details.place_id || '';
+          tempPlaceData.address      = addr;
+          tempPlaceData.openingHours = hours;
+          tempPlaceData.region       = region;
+
+          // 自動填入景點名稱
+          document.getElementById('modal-spot-name').value = details.name;
+        }
+      );
+    } else {
+      // 點空白處：只有座標，無店家資訊
+      placeMarkerAt(lat, lng, null, null);
+    }
   });
 }
 
