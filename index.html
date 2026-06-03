@@ -167,6 +167,15 @@
     .timeline-dot--flight { background: var(--text-3); box-shadow: 0 0 0 1.5px var(--text-3); }
     .timeline-card-col { padding: 12px 0 20px; }
 
+    /* Travel Bridge（景點間交通時間連接器） */
+    .travel-bridge { display: grid; grid-template-columns: 52px 20px 1fr; column-gap: 10px; margin: -6px 0; }
+    .travel-bridge-line { position: relative; }
+    .travel-bridge-line::before {
+      content: ''; position: absolute; left: 50%; top: 0; bottom: 0;
+      width: 1.5px; background: var(--tl-line); transform: translateX(-50%);
+    }
+    .travel-bridge-label { font-size: .7rem; color: var(--text-3); padding: 3px 0; display: flex; align-items: center; gap: 3px; }
+
     /* Spot Card */
     .spot-card {
       background: var(--surface); border: 1px solid var(--border-lt);
@@ -997,7 +1006,17 @@ function renderDayPanel(dayData) {
             : '')
         + '</div>'
       + '</div>'
-    + '</div>';
+    + '</div>'
+    + (function() {
+        if (isLast || isFlight) return '';
+        var nextSpot = spots[i + 1];
+        if (!nextSpot || !(nextSpot.travel_mins > 0)) return '';
+        return '<div class="travel-bridge">'
+          + '<div></div>'
+          + '<div class="travel-bridge-line"></div>'
+          + '<div class="travel-bridge-label">🚃 ' + nextSpot.travel_mins + ' 分</div>'
+          + '</div>';
+      })();
   }).join('');
 
   var diningStr  = (dayData.dining && dayData.dining.length) ? buildDiningHTML(dayData.dining) : '';
