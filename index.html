@@ -175,6 +175,18 @@
     }
     .spot-card--flight { background: var(--surface-sub); border-style: dashed; box-shadow: none; }
 
+    /* Flight Info Card（班機獨立卡片） */
+    .flight-card {
+      margin: 0 16px 14px; padding: 12px 14px;
+      background: var(--surface-sub); border: 1px dashed var(--text-3);
+      border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;
+    }
+    .flight-card-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; color: var(--text-3); }
+    .flight-card-body { flex: 1; min-width: 0; }
+    .flight-card-title { font-size: .9rem; font-weight: 700; color: var(--text-1); line-height: 1.35; margin-bottom: 5px; }
+    .flight-card-desc  { font-size: .76rem; color: var(--text-2); line-height: 1.7; margin-bottom: 5px; }
+    .flight-card-transport { font-size: .72rem; color: var(--text-3); line-height: 1.5; }
+
     /* Delete Button（景點右上角） */
     .btn-del-spot {
       position: absolute; top: 8px; right: 10px;
@@ -628,6 +640,7 @@ var AUTH_DAYS = 3;
 var JPY_TWD        = 0.215;
 var tripDays       = [];
 var itineraryState = [];   // Task 5：增刪操作的可變狀態
+var flightsData    = [];   // 班機資訊（來自 GAS flights 頁籤）
 var _addTargetDay  = null; // 新增 modal 的目標天數
 var modalMap       = null; // Google Maps 實例（建立後跨 modal 重複使用）
 var currentMarker  = null; // 地圖當前圖釘（永遠只保留一個）
@@ -738,6 +751,8 @@ async function boot() {
           });
         });
       }
+      // 提取班機資訊
+      if (json2.flights && json2.flights.length) flightsData = json2.flights;
     } catch(e) { /* GAS 失敗，靜默沿用 itinerary.json 景點 */ }
   }
 
@@ -875,9 +890,12 @@ function renderDayPanel(dayData) {
       + String(dt.getDate()).padStart(2,'0')
       + '（' + WKDAYS[dt.getDay()] + '）';
   var rawSpots = dayData.spots || [];
+  // 班機 spots 分離，不列入時間軸
+  var spots = rawSpots.filter(function(s) {
+    return !s.spot_name || (s.spot_name.indexOf('去程') === -1 && s.spot_name.indexOf('回程') === -1);
+  });
 
   var dayStartMins = parseTimeMins(dayData.day_start || '09:00');
-  var spots = rawSpots;  // 不再自動排列，使用者可按「最佳路線」按鈕手動觸發
 
   // T3b 時間級聯：第一個景點用 day_start，後續景點 = 前一個結束時間 + 交通時間
   var cascadeTimes = [];
@@ -983,6 +1001,17 @@ function renderDayPanel(dayData) {
     + '<button class="btn-add-spot" onclick="showAddModal(' + dayData.day + ')">➕ 新增此日景點</button>'
   + '</div>';
 
+  // 班機卡片：GAS flights 優先，fallback 到 itinerary.json 中的去程/回程 spots
+  var dayFlights = flightsData.filter(function(f) { return f.day === dayData.day; });
+  if (!dayFlights.length) {
+    dayFlights = rawSpots.filter(function(s) {
+      return s.spot_name && (s.spot_name.indexOf('去程') !== -1 || s.spot_name.indexOf('回程') !== -1);
+    }).map(function(s) {
+      return { day: dayData.day, spot_name: s.spot_name, description: s.description, transport: s.transport };
+    });
+  }
+  var flightCardHtml = dayFlights.map(buildFlightCard).join('');
+
   return '<section class="day-panel" data-day="' + dayData.day + '">'
     + '<div class="day-header">'
       + '<button class="btn-sort-day" onclick="triggerOptimizeDay(' + dayData.day + ')" title="自動排出最短路線">🔀 最佳路線</button>'
@@ -997,10 +1026,28 @@ function renderDayPanel(dayData) {
           + ' onblur="updateDayStart(' + dayData.day + ', this.value)">'
       + '</div>'
     + '</div>'
+    + (flightCardHtml && dayData.day === 1 ? flightCardHtml : '')
     + addBtnHtml
     + '<div class="timeline">' + spotsHtml + '</div>'
+    + (flightCardHtml && dayData.day === 6 ? flightCardHtml : '')
     + diningStr
   + '</section>';
+}
+
+/* ─── Flight Card HTML ────────────────────────────────── */
+function buildFlightCard(f) {
+  return '<div class="flight-card">'
+    + '<div class="flight-card-icon">✈</div>'
+    + '<div class="flight-card-body">'
+      + '<div class="flight-card-title">' + f.spot_name + '</div>'
+      + (f.description ? '<div class="flight-card-desc">' + f.description + '</div>' : '')
+      + (f.transport && f.transport.method
+        ? '<div class="flight-card-transport">🚃 ' + f.transport.method
+          + (f.transport.duration ? '&nbsp;／&nbsp;⏱ ' + f.transport.duration : '')
+          + '</div>'
+        : '')
+    + '</div>'
+  + '</div>';
 }
 
 /* ─── Dining HTML ─────────────────────────────────────── */

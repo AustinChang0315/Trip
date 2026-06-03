@@ -21,6 +21,15 @@
 // ============================================================
 
 const SHEET_NAME = 'itinerary';
+const FLIGHT_SHEET_NAME = 'flights';
+const FLIGHT_HEADERS = [
+  'day',               // 行程第幾天
+  'spot_name',         // 航班標題
+  'description',       // 完整說明
+  'transport_method',  // 入境/出境後的交通方式
+  'transport_duration',// 預估交通時間
+  'maps_url'           // Google Maps 導航連結
+];
 const HEADERS = [
   'day',          // 行程第幾天（integer）
   'date',         // 日期 YYYY-MM-DD
@@ -122,7 +131,38 @@ function doGet(e) {
     const itinerary = Array.from(dayMap.values())
       .sort(function(a, b) { return a.day - b.day; });
 
-    return jsonResponse({ itinerary: itinerary });
+    // 讀取班機資訊（flights 頁籤）
+    var flights = [];
+    try {
+      var fSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FLIGHT_SHEET_NAME);
+      if (fSheet && fSheet.getLastRow() > 1) {
+        var fData    = fSheet.getDataRange().getValues();
+        var fHeaders = fData[0];
+        var FC = {
+          day:                fHeaders.indexOf('day'),
+          spot_name:          fHeaders.indexOf('spot_name'),
+          description:        fHeaders.indexOf('description'),
+          transport_method:   fHeaders.indexOf('transport_method'),
+          transport_duration: fHeaders.indexOf('transport_duration'),
+          maps_url:           fHeaders.indexOf('maps_url')
+        };
+        fData.slice(1).forEach(function(row) {
+          if (!row[FC.spot_name]) return;
+          flights.push({
+            day:         Number(row[FC.day]),
+            spot_name:   String(row[FC.spot_name]   || ''),
+            description: String(row[FC.description] || ''),
+            transport: {
+              method:          String(row[FC.transport_method]   || ''),
+              duration:        String(row[FC.transport_duration] || ''),
+              google_maps_url: String(row[FC.maps_url]           || '')
+            }
+          });
+        });
+      }
+    } catch(fe) {}
+
+    return jsonResponse({ itinerary: itinerary, flights: flights });
 
   } catch (err) {
     return jsonResponse({ error: err.message });
@@ -592,4 +632,74 @@ function seedData() {
   }
 
   Logger.log('seedData() 完成，共匯入 ' + rows.length + ' 筆景點資料（6 天行程）。');
+}
+
+// ──────────────────────────────────────────
+//  班機頁籤管理（flights sheet）
+// ──────────────────────────────────────────
+
+function initFlightSheet() {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(FLIGHT_SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(FLIGHT_SHEET_NAME);
+  if (sheet.getLastRow() > 0) {
+    Logger.log('flights 工作表已有資料，跳過 initFlightSheet()');
+    return;
+  }
+  sheet.appendRow(FLIGHT_HEADERS);
+  var hr = sheet.getRange(1, 1, 1, FLIGHT_HEADERS.length);
+  hr.setFontWeight('bold');
+  hr.setBackground('#fce8e6');
+  sheet.setFrozenRows(1);
+  Logger.log('flights 工作表建立完成。請執行 seedFlightData() 填入班機資料。');
+}
+
+function seedFlightData() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FLIGHT_SHEET_NAME);
+  if (!sheet) { Logger.log('請先執行 initFlightSheet()'); return; }
+  if (sheet.getLastRow() > 1) { Logger.log('flights 已有資料，跳過'); return; }
+  sheet.appendRow([
+    1,
+    '去程 CI 0220｜松山 09:00 → 羽田 13:10',
+    '中華航空 CI 0220，飛行時間約 3 小時 10 分。台北松山 (TSA) 09:00 起飛，東京羽田 (HND) 13:10 抵達。訂位代號：DQ4JMF。入境後搭乘京急電鐵至五反田，飯店辦理入住預計 14:30-15:00。',
+    '入境後搭乘京急空港線至品川站，轉 JR 山手線至五反田站',
+    '入境 + 電車約 60-80 分鐘',
+    'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit'
+  ]);
+  sheet.appendRow([
+    6,
+    '回程 CI 0221｜羽田 14:30 → 松山 16:55',
+    '中華航空 CI 0221，飛行時間約 3 小時 25 分。東京羽田 (HND) 14:30 → 台北松山 (TSA) 16:55。訂位代號：DQ4JMF。國際線建議 12:30 前完成報到手續。',
+    '羽田空港第3ターミナル 辦理登機手續，行李可事先寄放飯店輕裝出發',
+    '建議 12:30 前抵達機場',
+    'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit'
+  ]);
+  Logger.log('seedFlightData() 完成，已新增 2 筆班機資料。');
+}
+
+// 從 itinerary 頁籤把班機資料移至 flights 頁籤（執行一次即可）
+function migrateFlightsFromItinerary() {
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var iSheet = getSheet();
+  var fSheet = ss.getSheetByName(FLIGHT_SHEET_NAME);
+  if (!fSheet) { Logger.log('請先執行 initFlightSheet()'); return; }
+
+  var iData    = iSheet.getDataRange().getValues();
+  var iHeaders = iData[0];
+  var nameCol  = iHeaders.indexOf('spot_name');
+  var dayCol   = iHeaders.indexOf('day');
+  var descCol  = iHeaders.indexOf('description');
+
+  var toDelete = [];
+  for (var r = 1; r < iData.length; r++) {
+    var name = String(iData[r][nameCol] || '');
+    if (name.indexOf('去程') !== -1 || name.indexOf('回程') !== -1) {
+      fSheet.appendRow([Number(iData[r][dayCol]), name, String(iData[r][descCol] || ''), '', '', '']);
+      toDelete.push(r + 1);
+    }
+  }
+  for (var i = toDelete.length - 1; i >= 0; i--) {
+    iSheet.deleteRow(toDelete[i]);
+  }
+  Logger.log('遷移完成，已移動 ' + toDelete.length + ' 筆班機資料至 flights 頁籤。');
 }
