@@ -2212,10 +2212,11 @@ async function calcTravelTimes(dayNum) {
     var svc  = new google.maps.DistanceMatrixService();
     var data = await new Promise(function(resolve, reject) {
       svc.getDistanceMatrix({
-        origins:      origins.map(function(c){ var p=c.split(','); return {lat:+p[0],lng:+p[1]}; }),
-        destinations: destinations.map(function(c){ var p=c.split(','); return {lat:+p[0],lng:+p[1]}; }),
-        travelMode:   google.maps.TravelMode.TRANSIT,
-        language:     'zh-TW'
+        origins:        origins.map(function(c){ var p=c.split(','); return {lat:+p[0],lng:+p[1]}; }),
+        destinations:   destinations.map(function(c){ var p=c.split(','); return {lat:+p[0],lng:+p[1]}; }),
+        travelMode:     google.maps.TravelMode.TRANSIT,
+        transitOptions: { departureTime: new Date() },
+        language:       'zh-TW'
       }, function(result, status) {
         if (status === 'OK') resolve(result);
         else reject(new Error('Distance Matrix: ' + status));
@@ -2435,10 +2436,11 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 function estimateTravelMins(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 15;
   var km = haversineKm(lat1, lon1, lat2, lon2);
-  if (km < 1)  return 10;
-  if (km < 3)  return 20;
-  if (km < 8)  return 30;
-  return 45;
+  if (km < 0.8) return 8;
+  if (km < 2)   return 15;
+  if (km < 4)   return 20;
+  if (km < 8)   return 28;
+  return 40;
 }
 
 // 計算一組景點順序的總移動距離
