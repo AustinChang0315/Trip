@@ -87,7 +87,7 @@ function doGet(e) {
       const address   = String(row[COL.address] || '');
       const sort_order  = COL.sort_order  >= 0 && row[COL.sort_order]  !== '' ? Number(row[COL.sort_order])  : 9999;
       const travel_mins = COL.travel_mins >= 0 && row[COL.travel_mins] !== '' ? Number(row[COL.travel_mins]) : 0;
-      const day_start   = COL.day_start   >= 0 && row[COL.day_start]   !== '' ? String(row[COL.day_start])   : '09:00';
+      const day_start   = COL.day_start   >= 0 && row[COL.day_start]   !== '' ? String(row[COL.day_start])   : '';
 
       var opening_hours = [];
       try { opening_hours = JSON.parse(String(row[COL.opening_hours] || '[]')); } catch(e) {}
