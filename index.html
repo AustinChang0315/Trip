@@ -722,12 +722,26 @@ function prepareAndRender(itinerary, isUpdate) {
       day_start: d._gas_day_start || savedStart || d.day_start
     });
   });
+  // 更新前記錄目前 active 的 day（更新後恢復，避免景點消失）
+  var activeDayNum = null;
+  if (isUpdate) {
+    var activePanel = document.querySelector('.day-panel.active');
+    if (activePanel) activeDayNum = Number(activePanel.dataset.day);
+  }
+
   renderItinerary(prepared);
+
   if (!isUpdate) {
     buildCountdown(prepared);
     renderTabs(prepared);
     buildExpForm();
     activateSmartTab(prepared);
+  } else {
+    var dayToActivate = activeDayNum || (prepared[0] && prepared[0].day);
+    if (dayToActivate) {
+      var panel = document.querySelector('.day-panel[data-day="' + dayToActivate + '"]');
+      if (panel) panel.classList.add('active');
+    }
   }
 }
 
