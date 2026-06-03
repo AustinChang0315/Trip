@@ -44,7 +44,8 @@ const HEADERS = [
   'opening_hours',// JSON 字串，weekday_text 陣列（Mon-Sun）
   'sort_order',   // 景點在當天的顯示順序（integer，從 0 開始）
   'travel_mins',  // 到達此景點的交通時間（分鐘，integer）
-  'day_start'     // 當天出發時間（HH:MM 字串）
+  'day_start',    // 當天出發時間（HH:MM 字串）
+  'spot_id'       // 景點唯一識別碼（用於同名景點的正確操作）
 ];
 
 // ──────────────────────────────────────────
@@ -78,7 +79,8 @@ function doGet(e) {
       opening_hours:headers.indexOf('opening_hours'),
       sort_order:   headers.indexOf('sort_order'),
       travel_mins:  headers.indexOf('travel_mins'),
-      day_start:    headers.indexOf('day_start')
+      day_start:    headers.indexOf('day_start'),
+      spot_id:      headers.indexOf('spot_id')
     };
 
     const dayMap = new Map(); // Map 保持天數插入順序
@@ -97,6 +99,7 @@ function doGet(e) {
       const sort_order  = COL.sort_order  >= 0 && row[COL.sort_order]  !== '' ? Number(row[COL.sort_order])  : 9999;
       const travel_mins = COL.travel_mins >= 0 && row[COL.travel_mins] !== '' ? Number(row[COL.travel_mins]) : 0;
       const day_start   = COL.day_start   >= 0 ? formatTimeStr(row[COL.day_start])   : '';
+      const spot_id     = COL.spot_id     >= 0 && row[COL.spot_id] ? String(row[COL.spot_id]) : '';
 
       var opening_hours = [];
       try { opening_hours = JSON.parse(String(row[COL.opening_hours] || '[]')); } catch(e) {}
@@ -117,6 +120,7 @@ function doGet(e) {
         opening_hours: opening_hours,
         sort_order:    sort_order,
         travel_mins:   travel_mins,
+        spot_id:       spot_id,
         transport: {
           google_maps_url: buildNavUrl(spot_name)
         }
@@ -214,7 +218,8 @@ function handleAdd(sheet, payload) {
     String(payload.opening_hours || '[]'),
     existingSortOrder,
     0,                                               // travel_mins 預設 0，待 update_order 更新
-    String(payload.day_start || getDayStart(sheet, payload.day) || '09:00')
+    String(payload.day_start || getDayStart(sheet, payload.day) || '09:00'),
+    'sid_' + Date.now() + '_' + Math.floor(Math.random() * 9999)
   ]);
 
   return jsonResponse({ success: true, message: '景點已新增：' + payload.spot_name });
@@ -222,13 +227,22 @@ function handleAdd(sheet, payload) {
 
 function handleDelete(sheet, payload) {
   const targetName = String(payload.spot_name);
+  const targetId   = String(payload.spot_id || '');
   const targetDay  = Number(payload.day);
   const data       = sheet.getDataRange().getValues();
+  const headers    = data[0];
+  const idCol      = headers.indexOf('spot_id');
 
   // 從最後一列往前掃，避免刪除後索引位移
+  // 有 spot_id 時優先用 id 比對（解決同名景點問題），否則 fallback 到 spot_name
   for (var i = data.length - 1; i >= 1; i--) {
-    if (String(data[i][3]) === targetName && Number(data[i][0]) === targetDay) {
-      sheet.deleteRow(i + 1); // GAS 工作表列從 1 開始
+    var rowDay  = Number(data[i][0]);
+    var rowName = String(data[i][3]);
+    var rowId   = idCol >= 0 ? String(data[i][idCol]) : '';
+    var matched = rowDay === targetDay &&
+      (targetId && rowId ? rowId === targetId : rowName === targetName);
+    if (matched) {
+      sheet.deleteRow(i + 1);
       return jsonResponse({ success: true, message: '景點已刪除：' + targetName });
     }
   }
@@ -260,10 +274,13 @@ function handleUpdateOrder(sheet, payload) {
     headers.push('travel_mins');
   }
 
-  // 建立 spot_name → { sort_order, travel_mins } 的快查 map
+  const idCol = headers.indexOf('spot_id');
+
+  // 建立 spot_id（優先）或 spot_name → { sort_order, travel_mins } 的快查 map
   var orderMap = {};
   spots.forEach(function(s) {
-    orderMap[String(s.spot_name)] = {
+    var key = (s.spot_id && !s.spot_id.startsWith('local_')) ? String(s.spot_id) : String(s.spot_name);
+    orderMap[key] = {
       sort_order:  Number(s.sort_order  || 0),
       travel_mins: Number(s.travel_mins || 0)
     };
@@ -272,10 +289,12 @@ function handleUpdateOrder(sheet, payload) {
   // 批次更新符合條件的列
   for (var r = 1; r < data.length; r++) {
     var rowDay  = Number(data[r][dayCol]);
+    var rowId   = idCol >= 0 ? String(data[r][idCol]) : '';
     var rowName = String(data[r][nameCol]);
-    if (rowDay === targetDay && orderMap[rowName] !== undefined) {
-      sheet.getRange(r + 1, sortCol  + 1).setValue(orderMap[rowName].sort_order);
-      sheet.getRange(r + 1, travelCol + 1).setValue(orderMap[rowName].travel_mins);
+    var key     = (rowId && orderMap[rowId] !== undefined) ? rowId : rowName;
+    if (rowDay === targetDay && orderMap[key] !== undefined) {
+      sheet.getRange(r + 1, sortCol  + 1).setValue(orderMap[key].sort_order);
+      sheet.getRange(r + 1, travelCol + 1).setValue(orderMap[key].travel_mins);
     }
   }
 
@@ -413,7 +432,7 @@ function addMissingColumns() {
   var sheet   = getSheet();
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
-  var toAdd = ['address', 'opening_hours', 'sort_order', 'travel_mins', 'day_start'].filter(function(h) {
+  var toAdd = ['address', 'opening_hours', 'sort_order', 'travel_mins', 'day_start', 'spot_id'].filter(function(h) {
     return headers.indexOf(h) === -1;
   });
 
@@ -436,6 +455,24 @@ function addMissingColumns() {
 // ──────────────────────────────────────────
 
 // 執行方式：Apps Script 編輯器 → 選擇 renumberSortOrders → 點執行
+// 為既有景點補填 spot_id（執行一次即可）
+function generateSpotIds() {
+  var sheet   = getSheet();
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idCol   = headers.indexOf('spot_id');
+  if (idCol < 0) { Logger.log('請先執行 addMissingColumns() 新增 spot_id 欄位'); return; }
+  var count = 0;
+  for (var r = 1; r < data.length; r++) {
+    if (!data[r][idCol]) {
+      sheet.getRange(r + 1, idCol + 1).setValue('sid_' + Date.now() + '_' + r);
+      Utilities.sleep(2);
+      count++;
+    }
+  }
+  Logger.log('generateSpotIds() 完成，補填了 ' + count + ' 筆 ID。');
+}
+
 function renumberSortOrders() {
   var sheet   = getSheet();
   var data    = sheet.getDataRange().getValues();

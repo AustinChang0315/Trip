@@ -769,7 +769,10 @@ async function boot() {
 
   // ── Step 4：初始化可變狀態（Task 5 增刪操作用）
   itineraryState = itinerary.map(function(d) {
-    var spots = applyDayOrder(d.day, (d.spots || []).slice());
+    var spots = applyDayOrder(d.day, (d.spots || []).slice()).map(function(s, i) {
+      // 沒有 spot_id 的景點（itinerary.json 來源）補上暫時 id
+      return s.spot_id ? s : Object.assign({}, s, { spot_id: 'local_' + d.day + '_' + i });
+    });
     var savedStart = localStorage.getItem('day_start_' + d.day);
     return Object.assign({}, d, {
       spots: spots,
@@ -959,6 +962,7 @@ function renderDayPanel(dayData) {
             ? '<button class="btn-del-spot"'
                 + ' data-day="' + dayData.day + '"'
                 + ' data-name="' + spot.spot_name.replace(/"/g, '&quot;') + '"'
+                + ' data-spot-id="' + (spot.spot_id || '') + '"'
                 + ' onclick="confirmDeleteSpot(this)" title="移除景點">🗑</button>'
               + (!isFirst
                 ? '<button class="btn-move-spot btn-move-up" onclick="moveSpot(' + dayData.day + ',' + i + ',\'up\')" title="往上移">↑</button>'
@@ -1955,19 +1959,20 @@ function confirmAddSpot() {
 function confirmDeleteSpot(btn) {
   var dayNum   = Number(btn.dataset.day);
   var spotName = btn.dataset.name;
+  var spotId   = btn.dataset.spotId || '';
 
   // 更新確認 Modal 內容
   document.querySelector('#confirm-modal .modal-title').textContent = '刪除景點';
   document.getElementById('modal-msg').textContent = '確認要刪除「' + spotName + '」嗎？';
   document.getElementById('modal-confirm-btn').onclick = function() {
     closeModal();
-    deleteSpot(dayNum, spotName);
+    deleteSpot(dayNum, spotName, spotId);
   };
   document.getElementById('confirm-modal').classList.remove('hidden');
 }
 
-// Step 2：實際刪除（用 spot_name 查找，不用索引，避免排序後索引錯誤）
-function deleteSpot(dayNum, spotName) {
+// Step 2：實際刪除（優先用 spot_id 查找，解決同名景點問題）
+function deleteSpot(dayNum, spotName, spotId) {
   var dayIndex = -1;
   for (var i = 0; i < itineraryState.length; i++) {
     if (itineraryState[i].day === dayNum) { dayIndex = i; break; }
@@ -1977,9 +1982,11 @@ function deleteSpot(dayNum, spotName) {
   var dayData  = itineraryState[dayIndex];
   var deleted  = null;
 
-  // 用名稱篩掉目標景點（只刪第一個符合的）
   var remaining = dayData.spots.filter(function(s) {
-    if (!deleted && s.spot_name === spotName) { deleted = s; return false; }
+    if (!deleted) {
+      var match = spotId ? s.spot_id === spotId : s.spot_name === spotName;
+      if (match) { deleted = s; return false; }
+    }
     return true;
   });
 
@@ -1995,7 +2002,7 @@ function deleteSpot(dayNum, spotName) {
     fetch(API_URL, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'delete', spot_name: spotName, day: dayNum })
+      body: JSON.stringify({ action: 'delete', spot_name: spotName, spot_id: spotId || '', day: dayNum })
     }).catch(function(){});
   }
 }
@@ -2006,7 +2013,7 @@ function deleteSpot(dayNum, spotName) {
 function saveDayOrder(dayNum, spots) {
   try {
     localStorage.setItem('day_order_' + dayNum, JSON.stringify(
-      spots.map(function(s){ return s.spot_name; })
+      spots.map(function(s){ return s.spot_id || s.spot_name; })
     ));
   } catch(e) {}
 }
@@ -2018,11 +2025,13 @@ function applyDayOrder(dayNum, spots) {
   try {
     var order = JSON.parse(saved);
     var spotMap = {};
-    spots.forEach(function(s){ spotMap[s.spot_name] = s; });
+    spots.forEach(function(s){ spotMap[s.spot_id || s.spot_name] = s; });
     var reordered = [];
-    order.forEach(function(name){ if (spotMap[name]) reordered.push(spotMap[name]); });
+    order.forEach(function(key){ if (spotMap[key]) reordered.push(spotMap[key]); });
     // 新增的景點（不在舊順序中）加到最後
-    spots.forEach(function(s){ if (order.indexOf(s.spot_name) < 0) reordered.push(s); });
+    spots.forEach(function(s){
+      if (order.indexOf(s.spot_id || s.spot_name) < 0) reordered.push(s);
+    });
     return reordered.length ? reordered : spots;
   } catch(e) { return spots; }
 }
@@ -2101,7 +2110,7 @@ function postOrderToGAS(dayNum, spots) {
         ? s.travel_mins
         : estimateTravelMins(prev.latitude, prev.longitude, s.latitude, s.longitude);
     }
-    return { spot_name: s.spot_name, sort_order: i, travel_mins: tMins };
+    return { spot_name: s.spot_name, spot_id: s.spot_id || '', sort_order: i, travel_mins: tMins };
   });
   fetch(API_URL, {
     method: 'POST', mode: 'no-cors',
