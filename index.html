@@ -2151,15 +2151,19 @@ async function calcTravelTimes(dayNum) {
     destinations.push(s2.latitude + ',' + s2.longitude);
   }
 
-  var url = 'https://maps.googleapis.com/maps/api/distancematrix/json'
-    + '?origins='      + origins.join('|')
-    + '&destinations=' + destinations.join('|')
-    + '&mode=transit&language=zh-TW&key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww';
-
   try {
-    var resp = await fetch(url);
-    var data = await resp.json();
-    if (data.status !== 'OK') throw new Error('Distance Matrix: ' + data.status);
+    var svc  = new google.maps.DistanceMatrixService();
+    var data = await new Promise(function(resolve, reject) {
+      svc.getDistanceMatrix({
+        origins:      origins.map(function(c){ var p=c.split(','); return {lat:+p[0],lng:+p[1]}; }),
+        destinations: destinations.map(function(c){ var p=c.split(','); return {lat:+p[0],lng:+p[1]}; }),
+        travelMode:   google.maps.TravelMode.TRANSIT,
+        language:     'zh-TW'
+      }, function(result, status) {
+        if (status === 'OK') resolve(result);
+        else reject(new Error('Distance Matrix: ' + status));
+      });
+    });
 
     var updatedSpots = spots.slice();
     for (var k = 0; k < validIdxs.length - 1; k++) {
