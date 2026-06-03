@@ -1773,7 +1773,7 @@ function confirmAddSpot() {
         + '&destination=' + encodeURIComponent(spotName)
         + '&destination_place_id=' + placeId
         + '&travelmode=transit'
-    : buildNavUrl(lat, lng, spotName);
+    : buildMapsUrl(regionName ? spotName + ' ' + regionName : spotName);
 
   var newSpot = {
     spot_name:     spotName,
