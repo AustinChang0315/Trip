@@ -1195,7 +1195,7 @@ async function searchPlace() {
     var { places } = await Place.searchByText({
       textQuery: query,
       fields: ['id', 'displayName', 'formattedAddress', 'location', 'addressComponents', 'regularOpeningHours', 'editorialSummary'],
-      language: 'ja',
+      language: 'zh-TW',
       locationBias: { center: biasCenter, radius: 10000 }
     });
 
@@ -1223,17 +1223,8 @@ async function searchPlace() {
     modalMap.setZoom(16);
     document.getElementById('modal-spot-name').value = name;
 
-    // addressComponents shim（camelCase → snake_case，供 regionFromComponents 使用）
-    if (place.addressComponents && place.addressComponents.length) {
-      var shimmed = place.addressComponents.map(function(c) {
-        return { long_name: c.longText, short_name: c.shortText, types: c.types };
-      });
-      var r = regionFromComponents(shimmed);
-      console.log('[region] searchByText addressComponents result:', r);
-      if (r) tempPlaceData.region = r;
-    }
-
-    // 鎖定確認按鈕，JS Geocoder 反查取得 zh-TW region 後解鎖
+    // region 由 reverseGeocodeAddr (language: ja) 負責，searchByText(zh-TW) 的 addressComponents 對日本地址回傳英文無法使用
+    // 鎖定確認按鈕，JS Geocoder 反查取得 region 後解鎖
     var confirmBtn = document.getElementById('add-confirm-btn');
     confirmBtn.disabled  = true;
     confirmBtn.innerText = '📍 取得地址中…';
