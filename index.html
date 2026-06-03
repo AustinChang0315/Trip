@@ -113,7 +113,22 @@
     .day-panel.active { display: block; }
 
     /* Day Header */
-    .day-header { padding: 24px 20px 12px; }
+    .day-header { padding: 24px 20px 12px; position: relative; }
+    .btn-sort-day {
+      position: absolute; top: 20px; right: 14px;
+      font-size: .7rem; font-weight: 600; padding: 5px 10px;
+      border: 1px solid var(--accent-bd); border-radius: 6px;
+      color: var(--accent); background: var(--accent-lt); white-space: nowrap;
+      transition: opacity .15s;
+    }
+    .btn-sort-day:active { opacity: .65; }
+    .day-start-wrap { display: flex; align-items: center; gap: 5px; margin-top: 6px; }
+    .day-start-label { font-size: .72rem; color: var(--text-3); }
+    .day-start-input {
+      font-size: .78rem; font-weight: 600; color: var(--text-2);
+      border: 1px solid var(--border-lt); border-radius: 5px;
+      padding: 3px 7px; background: var(--surface); width: 72px;
+    }
     .day-number-badge {
       display: inline-block; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
       color: var(--accent); background: var(--accent-lt); padding: 3px 10px; border-radius: 100px; margin-bottom: 8px;
@@ -159,6 +174,15 @@
       background: transparent; transition: color .15s;
     }
     .btn-del-spot:active { color: var(--red); }
+    .btn-move-spot {
+      position: absolute; top: 8px;
+      font-size: .78rem; color: var(--text-3);
+      padding: 3px 5px; border-radius: 5px; line-height: 1;
+      background: transparent; transition: color .15s;
+    }
+    .btn-move-spot:active { color: var(--accent); }
+    .btn-move-up { right: 56px; }
+    .btn-move-dn { right: 34px; }
 
     /* Add Spot Button（每天底部） */
     .add-spot-wrap { padding: 12px 16px 4px; }
@@ -716,7 +740,12 @@ async function boot() {
 
   // ── Step 4：初始化可變狀態（Task 5 增刪操作用）
   itineraryState = itinerary.map(function(d) {
-    return Object.assign({}, d, { spots: (d.spots || []).slice() });
+    var spots = applyDayOrder(d.day, (d.spots || []).slice());
+    var savedStart = localStorage.getItem('day_start_' + d.day);
+    return Object.assign({}, d, {
+      spots: spots,
+      day_start: savedStart || d.day_start
+    });
   });
 
   // ── Step 4b：背景修正 GAS 舊資料的籠統地區名（Maps API load 後執行）
@@ -833,19 +862,37 @@ function renderDayPanel(dayData) {
       + '（' + WKDAYS[dt.getDay()] + '）';
   var rawSpots = dayData.spots || [];
 
-  // Task 3：若景點無預設 time（GAS API 資料），套用最短路由排序 + 時間重算
-  // 靜態 itinerary.json 的景點已有 time 欄位，直接保留不排序
-  // day_start 由 boot() 從 itinerary.json 第一個真實景點的 time 自動提取
   var dayStartMins = parseTimeMins(dayData.day_start || '09:00');
-  var hasPresetTimes = rawSpots.some(function(s){ return !!s.time; });
-  var spots = hasPresetTimes ? rawSpots : optimizeDayRoute(rawSpots, dayData.day_start);
+  var spots = rawSpots;  // 不再自動排列，使用者可按「最佳路線」按鈕手動觸發
 
-  var timeMins = dayStartMins;  // fallback 計時器（僅在無預設 time 時使用）
+  // T3b 時間級聯：第一個景點用 day_start，後續景點 = 前一個結束時間 + 交通時間
+  var cascadeTimes = [];
+  var runningMins = dayStartMins;
+  for (var ci = 0; ci < spots.length; ci++) {
+    var cs = spots[ci];
+    var csFlight = cs.duration === 0 || !cs.duration;
+    if (cs.time) {
+      runningMins = parseTimeMins(cs.time);  // 有固定時間的景點（itinerary.json）用固定值
+      cascadeTimes.push(cs.time);
+    } else if (csFlight) {
+      cascadeTimes.push('');
+    } else {
+      cascadeTimes.push(minsToTime(runningMins));
+    }
+    if (!csFlight) runningMins += (cs.duration || 60);
+    // 加上前往下一個景點的交通時間
+    if (ci + 1 < spots.length) {
+      var nextS = spots[ci + 1];
+      var tMins = (nextS.travel_mins !== undefined && nextS.travel_mins !== null)
+        ? nextS.travel_mins
+        : estimateTravelMins(cs.latitude, cs.longitude, nextS.latitude, nextS.longitude);
+      runningMins += tMins;
+    }
+  }
 
   var spotsHtml = spots.map(function(spot, i){
     var isFlight = spot.duration === 0 || !spot.duration;
-    var timeStr  = spot.time ? spot.time : (!isFlight ? minsToTime(timeMins) : '');
-    if (!isFlight && !spot.time) timeMins += (spot.duration || 60);
+    var timeStr  = cascadeTimes[i];
 
     var isFirst = i === 0;
     var isLast  = i === spots.length - 1;
@@ -881,6 +928,12 @@ function renderDayPanel(dayData) {
                 + ' data-day="' + dayData.day + '"'
                 + ' data-name="' + spot.spot_name.replace(/"/g, '&quot;') + '"'
                 + ' onclick="confirmDeleteSpot(this)" title="移除景點">🗑</button>'
+              + (!isFirst
+                ? '<button class="btn-move-spot btn-move-up" onclick="moveSpot(' + dayData.day + ',' + i + ',\'up\')" title="往上移">↑</button>'
+                : '')
+              + (!isLast
+                ? '<button class="btn-move-spot btn-move-dn" onclick="moveSpot(' + dayData.day + ',' + i + ',\'down\')" title="往下移">↓</button>'
+                : '')
             : '')
           + (spot.region_name ? '<span class="spot-region-tag">' + spot.region_name + '</span>' : '')
           + '<div class="spot-name">' + spot.spot_name + '</div>'
@@ -918,9 +971,15 @@ function renderDayPanel(dayData) {
 
   return '<section class="day-panel" data-day="' + dayData.day + '">'
     + '<div class="day-header">'
+      + '<button class="btn-sort-day" onclick="triggerOptimizeDay(' + dayData.day + ')" title="自動排出最短路線">🔀 最佳路線</button>'
       + '<span class="day-number-badge">DAY ' + dayData.day + '</span>'
       + '<h2 class="day-panel-title">' + dayData.day_title + '</h2>'
       + '<p class="day-panel-date">' + dateLabel + '</p>'
+      + '<div class="day-start-wrap">'
+        + '<span class="day-start-label">⏰ 出發時間</span>'
+        + '<input class="day-start-input" type="time" value="' + (dayData.day_start || '09:00') + '"'
+          + ' onchange="updateDayStart(' + dayData.day + ', this.value)">'
+      + '</div>'
     + '</div>'
     + addBtnHtml
     + '<div class="timeline">' + spotsHtml + '</div>'
@@ -1793,13 +1852,13 @@ function confirmAddSpot() {
   } catch(e) {}
 
   // 4-2 Layer 2：立刻更新 UI（使用者體感「秒完成」）
-  var merged    = dayData.spots.concat([newSpot]);
-  var optimized = optimizeDayRoute(merged);
-  itineraryState[dayIdx] = Object.assign({}, dayData, { spots: optimized });
+  var merged = dayData.spots.concat([newSpot]);
+  itineraryState[dayIdx] = Object.assign({}, dayData, { spots: merged });
+  saveDayOrder(_addTargetDay, merged);
 
   closeAddModal();                               // 同時解鎖 body scroll
   updateDayPanel(itineraryState[dayIdx]);
-  showToast('✅ 已新增「' + spotName + '」並重新排序');
+  showToast('✅ 已新增「' + spotName + '」');
 
   // 4-2 Layer 3：背景 GAS 同步（不阻擋 UI，網路不穩時 localStorage 保留備份）
   if (API_URL) {
@@ -1862,12 +1921,8 @@ function deleteSpot(dayNum, spotName) {
 
   if (!deleted) return;
 
-  var hasPreset = remaining.some(function(s){ return !!s.time; });
-  var optimized = remaining.length > 0
-    ? (hasPreset ? remaining : optimizeDayRoute(remaining, dayData.day_start))
-    : [];
-
-  itineraryState[dayIndex] = Object.assign({}, dayData, { spots: optimized });
+  itineraryState[dayIndex] = Object.assign({}, dayData, { spots: remaining });
+  saveDayOrder(dayNum, remaining);
   updateDayPanel(itineraryState[dayIndex]);
   showToast('✓ 已移除「' + spotName + '」');
 
@@ -1879,6 +1934,76 @@ function deleteSpot(dayNum, spotName) {
       body: JSON.stringify({ action: 'delete', spot_name: spotName, day: dayNum })
     }).catch(function(){});
   }
+}
+
+/* ─── 景點排序（手動移動 + 最佳路線按鈕）──────────────── */
+
+// 儲存當天景點順序到 localStorage（用 spot_name 陣列記錄）
+function saveDayOrder(dayNum, spots) {
+  try {
+    localStorage.setItem('day_order_' + dayNum, JSON.stringify(
+      spots.map(function(s){ return s.spot_name; })
+    ));
+  } catch(e) {}
+}
+
+// 從 localStorage 讀回儲存的順序並套用
+function applyDayOrder(dayNum, spots) {
+  var saved = localStorage.getItem('day_order_' + dayNum);
+  if (!saved) return spots;
+  try {
+    var order = JSON.parse(saved);
+    var spotMap = {};
+    spots.forEach(function(s){ spotMap[s.spot_name] = s; });
+    var reordered = [];
+    order.forEach(function(name){ if (spotMap[name]) reordered.push(spotMap[name]); });
+    // 新增的景點（不在舊順序中）加到最後
+    spots.forEach(function(s){ if (order.indexOf(s.spot_name) < 0) reordered.push(s); });
+    return reordered.length ? reordered : spots;
+  } catch(e) { return spots; }
+}
+
+// ↑↓ 移動景點
+function moveSpot(dayNum, idx, direction) {
+  var dayIdx = -1;
+  for (var i = 0; i < itineraryState.length; i++) {
+    if (itineraryState[i].day === dayNum) { dayIdx = i; break; }
+  }
+  if (dayIdx < 0) return;
+  var spots = itineraryState[dayIdx].spots.slice();
+  var target = direction === 'up' ? idx - 1 : idx + 1;
+  if (target < 0 || target >= spots.length) return;
+  var tmp = spots[idx]; spots[idx] = spots[target]; spots[target] = tmp;
+  itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: spots });
+  saveDayOrder(dayNum, spots);
+  updateDayPanel(itineraryState[dayIdx]);
+}
+
+// ⏰ 更新每天出發時間
+function updateDayStart(dayNum, timeStr) {
+  var dayIdx = -1;
+  for (var i = 0; i < itineraryState.length; i++) {
+    if (itineraryState[i].day === dayNum) { dayIdx = i; break; }
+  }
+  if (dayIdx < 0) return;
+  itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { day_start: timeStr });
+  try { localStorage.setItem('day_start_' + dayNum, timeStr); } catch(e) {}
+  updateDayPanel(itineraryState[dayIdx]);
+}
+
+// 🔀 最佳路線按鈕：手動觸發自動排列
+function triggerOptimizeDay(dayNum) {
+  var dayIdx = -1;
+  for (var i = 0; i < itineraryState.length; i++) {
+    if (itineraryState[i].day === dayNum) { dayIdx = i; break; }
+  }
+  if (dayIdx < 0) return;
+  var dayData = itineraryState[dayIdx];
+  var optimized = optimizeDayRoute(dayData.spots, dayData.day_start);
+  itineraryState[dayIdx] = Object.assign({}, dayData, { spots: optimized });
+  saveDayOrder(dayNum, optimized);
+  updateDayPanel(itineraryState[dayIdx]);
+  showToast('🔀 路線已優化');
 }
 
 /* ─── Expense Summary ─────────────────────────────────── */
@@ -2063,6 +2188,16 @@ function haversineKm(lat1, lon1, lat2, lon2) {
         + Math.cos(lat1 * d2r) * Math.cos(lat2 * d2r)
         * Math.sin(dLon/2) * Math.sin(dLon/2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// T3b：用兩景點 GPS 距離估算交通時間（分鐘）
+function estimateTravelMins(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return 15;
+  var km = haversineKm(lat1, lon1, lat2, lon2);
+  if (km < 1)  return 10;
+  if (km < 3)  return 20;
+  if (km < 8)  return 30;
+  return 45;
 }
 
 // 計算一組景點順序的總移動距離
