@@ -39,19 +39,6 @@
       "note": "羽田入境 + 電車到飯店約 13:10-15:00，辦理入住後實際可用時間約 15:30 起，選最近景點徒步串連，不趕行程。",
       "spots": [
         {
-          "time": "09:00",
-          "spot_name": "去程 CI 0220｜松山 09:00 → 羽田 13:10",
-          "region_name": "羽田・東京灣",
-          "latitude": 35.5494,
-          "longitude": 139.7798,
-          "description": "中華航空 CI 0220，飛行時間約 3 小時 10 分。台北松山 (TSA) 09:00 起飛，東京羽田 (HND) 13:10 抵達。訂位代號：DQ4JMF。入境後搭乘京急電鐵至五反田，飯店辦理入住預計 14:30-15:00。",
-          "transport": {
-            "method": "入境後搭乘京急空港線至品川站，轉 JR 山手線至五反田站",
-            "duration": "入境 + 電車約 60-80 分鐘",
-            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit"
-          }
-        },
-        {
           "time": "15:30",
           "spot_name": "惠比壽 ガーデンプレイス 散策",
           "region_name": "東京 惠比壽",
@@ -610,19 +597,6 @@
           "transport": {
             "method": "從神谷町站搭日比谷線至大門站，轉都營淺草線至泉岳寺站，再轉京急空港線至羽田空港第3ターミナル",
             "duration": "約 40-50 分鐘",
-            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit"
-          }
-        },
-        {
-          "time": "14:30",
-          "spot_name": "回程 CI 0221｜羽田 14:30 → 松山 16:55",
-          "region_name": "羽田・東京灣",
-          "latitude": 35.5494,
-          "longitude": 139.7798,
-          "description": "中華航空 CI 0221，飛行時間約 3 小時 25 分。東京羽田 (HND) 14:30 起飛，台北松山 (TSA) 16:55 抵達。訂位代號：DQ4JMF。國際線建議 12:30 前完成報到手續。",
-          "transport": {
-            "method": "羽田空港第3ターミナル 辦理登機手續，行李可事先寄放飯店輕裝出發",
-            "duration": "建議 12:30 前抵達機場",
             "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit"
           }
         }
