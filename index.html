@@ -2414,10 +2414,16 @@ function nearestNeighborSort(arr) {
 
 // 核心排序：分離航班節點，只對有座標的正常景點排序
 function sortSpotsOptimal(spots) {
-  var heads = [], tails = [], sortable = [];
-  var mid = spots.length / 2;
+  if (!spots || spots.length <= 2) return spots;
 
-  spots.forEach(function(s, i) {
+  var first  = spots[0];
+  var last   = spots[spots.length - 1];
+  var middle = spots.slice(1, spots.length - 1);
+
+  var heads = [], tails = [], sortable = [];
+  var mid = middle.length / 2;
+
+  middle.forEach(function(s, i) {
     var canSort = s.latitude && s.longitude && s.duration > 0;
     if (!canSort) {
       if (i < mid) heads.push(s); else tails.push(s);
@@ -2439,7 +2445,7 @@ function sortSpotsOptimal(spots) {
     best = nearestNeighborSort(sortable);
   }
 
-  return heads.concat(best).concat(tails);
+  return [first].concat(heads).concat(best).concat(tails).concat([last]);
 }
 
 // 時間重算：從 startMins（預設 09:00 = 540 分）往後累加 duration
