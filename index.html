@@ -1271,22 +1271,30 @@ async function searchPlace() {
 function regionFromComponents(components) {
   if (!components || !components.length) return '';
   var isCJK = function(s) { return /[一-鿿぀-ヿ]/.test(s || ''); };
-  var strip = function(s) { return (s || '').replace(/[都道府縣県市区區町村郡]$/, ''); };
   var find = function(type) {
     for (var i = 0; i < components.length; i++)
       if (components[i].types.indexOf(type) >= 0) return components[i].long_name;
     return '';
   };
+
+  // 縣市（東京都 → 東京）
   var rawPref = find('administrative_area_level_1');
   if (!isCJK(rawPref)) return '';
-  var pref = strip(rawPref);
-  var town = '';
-  var townTypes = ['sublocality_level_2', 'sublocality_level_1', 'sublocality', 'locality'];
-  for (var i = 0; i < townTypes.length; i++) {
-    var v = find(townTypes[i]);
-    if (isCJK(v)) { town = strip(v); break; }
-  }
-  return pref + (town ? ' ' + town : '');
+  var pref = rawPref.replace(/[都道府縣県]$/, '');
+
+  // 行政區 / 城市（目黒区 → 目黒区，川越市 → 川越）：保留 区/區，剝掉 市/郡
+  var rawWard = find('locality') || find('administrative_area_level_2');
+  var ward = isCJK(rawWard) ? rawWard.replace(/[市郡]$/, '') : '';
+
+  // 街區名（浅草、谷中）：剝掉「町/丁」後不足 2 字則跳過（幸町→幸→跳過）
+  var rawSub = find('sublocality_level_1') || find('sublocality_level_2');
+  var strippedSub = isCJK(rawSub) ? rawSub.replace(/[町丁]$/, '') : '';
+  var sub = strippedSub.length >= 2 ? strippedSub : '';
+
+  var parts = [pref];
+  if (ward) parts.push(ward);
+  if (sub && sub !== ward) parts.push(sub);
+  return parts.join(' ');
 }
 
 // formatted_address 字串解析（僅作 fallback，當 address_components 是英文時使用）
@@ -1300,7 +1308,7 @@ function formatRegionFromAddress(addr) {
   var rest     = s.slice(s.indexOf(prefMatch[1]) + prefMatch[1].length);
   var cityMatch = rest.match(new RegExp('^([' + CJK + ']{1,8}[市区區郡])'));
   var afterCity = cityMatch ? rest.slice(cityMatch[0].length) : rest;
-  var cityName  = cityMatch ? cityMatch[1].replace(/[市区區郡]$/, '') : '';
+  var cityName  = cityMatch ? cityMatch[1].replace(/[市郡]$/, '') : '';  // 保留 区/區
   var townMatch = afterCity.match(new RegExp('^([' + CJK + ']{1,10})'));
   var town      = (townMatch && townMatch[1]) ? townMatch[1] : cityName;
   return pref + (town ? ' ' + town : '');
