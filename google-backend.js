@@ -432,6 +432,39 @@ function addMissingColumns() {
 }
 
 // ──────────────────────────────────────────
+//  sort_order 重新編號（刪除景點後修復缺口）
+// ──────────────────────────────────────────
+
+// 執行方式：Apps Script 編輯器 → 選擇 renumberSortOrders → 點執行
+function renumberSortOrders() {
+  var sheet   = getSheet();
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var dayCol  = headers.indexOf('day');
+  var sortCol = headers.indexOf('sort_order');
+
+  if (sortCol < 0) { Logger.log('找不到 sort_order 欄位'); return; }
+
+  // 依天分組，記錄 { row(1-based), sortOrder }
+  var groups = {};
+  for (var r = 1; r < data.length; r++) {
+    var d = Number(data[r][dayCol]);
+    if (!groups[d]) groups[d] = [];
+    groups[d].push({ row: r + 1, sortOrder: Number(data[r][sortCol]) });
+  }
+
+  // 每天依現有 sort_order 升冪排列，再從 0 重新連續編號
+  Object.keys(groups).forEach(function(day) {
+    groups[day].sort(function(a, b) { return a.sortOrder - b.sortOrder; });
+    groups[day].forEach(function(item, idx) {
+      sheet.getRange(item.row, sortCol + 1).setValue(idx);
+    });
+  });
+
+  Logger.log('renumberSortOrders() 完成。');
+}
+
+// ──────────────────────────────────────────
 //  初始化（只需執行一次）
 // ──────────────────────────────────────────
 
