@@ -731,7 +731,8 @@ async function boot() {
           return Object.assign({}, day, {
             spots:     fixedSpots,
             day_title: gas.day_title || day.day_title,
-            date:      dateToYMD(gas.date) || day.date
+            date:      dateToYMD(gas.date) || day.date,
+            day_start: gas.day_start || day.day_start
           });
         });
       }
@@ -990,7 +991,8 @@ function renderDayPanel(dayData) {
       + '<div class="day-start-wrap">'
         + '<span class="day-start-label">⏰ 出發時間</span>'
         + '<input class="day-start-input" type="time" value="' + (dayData.day_start || '09:00') + '"'
-          + ' onchange="updateDayStart(' + dayData.day + ', this.value)">'
+          + ' oninput="storeDayStart(' + dayData.day + ', this.value)"'
+          + ' onblur="updateDayStart(' + dayData.day + ', this.value)">'
       + '</div>'
     + '</div>'
     + addBtnHtml
@@ -1993,7 +1995,18 @@ function moveSpot(dayNum, idx, direction) {
   postOrderToGAS(dayNum, spots);
 }
 
-// ⏰ 更新每天出發時間（同步 localStorage + GAS）
+// ⏰ 只存值，不重繪（手機選時間時避免提前關閉選擇器）
+function storeDayStart(dayNum, timeStr) {
+  var dayIdx = -1;
+  for (var i = 0; i < itineraryState.length; i++) {
+    if (itineraryState[i].day === dayNum) { dayIdx = i; break; }
+  }
+  if (dayIdx < 0) return;
+  itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { day_start: timeStr });
+  try { localStorage.setItem('day_start_' + dayNum, timeStr); } catch(e) {}
+}
+
+// ⏰ 確認時間後重繪 + GAS 同步（由 onblur 觸發）
 function updateDayStart(dayNum, timeStr) {
   var dayIdx = -1;
   for (var i = 0; i < itineraryState.length; i++) {
