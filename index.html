@@ -122,6 +122,15 @@
       transition: opacity .15s;
     }
     .btn-sort-day:active { opacity: .65; }
+    .btn-calc-travel {
+      position: absolute; top: 50px; right: 14px;
+      font-size: .7rem; font-weight: 600; padding: 4px 9px;
+      border: 1px solid var(--border-lt); border-radius: 6px;
+      color: var(--text-2); background: var(--surface); white-space: nowrap;
+      transition: opacity .15s;
+    }
+    .btn-calc-travel:active { opacity: .65; }
+    .btn-calc-travel:disabled { opacity: .4; cursor: default; }
     .day-start-wrap { display: flex; align-items: center; gap: 5px; margin-top: 6px; }
     .day-start-label { font-size: .72rem; color: var(--text-3); }
     .day-start-input {
@@ -885,7 +894,7 @@ function renderDayPanel(dayData) {
     // 加上前往下一個景點的交通時間
     if (ci + 1 < spots.length) {
       var nextS = spots[ci + 1];
-      var tMins = (nextS.travel_mins !== undefined && nextS.travel_mins !== null)
+      var tMins = (nextS.travel_mins > 0)
         ? nextS.travel_mins
         : estimateTravelMins(cs.latitude, cs.longitude, nextS.latitude, nextS.longitude);
       runningMins += tMins;
@@ -974,6 +983,7 @@ function renderDayPanel(dayData) {
   return '<section class="day-panel" data-day="' + dayData.day + '">'
     + '<div class="day-header">'
       + '<button class="btn-sort-day" onclick="triggerOptimizeDay(' + dayData.day + ')" title="自動排出最短路線">🔀 最佳路線</button>'
+      + '<button class="btn-calc-travel" id="btn-calc-' + dayData.day + '" onclick="calcTravelTimes(' + dayData.day + ')" title="查詢精確大眾運輸交通時間">🕐 交通時間</button>'
       + '<span class="day-number-badge">DAY ' + dayData.day + '</span>'
       + '<h2 class="day-panel-title">' + dayData.day_title + '</h2>'
       + '<p class="day-panel-date">' + dateLabel + '</p>'
@@ -1983,7 +1993,7 @@ function moveSpot(dayNum, idx, direction) {
   postOrderToGAS(dayNum, spots);
 }
 
-// ⏰ 更新每天出發時間
+// ⏰ 更新每天出發時間（同步 localStorage + GAS）
 function updateDayStart(dayNum, timeStr) {
   var dayIdx = -1;
   for (var i = 0; i < itineraryState.length; i++) {
@@ -1993,6 +2003,13 @@ function updateDayStart(dayNum, timeStr) {
   itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { day_start: timeStr });
   try { localStorage.setItem('day_start_' + dayNum, timeStr); } catch(e) {}
   updateDayPanel(itineraryState[dayIdx]);
+  if (API_URL) {
+    fetch(API_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'update_day_start', day: dayNum, day_start: timeStr })
+    }).catch(function(){});
+  }
 }
 
 // 🔀 最佳路線按鈕：手動觸發自動排列
@@ -2015,13 +2032,87 @@ function triggerOptimizeDay(dayNum) {
 function postOrderToGAS(dayNum, spots) {
   if (!API_URL) return;
   var payload = spots.map(function(s, i) {
-    return { spot_name: s.spot_name, sort_order: i, travel_mins: s.travel_mins || 0 };
+    var tMins = 0;
+    if (i > 0) {
+      var prev = spots[i - 1];
+      tMins = (s.travel_mins > 0)
+        ? s.travel_mins
+        : estimateTravelMins(prev.latitude, prev.longitude, s.latitude, s.longitude);
+    }
+    return { spot_name: s.spot_name, sort_order: i, travel_mins: tMins };
   });
   fetch(API_URL, {
     method: 'POST', mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify({ action: 'update_order', day: dayNum, spots: payload })
   }).catch(function(){});
+}
+
+// 🕐 Distance Matrix API — 一次查整天所有路段的精確大眾運輸交通時間
+async function calcTravelTimes(dayNum) {
+  var dayIdx = -1;
+  for (var i = 0; i < itineraryState.length; i++) {
+    if (itineraryState[i].day === dayNum) { dayIdx = i; break; }
+  }
+  if (dayIdx < 0) return;
+
+  var btn = document.getElementById('btn-calc-' + dayNum);
+  if (btn) { btn.disabled = true; btn.textContent = '計算中…'; }
+
+  var spots = itineraryState[dayIdx].spots;
+
+  // 只取有座標的非航班景點
+  var validIdxs = [];
+  spots.forEach(function(s, i) {
+    if (s.latitude && s.longitude && s.duration > 0) validIdxs.push(i);
+  });
+
+  if (validIdxs.length < 2) {
+    showToast('景點不足，無法計算交通時間');
+    if (btn) { btn.disabled = false; btn.textContent = '🕐 交通時間'; }
+    return;
+  }
+
+  var origins = [], destinations = [];
+  for (var k = 0; k < validIdxs.length - 1; k++) {
+    var s1 = spots[validIdxs[k]], s2 = spots[validIdxs[k + 1]];
+    origins.push(s1.latitude + ',' + s1.longitude);
+    destinations.push(s2.latitude + ',' + s2.longitude);
+  }
+
+  var url = 'https://maps.googleapis.com/maps/api/distancematrix/json'
+    + '?origins='      + origins.join('|')
+    + '&destinations=' + destinations.join('|')
+    + '&mode=transit&language=zh-TW&key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww';
+
+  try {
+    var resp = await fetch(url);
+    var data = await resp.json();
+    if (data.status !== 'OK') throw new Error('Distance Matrix: ' + data.status);
+
+    var updatedSpots = spots.slice();
+    for (var k = 0; k < validIdxs.length - 1; k++) {
+      var elem = data.rows[k] && data.rows[k].elements && data.rows[k].elements[k];
+      if (elem && elem.status === 'OK' && elem.duration) {
+        var mins = Math.round(elem.duration.value / 60);
+        var spotIdx = validIdxs[k + 1];
+        updatedSpots[spotIdx] = Object.assign({}, updatedSpots[spotIdx], { travel_mins: mins });
+      }
+    }
+
+    itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: updatedSpots });
+    saveDayOrder(dayNum, updatedSpots);
+    updateDayPanel(itineraryState[dayIdx]);
+    postOrderToGAS(dayNum, updatedSpots);
+    showToast('🕐 交通時間已更新');
+
+  } catch(err) {
+    console.error('[calcTravelTimes]', err);
+    showToast('交通時間計算失敗，請稍後再試');
+  } finally {
+    var b = document.getElementById('btn-calc-' + dayNum);
+    if (b) { b.disabled = false; b.textContent = '🕐 交通時間'; }
+  }
 }
 
 /* ─── Expense Summary ─────────────────────────────────── */

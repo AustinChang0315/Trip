@@ -34,7 +34,8 @@ const HEADERS = [
   'address',      // Google formatted_address（顯示用）
   'opening_hours',// JSON 字串，weekday_text 陣列（Mon-Sun）
   'sort_order',   // 景點在當天的顯示順序（integer，從 0 開始）
-  'travel_mins'   // 到達此景點的交通時間（分鐘，integer）
+  'travel_mins',  // 到達此景點的交通時間（分鐘，integer）
+  'day_start'     // 當天出發時間（HH:MM 字串）
 ];
 
 // ──────────────────────────────────────────
@@ -67,7 +68,8 @@ function doGet(e) {
       address:      headers.indexOf('address'),
       opening_hours:headers.indexOf('opening_hours'),
       sort_order:   headers.indexOf('sort_order'),
-      travel_mins:  headers.indexOf('travel_mins')
+      travel_mins:  headers.indexOf('travel_mins'),
+      day_start:    headers.indexOf('day_start')
     };
 
     const dayMap = new Map(); // Map 保持天數插入順序
@@ -85,12 +87,14 @@ function doGet(e) {
       const address   = String(row[COL.address] || '');
       const sort_order  = COL.sort_order  >= 0 && row[COL.sort_order]  !== '' ? Number(row[COL.sort_order])  : 9999;
       const travel_mins = COL.travel_mins >= 0 && row[COL.travel_mins] !== '' ? Number(row[COL.travel_mins]) : 0;
+      const day_start   = COL.day_start   >= 0 && row[COL.day_start]   !== '' ? String(row[COL.day_start])   : '09:00';
 
       var opening_hours = [];
       try { opening_hours = JSON.parse(String(row[COL.opening_hours] || '[]')); } catch(e) {}
 
       if (!dayMap.has(day)) {
-        dayMap.set(day, { day: day, date: date, day_title: day_title, spots: [] });
+        // day_start 取第一個 spot 的值（整天共用）
+        dayMap.set(day, { day: day, date: date, day_title: day_title, day_start: day_start, spots: [] });
       }
 
       dayMap.get(day).spots.push({
@@ -132,9 +136,10 @@ function doPost(e) {
     const action  = payload.action;
     const sheet   = getSheet();
 
-    if (action === 'add')          return handleAdd(sheet, payload);
-    if (action === 'delete')       return handleDelete(sheet, payload);
-    if (action === 'update_order') return handleUpdateOrder(sheet, payload);
+    if (action === 'add')              return handleAdd(sheet, payload);
+    if (action === 'delete')           return handleDelete(sheet, payload);
+    if (action === 'update_order')     return handleUpdateOrder(sheet, payload);
+    if (action === 'update_day_start') return handleUpdateDayStart(sheet, payload);
 
     return jsonResponse({ success: false, error: '不支援的 action: ' + action });
 
@@ -168,7 +173,8 @@ function handleAdd(sheet, payload) {
     String(payload.address     || ''),
     String(payload.opening_hours || '[]'),
     existingSortOrder,
-    0  // travel_mins 預設 0，待 update_order 更新
+    0,                                               // travel_mins 預設 0，待 update_order 更新
+    String(payload.day_start || getDayStart(sheet, payload.day) || '09:00')
   ]);
 
   return jsonResponse({ success: true, message: '景點已新增：' + payload.spot_name });
@@ -236,6 +242,31 @@ function handleUpdateOrder(sheet, payload) {
   return jsonResponse({ success: true, message: 'Day ' + targetDay + ' 順序已更新' });
 }
 
+function handleUpdateDayStart(sheet, payload) {
+  const targetDay = Number(payload.day);
+  const newStart  = String(payload.day_start || '09:00');
+
+  const data    = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const dayCol   = headers.indexOf('day');
+  var   startCol = headers.indexOf('day_start');
+
+  if (startCol < 0) {
+    startCol = headers.length;
+    sheet.getRange(1, startCol + 1).setValue('day_start');
+    headers.push('day_start');
+  }
+
+  for (var r = 1; r < data.length; r++) {
+    if (Number(data[r][dayCol]) === targetDay) {
+      sheet.getRange(r + 1, startCol + 1).setValue(newStart);
+    }
+  }
+
+  return jsonResponse({ success: true, message: 'Day ' + targetDay + ' 出發時間已更新為 ' + newStart });
+}
+
 // ──────────────────────────────────────────
 //  工具函數
 // ──────────────────────────────────────────
@@ -269,6 +300,21 @@ function getDayTitle(sheet, targetDay) {
     }
   }
   return '';
+}
+
+// 取得當天的出發時間（新增景點時繼承同天已有的設定）
+function getDayStart(sheet, targetDay) {
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var dayCol   = headers.indexOf('day');
+  var startCol = headers.indexOf('day_start');
+  if (startCol < 0) return '09:00';
+  for (var i = 1; i < data.length; i++) {
+    if (Number(data[i][dayCol]) === Number(targetDay) && data[i][startCol]) {
+      return String(data[i][startCol]);
+    }
+  }
+  return '09:00';
 }
 
 // 取得當天景點最大的 sort_order（新景點排在最後用）
@@ -310,7 +356,7 @@ function addMissingColumns() {
   var sheet   = getSheet();
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
-  var toAdd = ['address', 'opening_hours', 'sort_order', 'travel_mins'].filter(function(h) {
+  var toAdd = ['address', 'opening_hours', 'sort_order', 'travel_mins', 'day_start'].filter(function(h) {
     return headers.indexOf(h) === -1;
   });
 
@@ -378,6 +424,7 @@ function seedData() {
 
   // 欄位順序：day, date, day_title, spot_name, duration, region_name,
   //           latitude, longitude, description, address, opening_hours, sort_order, travel_mins
+  //           （day_start 在下方另行設定）
   var rows = [
     // ── Day 1：2026-06-24 入境輕落地：五反田周邊三角散步 ──────────────────
     [1, '2026-06-24', '入境輕落地：五反田周邊三角散步',
@@ -513,5 +560,19 @@ function seedData() {
   ];
 
   rows.forEach(function(row) { sheet.appendRow(row); });
+
+  // 設定各天的預設出發時間
+  var dayStartMap = { 1: '13:00', 2: '10:30', 3: '08:30', 4: '10:00', 5: '10:30', 6: '09:00' };
+  var h2      = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var startCol = h2.indexOf('day_start');
+  var dayColN  = h2.indexOf('day');
+  if (startCol >= 0) {
+    var allData = sheet.getDataRange().getValues();
+    for (var r2 = 1; r2 < allData.length; r2++) {
+      var d2 = Number(allData[r2][dayColN]);
+      if (dayStartMap[d2]) sheet.getRange(r2 + 1, startCol + 1).setValue(dayStartMap[d2]);
+    }
+  }
+
   Logger.log('seedData() 完成，共匯入 ' + rows.length + ' 筆景點資料（6 天行程）。');
 }
