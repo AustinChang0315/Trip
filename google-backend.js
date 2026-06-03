@@ -87,7 +87,7 @@ function doGet(e) {
       const address   = String(row[COL.address] || '');
       const sort_order  = COL.sort_order  >= 0 && row[COL.sort_order]  !== '' ? Number(row[COL.sort_order])  : 9999;
       const travel_mins = COL.travel_mins >= 0 && row[COL.travel_mins] !== '' ? Number(row[COL.travel_mins]) : 0;
-      const day_start   = COL.day_start   >= 0 && row[COL.day_start]   !== '' ? String(row[COL.day_start])   : '';
+      const day_start   = COL.day_start   >= 0 ? formatTimeStr(row[COL.day_start])   : '';
 
       var opening_hours = [];
       try { opening_hours = JSON.parse(String(row[COL.opening_hours] || '[]')); } catch(e) {}
@@ -260,7 +260,7 @@ function handleUpdateDayStart(sheet, payload) {
 
   for (var r = 1; r < data.length; r++) {
     if (Number(data[r][dayCol]) === targetDay) {
-      sheet.getRange(r + 1, startCol + 1).setValue(newStart);
+      sheet.getRange(r + 1, startCol + 1).setNumberFormat('@').setValue(newStart);
     }
   }
 
@@ -270,6 +270,23 @@ function handleUpdateDayStart(sheet, payload) {
 // ──────────────────────────────────────────
 //  工具函數
 // ──────────────────────────────────────────
+
+// Sheets 時間欄位可能是數字小數（0.5625 = 13:30）或 Date 物件，強制轉成 HH:MM 字串
+function formatTimeStr(val) {
+  if (!val && val !== 0) return '';
+  if (typeof val === 'number') {
+    var totalMins = Math.round(val * 24 * 60);
+    var h = Math.floor(totalMins / 60) % 24;
+    var m = totalMins % 60;
+    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+  }
+  if (val instanceof Date) {
+    return String(val.getHours()).padStart(2,'0') + ':' + String(val.getMinutes()).padStart(2,'0');
+  }
+  var s = String(val).trim();
+  if (/^\d{1,2}:\d{2}$/.test(s)) return s;
+  return '';
+}
 
 // Google Sheets 的日期欄位可能是 Date 物件，強制轉成 YYYY-MM-DD 字串
 function toYMD(val) {

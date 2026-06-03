@@ -728,12 +728,13 @@ async function boot() {
           if (hasSortOrder) {
             fixedSpots.sort(function(a, b){ return (a.sort_order || 0) - (b.sort_order || 0); });
           }
+          var gasDayStart = normalizeHHMM(gas.day_start);
           return Object.assign({}, day, {
             spots:          fixedSpots,
             day_title:      gas.day_title || day.day_title,
             date:           dateToYMD(gas.date) || day.date,
-            day_start:      gas.day_start || day.day_start,
-            _gas_day_start: gas.day_start || ''
+            day_start:      gasDayStart || day.day_start,
+            _gas_day_start: gasDayStart
           });
         });
       }
@@ -2405,6 +2406,23 @@ function reindexTimes(spots, startMins) {
     }
     return copy;
   });
+}
+
+// 正規化 GAS 回傳的 day_start 值（可能是 HH:MM 字串、Sheets 時間小數、或 Date 字串）
+function normalizeHHMM(val) {
+  if (!val && val !== 0) return '';
+  var s = String(val).trim();
+  if (/^\d{1,2}:\d{2}$/.test(s)) return s;           // 已是 HH:MM
+  var n = parseFloat(s);
+  if (!isNaN(n) && n > 0 && n < 1) {                  // Sheets 時間小數（如 0.5625 = 13:30）
+    var totalMins = Math.round(n * 24 * 60);
+    var h = Math.floor(totalMins / 60);
+    var m = totalMins % 60;
+    return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+  }
+  var dm = s.match(/\b(\d{1,2}):(\d{2}):\d{2}\b/);   // Date 物件字串（如 "...13:30:00..."）
+  if (dm) return String(parseInt(dm[1],10)).padStart(2,'0') + ':' + dm[2];
+  return '';
 }
 
 // 解析 "HH:MM" 字串為分鐘數，無法解析則回傳 540（09:00）
