@@ -731,38 +731,35 @@ function prepareAndRender(itinerary, isUpdate) {
   }
 }
 
-/* ─── Boot（Task 4：雙向 API 串接）─────────────────── */
-async function boot() {
-  document.getElementById('app').style.display = 'block';
-
-  // ── Step 1：載入 itinerary.json（本地，快速）
-  var itinerary;
-  try {
-    var r1 = await fetch('./data/itinerary.json');
-    var j1 = await r1.json();
-    itinerary = (j1.itinerary || []).map(function(day) {
-      var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
-      return Object.assign({}, day, {
-        date:      dateToYMD(day.date),
-        day_start: firstReal ? firstReal.time : '09:00'
-      });
+// GAS 資料合併到基底 itinerary（dining/note 保留自 itinerary.json）
+function mergeGAS(baseItinerary, gasData) {
+  var gasMap = {};
+  gasData.itinerary.forEach(function(d) { gasMap[d.day] = d; });
+  return baseItinerary.map(function(day) {
+    var gas = gasMap[day.day];
+    if (!gas) return day;
+    var fixedSpots = gas.spots.map(function(s) {
+      return Object.assign({}, s, s.latitude && s.longitude ? {
+        transport: Object.assign({}, s.transport, {
+          google_maps_url: buildNavUrl(s.latitude, s.longitude, s.spot_name)
+        })
+      } : {});
     });
-  } catch(e) {
-    itinerary = PLACEHOLDER_DATA.itinerary.map(function(day) {
-      var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
-      return Object.assign({}, day, {
-        date:      dateToYMD(day.date),
-        day_start: firstReal ? firstReal.time : '09:00'
-      });
+    var hasSortOrder = fixedSpots.some(function(s) { return s.sort_order !== undefined; });
+    if (hasSortOrder) fixedSpots.sort(function(a, b) { return (a.sort_order||0)-(b.sort_order||0); });
+    var gasDayStart = normalizeHHMM(gas.day_start);
+    return Object.assign({}, day, {
+      spots:          fixedSpots,
+      day_title:      gas.day_title || day.day_title,
+      date:           dateToYMD(gas.date) || day.date,
+      day_start:      gasDayStart || day.day_start,
+      _gas_day_start: gasDayStart
     });
-  }
+  });
+}
 
-  // ── 第一次渲染（itinerary.json，不等 GAS，畫面立即出現）
-  prepareAndRender(itinerary, false);
-  fetchWeather(itinerary);
-  fetchTodayHeaderWeather();
-
-  // ── Step 4b：背景修正地區名（Maps API load 後執行）
+// Maps API load 後背景修正籠統地區名（once）
+function setupGeocodeListener() {
   window.addEventListener('load', function() {
     if (!window.google || !window.google.maps) return;
     (async function() {
@@ -784,42 +781,83 @@ async function boot() {
       Object.keys(changed).forEach(function(d) { updateDayPanel(changed[+d]); });
     })();
   }, { once: true });
+}
 
-  // ── Step 2：背景載入 GAS（4 秒 timeout，不阻擋畫面）
-  if (API_URL) {
-    try {
-      var r2    = await fetchWithTimeout(API_URL, 4000);
-      var json2 = await r2.json();
-      if (json2.itinerary && json2.itinerary.length) {
-        var gasMap = {};
-        json2.itinerary.forEach(function(d){ gasMap[d.day] = d; });
-        itinerary = itinerary.map(function(day) {
-          var gas = gasMap[day.day];
-          if (!gas) return day;
-          var fixedSpots = gas.spots.map(function(s) {
-            return Object.assign({}, s, s.latitude && s.longitude ? {
-              transport: Object.assign({}, s.transport, {
-                google_maps_url: buildNavUrl(s.latitude, s.longitude, s.spot_name)
-              })
-            } : {});
-          });
-          var hasSortOrder = fixedSpots.some(function(s){ return s.sort_order !== undefined; });
-          if (hasSortOrder) fixedSpots.sort(function(a, b){ return (a.sort_order||0)-(b.sort_order||0); });
-          var gasDayStart = normalizeHHMM(gas.day_start);
-          return Object.assign({}, day, {
-            spots:          fixedSpots,
-            day_title:      gas.day_title || day.day_title,
-            date:           dateToYMD(gas.date) || day.date,
-            day_start:      gasDayStart || day.day_start,
-            _gas_day_start: gasDayStart
-          });
-        });
-        if (json2.flights && json2.flights.length) flightsData = json2.flights;
+/* ─── Boot（Task 4：雙向 API 串接）─────────────────── */
+async function boot() {
+  document.getElementById('app').style.display = 'block';
 
-        // ── 第二次渲染（GAS 資料到後靜默更新）
-        prepareAndRender(itinerary, true);
-      }
-    } catch(e) { /* GAS 失敗或 timeout，沿用 itinerary.json */ }
+  // ── Step 1：載入 itinerary.json（dining/note 基底）
+  var baseItinerary;
+  try {
+    var r1 = await fetch('./data/itinerary.json');
+    var j1 = await r1.json();
+    baseItinerary = (j1.itinerary || []).map(function(day) {
+      var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
+      return Object.assign({}, day, {
+        date:      dateToYMD(day.date),
+        day_start: firstReal ? firstReal.time : '09:00'
+      });
+    });
+  } catch(e) {
+    baseItinerary = PLACEHOLDER_DATA.itinerary.map(function(day) {
+      var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
+      return Object.assign({}, day, {
+        date:      dateToYMD(day.date),
+        day_start: firstReal ? firstReal.time : '09:00'
+      });
+    });
+  }
+
+  // ── Step 2：GAS 快取 + 新資料
+  var gasCache = null;
+  try {
+    var cached = localStorage.getItem('gas_cache');
+    if (cached) gasCache = JSON.parse(cached);
+  } catch(e) { localStorage.removeItem('gas_cache'); }
+
+  if (gasCache && gasCache.itinerary && gasCache.itinerary.length) {
+    // ── 快取路徑：立即用上次 GAS 資料渲染（第二次以後開啟超快）
+    var itinerary = mergeGAS(baseItinerary, gasCache);
+    if (gasCache.flights) flightsData = gasCache.flights;
+    prepareAndRender(itinerary, false);
+    fetchWeather(itinerary);
+    fetchTodayHeaderWeather();
+    setupGeocodeListener();
+
+    // 背景抓新 GAS，到了更新快取並靜默重渲染
+    if (API_URL) {
+      fetchWithTimeout(API_URL, 6000)
+        .then(function(r) { return r.json(); })
+        .then(function(fresh) {
+          if (fresh.itinerary && fresh.itinerary.length) {
+            localStorage.setItem('gas_cache', JSON.stringify(fresh));
+            if (fresh.flights && fresh.flights.length) flightsData = fresh.flights;
+            prepareAndRender(mergeGAS(baseItinerary, fresh), true);
+          }
+        })
+        .catch(function() {});
+    }
+
+  } else {
+    // ── 無快取路徑：等待 GAS（第一次開啟，只慢一次）
+    var itinerary = baseItinerary;
+    if (API_URL) {
+      try {
+        showToast('載入行程中…');
+        var r2    = await fetch(API_URL);
+        var json2 = await r2.json();
+        if (json2.itinerary && json2.itinerary.length) {
+          localStorage.setItem('gas_cache', JSON.stringify(json2));
+          if (json2.flights && json2.flights.length) flightsData = json2.flights;
+          itinerary = mergeGAS(baseItinerary, json2);
+        }
+      } catch(e) { /* GAS 失敗，沿用 itinerary.json */ }
+    }
+    prepareAndRender(itinerary, false);
+    fetchWeather(itinerary);
+    fetchTodayHeaderWeather();
+    setupGeocodeListener();
   }
 
   // ── 背景：記帳統計
