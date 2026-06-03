@@ -26,13 +26,15 @@ const HEADERS = [
   'date',         // 日期 YYYY-MM-DD
   'day_title',    // 當日主題標題
   'spot_name',    // 景點名稱
-  'duration',     // 停留分鐘數（integer，0 = 不計入排序）
+  'duration',     // 停留分鐘數（integer，0 = 不計入排序演算法）
   'region_name',  // 地區名（用於天氣去重）
   'latitude',     // 緯度（float）
   'longitude',    // 經度（float）
   'description',  // 景點描述（editorial summary）
   'address',      // Google formatted_address（顯示用）
-  'opening_hours' // JSON 字串，weekday_text 陣列（Mon-Sun）
+  'opening_hours',// JSON 字串，weekday_text 陣列（Mon-Sun）
+  'sort_order',   // 景點在當天的顯示順序（integer，從 0 開始）
+  'travel_mins'   // 到達此景點的交通時間（分鐘，integer）
 ];
 
 // ──────────────────────────────────────────
@@ -48,22 +50,44 @@ function doGet(e) {
       return jsonResponse({ itinerary: [] });
     }
 
+    const headers = data[0];
     const rows = data.slice(1); // 跳過標題列
-    const dayMap = new Map();   // Map 保持天數插入順序
+
+    // 取得各欄索引（相容舊版 sheet，欄位不存在時回傳 -1）
+    const COL = {
+      day:          headers.indexOf('day'),
+      date:         headers.indexOf('date'),
+      day_title:    headers.indexOf('day_title'),
+      spot_name:    headers.indexOf('spot_name'),
+      duration:     headers.indexOf('duration'),
+      region_name:  headers.indexOf('region_name'),
+      latitude:     headers.indexOf('latitude'),
+      longitude:    headers.indexOf('longitude'),
+      description:  headers.indexOf('description'),
+      address:      headers.indexOf('address'),
+      opening_hours:headers.indexOf('opening_hours'),
+      sort_order:   headers.indexOf('sort_order'),
+      travel_mins:  headers.indexOf('travel_mins')
+    };
+
+    const dayMap = new Map(); // Map 保持天數插入順序
 
     rows.forEach(function(row) {
-      const day       = Number(row[0]);
-      const date      = toYMD(row[1]);
-      const day_title = String(row[2]);
-      const spot_name = String(row[3]);
-      const duration  = Number(row[4]);
-      const region    = String(row[5]);
-      const lat       = Number(row[6]);
-      const lng       = Number(row[7]);
-      const desc    = String(row[8]);
-      const address = String(row[9] || '');
-      var   opening_hours = [];
-      try { opening_hours = JSON.parse(String(row[10] || '[]')); } catch(e) {}
+      const day       = Number(row[COL.day]);
+      const date      = toYMD(row[COL.date]);
+      const day_title = String(row[COL.day_title]);
+      const spot_name = String(row[COL.spot_name]);
+      const duration  = Number(row[COL.duration]);
+      const region    = String(row[COL.region_name]);
+      const lat       = Number(row[COL.latitude]);
+      const lng       = Number(row[COL.longitude]);
+      const desc      = String(row[COL.description]);
+      const address   = String(row[COL.address] || '');
+      const sort_order  = COL.sort_order  >= 0 && row[COL.sort_order]  !== '' ? Number(row[COL.sort_order])  : 9999;
+      const travel_mins = COL.travel_mins >= 0 && row[COL.travel_mins] !== '' ? Number(row[COL.travel_mins]) : 0;
+
+      var opening_hours = [];
+      try { opening_hours = JSON.parse(String(row[COL.opening_hours] || '[]')); } catch(e) {}
 
       if (!dayMap.has(day)) {
         dayMap.set(day, { day: day, date: date, day_title: day_title, spots: [] });
@@ -78,10 +102,17 @@ function doGet(e) {
         description:   desc,
         address:       address,
         opening_hours: opening_hours,
+        sort_order:    sort_order,
+        travel_mins:   travel_mins,
         transport: {
-          google_maps_url: buildNavUrl(lat, lng, spot_name)
+          google_maps_url: buildNavUrl(spot_name)
         }
       });
+    });
+
+    // 每天的景點依 sort_order 升冪排列
+    dayMap.forEach(function(dayObj) {
+      dayObj.spots.sort(function(a, b) { return a.sort_order - b.sort_order; });
     });
 
     const itinerary = Array.from(dayMap.values())
@@ -101,8 +132,9 @@ function doPost(e) {
     const action  = payload.action;
     const sheet   = getSheet();
 
-    if (action === 'add')    return handleAdd(sheet, payload);
-    if (action === 'delete') return handleDelete(sheet, payload);
+    if (action === 'add')          return handleAdd(sheet, payload);
+    if (action === 'delete')       return handleDelete(sheet, payload);
+    if (action === 'update_order') return handleUpdateOrder(sheet, payload);
 
     return jsonResponse({ success: false, error: '不支援的 action: ' + action });
 
@@ -118,18 +150,25 @@ function doPost(e) {
 function handleAdd(sheet, payload) {
   const day_title = payload.day_title || getDayTitle(sheet, payload.day) || '';
 
+  // 取得當天最大 sort_order，新景點排在最後
+  const existingSortOrder = payload.sort_order !== undefined
+    ? Number(payload.sort_order)
+    : getMaxSortOrder(sheet, payload.day) + 1;
+
   sheet.appendRow([
     Number(payload.day),
-    String(payload.date       || ''),
+    String(payload.date        || ''),
     String(day_title),
-    String(payload.spot_name  || ''),
-    Number(payload.duration   || 60),
-    String(payload.region_name|| ''),
-    Number(payload.latitude   || 0),
-    Number(payload.longitude  || 0),
-    String(payload.description|| ''),
-    String(payload.address    || ''),
-    String(payload.opening_hours || '[]')
+    String(payload.spot_name   || ''),
+    Number(payload.duration    || 60),
+    String(payload.region_name || ''),
+    Number(payload.latitude    || 0),
+    Number(payload.longitude   || 0),
+    String(payload.description || ''),
+    String(payload.address     || ''),
+    String(payload.opening_hours || '[]'),
+    existingSortOrder,
+    0  // travel_mins 預設 0，待 update_order 更新
   ]);
 
   return jsonResponse({ success: true, message: '景點已新增：' + payload.spot_name });
@@ -149,6 +188,52 @@ function handleDelete(sheet, payload) {
   }
 
   return jsonResponse({ success: false, error: '找不到景點「' + targetName + '」（Day ' + targetDay + '）' });
+}
+
+function handleUpdateOrder(sheet, payload) {
+  const targetDay = Number(payload.day);
+  const spots     = payload.spots || []; // [{ spot_name, sort_order, travel_mins }, ...]
+
+  const data    = sheet.getDataRange().getValues();
+  const headers = data[0];
+
+  const nameCol    = headers.indexOf('spot_name');
+  const dayCol     = headers.indexOf('day');
+  var   sortCol    = headers.indexOf('sort_order');
+  var   travelCol  = headers.indexOf('travel_mins');
+
+  // 欄位不存在時自動新增（相容舊版 sheet）
+  if (sortCol < 0) {
+    sortCol = headers.length;
+    sheet.getRange(1, sortCol + 1).setValue('sort_order');
+    headers.push('sort_order');
+  }
+  if (travelCol < 0) {
+    travelCol = headers.length;
+    sheet.getRange(1, travelCol + 1).setValue('travel_mins');
+    headers.push('travel_mins');
+  }
+
+  // 建立 spot_name → { sort_order, travel_mins } 的快查 map
+  var orderMap = {};
+  spots.forEach(function(s) {
+    orderMap[String(s.spot_name)] = {
+      sort_order:  Number(s.sort_order  || 0),
+      travel_mins: Number(s.travel_mins || 0)
+    };
+  });
+
+  // 批次更新符合條件的列
+  for (var r = 1; r < data.length; r++) {
+    var rowDay  = Number(data[r][dayCol]);
+    var rowName = String(data[r][nameCol]);
+    if (rowDay === targetDay && orderMap[rowName] !== undefined) {
+      sheet.getRange(r + 1, sortCol  + 1).setValue(orderMap[rowName].sort_order);
+      sheet.getRange(r + 1, travelCol + 1).setValue(orderMap[rowName].travel_mins);
+    }
+  }
+
+  return jsonResponse({ success: true, message: 'Day ' + targetDay + ' 順序已更新' });
 }
 
 // ──────────────────────────────────────────
@@ -186,19 +271,28 @@ function getDayTitle(sheet, targetDay) {
   return '';
 }
 
-function buildMapsUrl(spotName) {
+// 取得當天景點最大的 sort_order（新景點排在最後用）
+function getMaxSortOrder(sheet, targetDay) {
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var dayCol  = headers.indexOf('day');
+  var sortCol = headers.indexOf('sort_order');
+  if (sortCol < 0) return -1;
+  var max = -1;
+  for (var i = 1; i < data.length; i++) {
+    if (Number(data[i][dayCol]) === Number(targetDay)) {
+      var v = Number(data[i][sortCol]);
+      if (!isNaN(v) && v > max) max = v;
+    }
+  }
+  return max;
+}
+
+// 景點名稱版導航 URL（不用座標，避免 Google Maps 顯示「已放置圖釘」）
+function buildNavUrl(spotName) {
   return 'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination='
     + encodeURIComponent(String(spotName))
     + '&travelmode=transit';
-}
-
-// 優先用精確座標當 destination，避免同名店家導航跑錯
-function buildNavUrl(lat, lng, spotName) {
-  if (lat && lng) {
-    return 'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination='
-      + lat + ',' + lng + '&travelmode=transit';
-  }
-  return buildMapsUrl(spotName);
 }
 
 function jsonResponse(data) {
@@ -216,7 +310,7 @@ function addMissingColumns() {
   var sheet   = getSheet();
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
-  var toAdd = ['address', 'opening_hours'].filter(function(h) {
+  var toAdd = ['address', 'opening_hours', 'sort_order', 'travel_mins'].filter(function(h) {
     return headers.indexOf(h) === -1;
   });
 
@@ -282,117 +376,140 @@ function seedData() {
     return;
   }
 
+  // 欄位順序：day, date, day_title, spot_name, duration, region_name,
+  //           latitude, longitude, description, address, opening_hours, sort_order, travel_mins
   var rows = [
     // ── Day 1：2026-06-24 入境輕落地：五反田周邊三角散步 ──────────────────
     [1, '2026-06-24', '入境輕落地：五反田周邊三角散步',
       '去程 CI 0220｜松山 09:00 → 羽田 13:10', 0,
       '羽田・東京灣', 35.5494, 139.7798,
-      '中華航空 CI 0220。入境後搭京急電鐵至品川，轉 JR 山手線至五反田，辦理入住約 15:00。訂位代號：DQ4JMF。'],
+      '中華航空 CI 0220。入境後搭京急電鐵至品川，轉 JR 山手線至五反田，辦理入住約 15:00。訂位代號：DQ4JMF。',
+      '', '[]', 0, 0],
 
     [1, '2026-06-24', '入境輕落地：五反田周邊三角散步',
       '惠比壽 ガーデンプレイス 散策', 60,
       '東京市區', 35.6467, 139.7100,
-      '昔日札幌啤酒廠改建的歐式廣場，下午茶氛圍絕佳，無須消費也可散步拍照。'],
+      '昔日札幌啤酒廠改建的歐式廣場，下午茶氛圍絕佳，無須消費也可散步拍照。',
+      '', '[]', 1, 20],
 
     [1, '2026-06-24', '入境輕落地：五反田周邊三角散步',
       '代官山 蔦屋書店（T-SITE）', 60,
       '東京市區', 35.6485, 139.7034,
-      '日本最具代表性的選物型書店，三棟白色建築，內有旅遊書、藝術品、咖啡廳。感受代官山氣質的最直接方式。'],
+      '日本最具代表性的選物型書店，三棟白色建築，內有旅遊書、藝術品、咖啡廳。感受代官山氣質的最直接方式。',
+      '', '[]', 2, 10],
 
     [1, '2026-06-24', '入境輕落地：五反田周邊三角散步',
       '中目黑 目黑川沿岸', 90,
       '東京市區', 35.6441, 139.6979,
-      '目黑川兩側林立獨立咖啡廳、麵包店、選物店。6 月梅雨後綠意濃厚，傍晚水岸光線極美。'],
+      '目黑川兩側林立獨立咖啡廳、麵包店、選物店。6 月梅雨後綠意濃厚，傍晚水岸光線極美。',
+      '', '[]', 3, 10],
 
     // ── Day 2：2026-06-25 下町時光：谷中老街與淺草燈火 ──────────────────
     [2, '2026-06-25', '下町時光：谷中老街與淺草燈火',
       '谷中銀座商店街', 90,
       '東京市區', 35.7268, 139.7698,
-      '昭和氣息最濃厚的在地小商店街，貓咪遍佈的石板老巷，豆腐店、煎餅鋪、古董小物。東京最有人情味的散步路線。'],
+      '昭和氣息最濃厚的在地小商店街，貓咪遍佈的石板老巷，豆腐店、煎餅鋪、古董小物。東京最有人情味的散步路線。',
+      '', '[]', 0, 0],
 
     [2, '2026-06-25', '下町時光：谷中老街與淺草燈火',
       '淺草 雷門・仲見世通', 90,
       '東京市區', 35.7116, 139.7964,
-      '江戶風情的標誌大門，仲見世通可買到正統人形燒與草餅。站在吾妻橋即可遠眺晴空塔，無需購票。'],
+      '江戶風情的標誌大門，仲見世通可買到正統人形燒與草餅。站在吾妻橋即可遠眺晴空塔，無需購票。',
+      '', '[]', 1, 20],
 
     // ── Day 3：2026-06-26 東京迪士尼海洋 全日沉浸 ───────────────────────
     [3, '2026-06-26', '東京迪士尼海洋 全日沉浸',
       '東京迪士尼海洋 (Tokyo DisneySea)', 600,
       '舞濱・千葉', 35.6270, 139.8845,
-      '全球唯一以「海洋」為主題的迪士尼樂園，七大港灣各有異國情調。6 月梅雨季人潮相對少，建議 08:30 前抵達閘口。'],
+      '全球唯一以「海洋」為主題的迪士尼樂園，七大港灣各有異國情調。6 月梅雨季人潮相對少，建議 08:30 前抵達閘口。',
+      '', '[]', 0, 0],
 
     // ── Day 4：2026-06-27 小江戶川越 + 回程澀谷天空 ────────────────────
     [4, '2026-06-27', '小江戶川越 + 回程澀谷天空',
       '藏造老街（一番街）', 60,
       '川越', 35.9249, 139.4878,
-      '江戶時代商人街區，黑色蔵造倉庫連棟而立。兩側藏著老醬油店、和菓子鋪與手工雜貨，氣息比淺草更為清靜。'],
+      '江戶時代商人街區，黑色蔵造倉庫連棟而立。兩側藏著老醬油店、和菓子鋪與手工雜貨，氣息比淺草更為清靜。',
+      '', '[]', 0, 0],
 
     [4, '2026-06-27', '小江戶川越 + 回程澀谷天空',
       '時之鐘（時の鐘）', 30,
       '川越', 35.9239, 139.4880,
-      '川越最具代表性的木造地標，每天 12:00、15:00、18:00 整點報時。與藏造老街相鄰，步行可達。'],
+      '川越最具代表性的木造地標，每天 12:00、15:00、18:00 整點報時。與藏造老街相鄰，步行可達。',
+      '', '[]', 1, 5],
 
     [4, '2026-06-27', '小江戶川越 + 回程澀谷天空',
       '菓子屋橫丁', 30,
       '川越', 35.9221, 139.4894,
-      '明治時代保留至今的糖果小巷，十幾間老舖販賣江戶糖果、炸饅頭、麥芽糖棒，是日本現存最完整的糖果街景。'],
+      '明治時代保留至今的糖果小巷，十幾間老舖販賣江戶糖果、炸饅頭、麥芽糖棒，是日本現存最完整的糖果街景。',
+      '', '[]', 2, 5],
 
     [4, '2026-06-27', '小江戶川越 + 回程澀谷天空',
       '川越冰川神社', 45,
       '川越', 35.9299, 139.4843,
-      '粉色系結緣神社，每月更換限定御守設計，以緣結び聞名關東。社境內有古木參道，氣氛清靜。'],
+      '粉色系結緣神社，每月更換限定御守設計，以緣結び聞名關東。社境內有古木參道，氣氛清靜。',
+      '', '[]', 3, 10],
 
     [4, '2026-06-27', '小江戶川越 + 回程澀谷天空',
       '澀谷 SKY 觀景台', 90,
       '東京市區', 35.6580, 139.7016,
-      '360 度全開放天空觀景台。從川越返回東京卡黃金時段俯瞰夜景。務必提前線上購票。'],
+      '360 度全開放天空觀景台。從川越返回東京卡黃金時段俯瞰夜景。務必提前線上購票。',
+      '', '[]', 4, 45],
 
     // ── Day 5：2026-06-28 湘南日歸：鎌倉老街影巷與江之島神社 ──────────
     [5, '2026-06-28', '湘南日歸：鎌倉老街影巷與江之島神社',
       '御霊神社（権五郎神社）', 45,
       '鎌倉', 35.3186, 139.5350,
-      '江之電穿越鳥居的奇景，6月梅雨時節境內繡球花盛開，是鎌倉最具電影感的神社。'],
+      '江之電穿越鳥居的奇景，6月梅雨時節境內繡球花盛開，是鎌倉最具電影感的神社。',
+      '', '[]', 0, 0],
 
     [5, '2026-06-28', '湘南日歸：鎌倉老街影巷與江之島神社',
       'Tanaka Barber Shop（田中理髪店）', 20,
       '鎌倉', 35.3166, 139.5371,
-      '坂ノ下的昭和老理髮廳，復古細緻的店面外觀是江ノ電沿線最受攝影師喜愛的靜物取景地。'],
+      '坂ノ下的昭和老理髮廳，復古細緻的店面外觀是江ノ電沿線最受攝影師喜愛的靜物取景地。',
+      '', '[]', 1, 5],
 
     [5, '2026-06-28', '湘南日歸：鎌倉老街影巷與江之島神社',
       '極楽寺（極楽寺）', 45,
       '鎌倉', 35.3132, 139.5359,
-      '江ノ電最神祕的小站，苔蘚覆蓋的山門與古寺。6 月梅雨期青苔翠綠飽滿，氣氛幽靜如進入另一個時空。'],
+      '江ノ電最神祕的小站，苔蘚覆蓋的山門與古寺。6 月梅雨期青苔翠綠飽滿，氣氛幽靜如進入另一個時空。',
+      '', '[]', 2, 10],
 
     [5, '2026-06-28', '湘南日歸：鎌倉老街影巷與江之島神社',
       '片瀬漁港 白灯台', 30,
       '湘南・江之島', 35.3049, 139.4782,
-      '片瀬漁港盡頭的白色小燈台，背景是平靜入江與江ノ島本島，是湘南海岸少有人知的清靜攝影點。'],
+      '片瀬漁港盡頭的白色小燈台，背景是平靜入江與江ノ島本島，是湘南海岸少有人知的清靜攝影點。',
+      '', '[]', 3, 20],
 
     [5, '2026-06-28', '湘南日歸：鎌倉老街影巷與江之島神社',
       '江ノ島郵便局（韓劇《愛情怎麼翻譯》取景地）', 30,
       '湘南・江之島', 35.3019, 139.4816,
-      '位於江ノ島入口的昭和紅色郵筒，是韓劇《愛情怎麼翻譯》的知名取景地。在此寄一張明信片回台灣。'],
+      '位於江ノ島入口的昭和紅色郵筒，是韓劇《愛情怎麼翻譯》的知名取景地。在此寄一張明信片回台灣。',
+      '', '[]', 4, 5],
 
     [5, '2026-06-28', '湘南日歸：鎌倉老街影巷與江之島神社',
       '江島神社（辺津宮・中津宮・奥津宮）', 60,
       '湘南・江之島', 35.2997, 139.4831,
-      '從島口沿參道依序走過三座神社：辺津宮（財運）→ 中津宮（藝術）→ 奥津宮（海洋守護），全程步行約 40 分鐘。'],
+      '從島口沿參道依序走過三座神社：辺津宮（財運）→ 中津宮（藝術）→ 奥津宮（海洋守護），全程步行約 40 分鐘。',
+      '', '[]', 5, 10],
 
     // ── Day 6：2026-06-29 最終早晨：麻布台之丘 → 羽田起飛 ──────────────
     [6, '2026-06-29', '最終早晨：麻布台之丘 → 羽田起飛',
       '麻布台之丘（Azabudai Hills）', 90,
       '東京市區', 35.6596, 139.7390,
-      '2023 年末開幕的複合文化建築群，早上 9 點人最少，可悠閒欣賞森 JP 塔的建築量體與空中花園。'],
+      '2023 年末開幕的複合文化建築群，早上 9 點人最少，可悠閒欣賞森 JP 塔的建築量體與空中花園。',
+      '', '[]', 0, 0],
 
     [6, '2026-06-29', '最終早晨：麻布台之丘 → 羽田起飛',
       '羽田空港 國際線ターミナル', 0,
       '羽田・東京灣', 35.5494, 139.7798,
-      '班機 14:30，國際線建議 12:30 前抵達辦理報到。從麻布台搭日比谷線至大門，轉京急空港線，約 40-50 分鐘。'],
+      '班機 14:30，國際線建議 12:30 前抵達辦理報到。從麻布台搭日比谷線至大門，轉京急空港線，約 40-50 分鐘。',
+      '', '[]', 1, 45],
 
     [6, '2026-06-29', '最終早晨：麻布台之丘 → 羽田起飛',
       '回程 CI 0221｜羽田 14:30 → 松山 16:55', 0,
       '羽田・東京灣', 35.5494, 139.7798,
-      '中華航空 CI 0221，飛行時間約 3 小時 25 分。東京羽田 (HND) 14:30 → 台北松山 (TSA) 16:55。訂位代號：DQ4JMF。']
+      '中華航空 CI 0221，飛行時間約 3 小時 25 分。東京羽田 (HND) 14:30 → 台北松山 (TSA) 16:55。訂位代號：DQ4JMF。',
+      '', '[]', 2, 0]
   ];
 
   rows.forEach(function(row) { sheet.appendRow(row); });
