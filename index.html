@@ -2444,6 +2444,24 @@ function nearestNeighborSort(arr) {
   return sorted;
 }
 
+// 有起終點的貪婪最近鄰：從 startSpot 出發，依序選最近未訪的中間景點
+function nearestNeighborSortBetween(arr, startSpot, endSpot) {
+  var remaining = arr.slice();
+  var sorted = [];
+  var current = startSpot;
+  while (remaining.length) {
+    var minDist = Infinity, minIdx = 0;
+    remaining.forEach(function(s, i) {
+      var d = haversineKm(current.latitude, current.longitude, s.latitude, s.longitude);
+      if (d < minDist) { minDist = d; minIdx = i; }
+    });
+    current = remaining[minIdx];
+    sorted.push(current);
+    remaining.splice(minIdx, 1);
+  }
+  return sorted;
+}
+
 // 核心排序：分離航班節點，只對有座標的正常景點排序
 function sortSpotsOptimal(spots) {
   if (!spots || spots.length <= 2) return spots;
@@ -2464,17 +2482,29 @@ function sortSpotsOptimal(spots) {
     }
   });
 
-  if (sortable.length <= 1) return spots;
+  // 中間景點不足：回退完整排序（含首尾一起找最優）
+  if (sortable.length <= 1) {
+    var allSortable = spots.filter(function(s){ return s.latitude && s.longitude && s.duration > 0; });
+    if (allSortable.length <= 1) return spots;
+    var allMidLine = spots.length / 2;
+    var aHeads = spots.filter(function(s,i){ return !(s.latitude && s.longitude && s.duration > 0) && i < allMidLine; });
+    var aTails  = spots.filter(function(s,i){ return !(s.latitude && s.longitude && s.duration > 0) && i >= allMidLine; });
+    var bFull; var bdFull = Infinity;
+    allPermutations(allSortable).forEach(function(p){ var d=routeTotalKm(p); if(d<bdFull){bdFull=d;bFull=p;} });
+    return aHeads.concat(bFull).concat(aTails);
+  }
 
   var best;
   if (sortable.length <= 8) {
+    // 計算時把首尾也納入，找真正連接端點成本最低的中間排列
     var bestDist = Infinity;
     allPermutations(sortable).forEach(function(perm) {
-      var d = routeTotalKm(perm);
+      var d = routeTotalKm([first].concat(perm).concat([last]));
       if (d < bestDist) { bestDist = d; best = perm; }
     });
   } else {
-    best = nearestNeighborSort(sortable);
+    // 從 first 出發的貪婪最近鄰
+    best = nearestNeighborSortBetween(sortable, first, last);
   }
 
   return [first].concat(heads).concat(best).concat(tails).concat([last]);
