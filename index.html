@@ -693,18 +693,54 @@ function initAuth() {
   input.addEventListener('keydown', function(e){ if (e.key === 'Enter') tryLogin(); });
 }
 
+/* ─── Boot Helpers ───────────────────────────────── */
+
+// fetch 加逾時保護（GAS 慢時不讓畫面永遠等待）
+function fetchWithTimeout(url, ms) {
+  var ctrl  = new AbortController();
+  var timer = setTimeout(function() { ctrl.abort(); }, ms);
+  return fetch(url, { signal: ctrl.signal })
+    .finally(function() { clearTimeout(timer); });
+}
+
+// Step 3 + Step 4 + 渲染 — 可重複呼叫（第一次 & GAS 更新都用）
+function prepareAndRender(itinerary, isUpdate) {
+  var prepared = itinerary.map(function(day) {
+    if (!day.dining || !day.dining.length) {
+      return Object.assign({}, day, { dining: STATIC_DINING[day.day] || [] });
+    }
+    return day;
+  });
+  tripDays = prepared;
+  itineraryState = prepared.map(function(d) {
+    var spots = applyDayOrder(d.day, (d.spots || []).slice()).map(function(s, i) {
+      return s.spot_id ? s : Object.assign({}, s, { spot_id: 'local_' + d.day + '_' + i });
+    });
+    var savedStart = localStorage.getItem('day_start_' + d.day);
+    return Object.assign({}, d, {
+      spots:     spots,
+      day_start: d._gas_day_start || savedStart || d.day_start
+    });
+  });
+  renderItinerary(prepared);
+  if (!isUpdate) {
+    buildCountdown(prepared);
+    renderTabs(prepared);
+    buildExpForm();
+    activateSmartTab(prepared);
+  }
+}
+
 /* ─── Boot（Task 4：雙向 API 串接）─────────────────── */
 async function boot() {
   document.getElementById('app').style.display = 'block';
 
-  // ── Step 1：先載入 itinerary.json（基礎資料，含 dining / note）
-  // dining 是靜態推薦資料，必須保留；以此為地基，GAS 只覆蓋 spots
+  // ── Step 1：載入 itinerary.json（本地，快速）
   var itinerary;
   try {
     var r1 = await fetch('./data/itinerary.json');
     var j1 = await r1.json();
     itinerary = (j1.itinerary || []).map(function(day) {
-      // 從第一個 duration > 0 且有 time 欄位的景點，自動抓當天起始時間
       var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
       return Object.assign({}, day, {
         date:      dateToYMD(day.date),
@@ -712,7 +748,6 @@ async function boot() {
       });
     });
   } catch(e) {
-    // itinerary.json 無法取得時使用內嵌備援
     itinerary = PLACEHOLDER_DATA.itinerary.map(function(day) {
       var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
       return Object.assign({}, day, {
@@ -722,74 +757,12 @@ async function boot() {
     });
   }
 
-  // ── Step 2：嘗試從 GAS API 撈最新景點，覆蓋各天的 spots
-  // dining / note 保持 itinerary.json 的資料不被覆蓋
-  if (API_URL) {
-    try {
-      showToast('載入行程中…');
-      var r2    = await fetch(API_URL);
-      var json2 = await r2.json();
-      if (json2.itinerary && json2.itinerary.length) {
-        var gasMap = {};
-        json2.itinerary.forEach(function(d){ gasMap[d.day] = d; });
+  // ── 第一次渲染（itinerary.json，不等 GAS，畫面立即出現）
+  prepareAndRender(itinerary, false);
+  fetchWeather(itinerary);
+  fetchTodayHeaderWeather();
 
-        itinerary = itinerary.map(function(day) {
-          var gas = gasMap[day.day];
-          if (!gas) return day;
-          // 用 GAS 景點取代 spots，但保留 itinerary.json 的 dining / note
-          // 同時用座標強制修正 google_maps_url（GAS 可能只回傳店名版 URL）
-          var fixedSpots = gas.spots.map(function(s) {
-            return Object.assign({}, s, s.latitude && s.longitude ? {
-              transport: Object.assign({}, s.transport, {
-                google_maps_url: buildNavUrl(s.latitude, s.longitude, s.spot_name)
-              })
-            } : {});
-          });
-          // GAS 已有 sort_order → 依序排列（否則保持原順序）
-          var hasSortOrder = fixedSpots.some(function(s){ return s.sort_order !== undefined; });
-          if (hasSortOrder) {
-            fixedSpots.sort(function(a, b){ return (a.sort_order || 0) - (b.sort_order || 0); });
-          }
-          var gasDayStart = normalizeHHMM(gas.day_start);
-          return Object.assign({}, day, {
-            spots:          fixedSpots,
-            day_title:      gas.day_title || day.day_title,
-            date:           dateToYMD(gas.date) || day.date,
-            day_start:      gasDayStart || day.day_start,
-            _gas_day_start: gasDayStart
-          });
-        });
-      }
-      // 提取班機資訊
-      if (json2.flights && json2.flights.length) flightsData = json2.flights;
-    } catch(e) { /* GAS 失敗，靜默沿用 itinerary.json 景點 */ }
-  }
-
-  tripDays = itinerary;
-
-  // ── Step 3：確保每天都有 dining（三層保底）
-  // 1. itinerary.json 已有 → 保留  2. 無 → 用 STATIC_DINING  3. 都沒有 → []
-  itinerary = itinerary.map(function(day) {
-    if (!day.dining || !day.dining.length) {
-      return Object.assign({}, day, { dining: STATIC_DINING[day.day] || [] });
-    }
-    return day;
-  });
-
-  // ── Step 4：初始化可變狀態（Task 5 增刪操作用）
-  itineraryState = itinerary.map(function(d) {
-    var spots = applyDayOrder(d.day, (d.spots || []).slice()).map(function(s, i) {
-      // 沒有 spot_id 的景點（itinerary.json 來源）補上暫時 id
-      return s.spot_id ? s : Object.assign({}, s, { spot_id: 'local_' + d.day + '_' + i });
-    });
-    var savedStart = localStorage.getItem('day_start_' + d.day);
-    return Object.assign({}, d, {
-      spots: spots,
-      day_start: d._gas_day_start || savedStart || d.day_start
-    });
-  });
-
-  // ── Step 4b：背景修正 GAS 舊資料的籠統地區名（Maps API load 後執行）
+  // ── Step 4b：背景修正地區名（Maps API load 後執行）
   window.addEventListener('load', function() {
     if (!window.google || !window.google.maps) return;
     (async function() {
@@ -812,17 +785,44 @@ async function boot() {
     })();
   }, { once: true });
 
-  // ── Step 5：渲染（GAS 資料無 time → Task 3 自動排序）
-  buildCountdown(itinerary);
-  renderTabs(itinerary);
-  renderItinerary(itinerary);
-  buildExpForm();
-  activateSmartTab(itinerary);
+  // ── Step 2：背景載入 GAS（4 秒 timeout，不阻擋畫面）
+  if (API_URL) {
+    try {
+      var r2    = await fetchWithTimeout(API_URL, 4000);
+      var json2 = await r2.json();
+      if (json2.itinerary && json2.itinerary.length) {
+        var gasMap = {};
+        json2.itinerary.forEach(function(d){ gasMap[d.day] = d; });
+        itinerary = itinerary.map(function(day) {
+          var gas = gasMap[day.day];
+          if (!gas) return day;
+          var fixedSpots = gas.spots.map(function(s) {
+            return Object.assign({}, s, s.latitude && s.longitude ? {
+              transport: Object.assign({}, s.transport, {
+                google_maps_url: buildNavUrl(s.latitude, s.longitude, s.spot_name)
+              })
+            } : {});
+          });
+          var hasSortOrder = fixedSpots.some(function(s){ return s.sort_order !== undefined; });
+          if (hasSortOrder) fixedSpots.sort(function(a, b){ return (a.sort_order||0)-(b.sort_order||0); });
+          var gasDayStart = normalizeHHMM(gas.day_start);
+          return Object.assign({}, day, {
+            spots:          fixedSpots,
+            day_title:      gas.day_title || day.day_title,
+            date:           dateToYMD(gas.date) || day.date,
+            day_start:      gasDayStart || day.day_start,
+            _gas_day_start: gasDayStart
+          });
+        });
+        if (json2.flights && json2.flights.length) flightsData = json2.flights;
 
-  // ── 背景：天氣、記帳統計（不阻擋畫面）────────────
-  fetchWeather(itinerary);
-  fetchTodayHeaderWeather();
+        // ── 第二次渲染（GAS 資料到後靜默更新）
+        prepareAndRender(itinerary, true);
+      }
+    } catch(e) { /* GAS 失敗或 timeout，沿用 itinerary.json */ }
+  }
 
+  // ── 背景：記帳統計
   if (GAS_URL && GAS_URL.indexOf('YOUR_') === -1) {
     fetch(GAS_URL)
       .then(function(r){ return r.json(); })
