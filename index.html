@@ -729,10 +729,11 @@ async function boot() {
             fixedSpots.sort(function(a, b){ return (a.sort_order || 0) - (b.sort_order || 0); });
           }
           return Object.assign({}, day, {
-            spots:     fixedSpots,
-            day_title: gas.day_title || day.day_title,
-            date:      dateToYMD(gas.date) || day.date,
-            day_start: gas.day_start || day.day_start
+            spots:          fixedSpots,
+            day_title:      gas.day_title || day.day_title,
+            date:           dateToYMD(gas.date) || day.date,
+            day_start:      gas.day_start || day.day_start,
+            _gas_day_start: gas.day_start || ''
           });
         });
       }
@@ -756,7 +757,7 @@ async function boot() {
     var savedStart = localStorage.getItem('day_start_' + d.day);
     return Object.assign({}, d, {
       spots: spots,
-      day_start: savedStart || d.day_start
+      day_start: d._gas_day_start || savedStart || d.day_start
     });
   });
 
