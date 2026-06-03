@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#5c6b8a">
   <title>東京自由行</title>
   <link rel="manifest" href="manifest.json">
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww&libraries=places&language=zh-TW" defer></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww&libraries=places&language=zh-TW&loading=async" defer></script>
   <style>
     /* ── Design Tokens ─────────────────────────────────── */
     :root {
@@ -1168,110 +1168,108 @@ function closeAddModal() {
 }
 
 // Places API 景點搜尋
-function searchPlace() {
+async function searchPlace() {
   document.activeElement.blur(); // 立刻收合虛擬鍵盤（在任何非同步作業前執行）
 
-  if (!modalMap) { showToast('地圖尚未準備好，請稍後再試'); return; }
-
-  var query = document.getElementById('modal-search-input').value.trim();
-  if (!query) return;
-
   var searchBtn = document.getElementById('modal-search-btn');
-  searchBtn.disabled    = true;
-  searchBtn.textContent = '搜尋中…';
+  try {
+    if (!modalMap) { showToast('地圖尚未準備好，請稍後再試'); return; }
 
-  // 動態 locationBias：以當天第一個景點為中心往外 10km
-  // 涵蓋範圍：淺草↔代官山 約 8km、鎌倉市區約 3km、川越市區約 2km，10km 剛好不會跨區
-  var biasCenter = { lat: 35.6762, lng: 139.6503 }; // 預設：東京市中心
-  if (_addTargetDay !== null) {
-    var targetDay = itineraryState.filter(function(d){ return d.day === _addTargetDay; })[0];
-    if (targetDay && targetDay.spots) {
-      var anchor = targetDay.spots.filter(function(s){ return s.latitude && s.longitude; })[0];
-      if (anchor) biasCenter = { lat: anchor.latitude, lng: anchor.longitude };
+    var query = document.getElementById('modal-search-input').value.trim();
+    if (!query) return;
+
+    searchBtn.disabled    = true;
+    searchBtn.textContent = '搜尋中…';
+
+    // 動態 locationBias：以當天第一個景點為中心往外 10km
+    var biasCenter = { lat: 35.6762, lng: 139.6503 }; // 預設：東京市中心
+    if (_addTargetDay !== null) {
+      var targetDay = itineraryState.filter(function(d){ return d.day === _addTargetDay; })[0];
+      if (targetDay && targetDay.spots) {
+        var anchor = targetDay.spots.filter(function(s){ return s.latitude && s.longitude; })[0];
+        if (anchor) biasCenter = { lat: anchor.latitude, lng: anchor.longitude };
+      }
     }
-  }
 
-  var service = new google.maps.places.PlacesService(modalMap);
-  service.findPlaceFromQuery(
-    {
-      query:  query,
-      fields: ['place_id', 'name', 'formatted_address', 'geometry'],
-      locationBias: { center: biasCenter, radius: 10000 } // 10km 半徑
-    },
-    function(results, status) {
-      searchBtn.disabled    = false;
-      searchBtn.textContent = '🔍 查詢';
+    var { Place } = await google.maps.importLibrary('places');
+    var { places } = await Place.searchByText({
+      textQuery: query,
+      fields: ['id', 'displayName', 'formattedAddress', 'location', 'addressComponents', 'regularOpeningHours', 'editorialSummary'],
+      language: 'zh-TW',
+      locationBias: { center: biasCenter, radius: 10000 }
+    });
 
-      if (status !== google.maps.places.PlacesServiceStatus.OK || !results || !results[0]) {
-        showToast('找不到景點，請換個關鍵字');
+    if (!places || !places[0]) {
+      showToast('找不到景點，請換個關鍵字');
+      return;
+    }
+
+    var place = places[0];
+    var lat   = place.location.lat();
+    var lng   = place.location.lng();
+    var name  = place.displayName || '';
+    var addr  = place.formattedAddress || '';
+
+    // 放置圖釘、平移地圖
+    placeMarkerAt(lat, lng, name, '');
+    tempPlaceData.region       = formatRegionFromAddress(addr);
+    tempPlaceData.placeId      = place.id || '';
+    tempPlaceData.address      = addr;
+    tempPlaceData.openingHours = (place.regularOpeningHours && place.regularOpeningHours.weekdayDescriptions)
+                                 ? place.regularOpeningHours.weekdayDescriptions : [];
+    tempPlaceData.description  = place.editorialSummary || '';
+
+    modalMap.panTo({ lat: lat, lng: lng });
+    modalMap.setZoom(16);
+    document.getElementById('modal-spot-name').value = name;
+
+    // addressComponents shim（camelCase → snake_case，供 regionFromComponents 使用）
+    if (place.addressComponents && place.addressComponents.length) {
+      var shimmed = place.addressComponents.map(function(c) {
+        return { long_name: c.longText, short_name: c.shortText, types: c.types };
+      });
+      var r = regionFromComponents(shimmed);
+      console.log('[region] searchByText addressComponents result:', r);
+      if (r) tempPlaceData.region = r;
+    }
+
+    // 鎖定確認按鈕，JS Geocoder 反查取得 zh-TW region 後解鎖
+    var confirmBtn = document.getElementById('add-confirm-btn');
+    confirmBtn.disabled  = true;
+    confirmBtn.innerText = '📍 取得地址中…';
+
+    reverseGeocodeAddr(lat, lng).then(function(components) {
+      var region = regionFromComponents(components);
+      if (region) tempPlaceData.region = region;
+      if (tempPlaceData.region) {
+        confirmBtn.disabled  = false;
+        confirmBtn.innerText = '💾 加入行程';
         return;
       }
+      // Google 全失敗 → Nominatim 保底
+      return reverseGeocodeNominatim(lat, lng).then(function(addr) {
+        var nr = regionFromNominatim(addr);
+        console.log('[region] Nominatim fallback result:', nr);
+        if (nr && !tempPlaceData.region) tempPlaceData.region = nr;
+        confirmBtn.disabled  = false;
+        confirmBtn.innerText = '💾 加入行程';
+      });
+    }).then(function() {
+      confirmBtn.disabled  = false;
+      confirmBtn.innerText = '💾 加入行程';
+    }).catch(function() {
+      confirmBtn.disabled  = false;
+      confirmBtn.innerText = '💾 加入行程';
+    });
 
-      var place = results[0];
-      var lat   = place.geometry.location.lat();
-      var lng   = place.geometry.location.lng();
-
-      // 放置圖釘、平移地圖
-      placeMarkerAt(lat, lng, place.name, '');
-      tempPlaceData.region       = formatRegionFromAddress(place.formatted_address || '');
-      tempPlaceData.placeId      = place.place_id || '';
-      tempPlaceData.address      = place.formatted_address || '';
-      tempPlaceData.openingHours = [];
-      tempPlaceData.description  = '';
-
-      modalMap.panTo({ lat: lat, lng: lng });
-      modalMap.setZoom(16);
-      document.getElementById('modal-spot-name').value = place.name;
-
-      // getDetails 回來前先 disable 確認按鈕，避免 race condition 導致 region 尚未更新就送出
-      var confirmBtn = document.getElementById('add-confirm-btn');
-      confirmBtn.disabled  = true;
-      confirmBtn.innerText = '📍 取得地址中…';
-
-      // 兩個非同步請求，都完成才開放按鈕；若 Google APIs 全失敗，Nominatim 保底
-      var _pending = 2;
-      var _done = function() {
-        if (--_pending > 0) return;
-        if (tempPlaceData.region) { confirmBtn.disabled = false; confirmBtn.innerText = '💾 加入行程'; return; }
-        // Google 全失敗 → Nominatim 保底
-        reverseGeocodeNominatim(lat, lng).then(function(addr) {
-          var nr = regionFromNominatim(addr);
-          console.log('[region] Nominatim fallback result:', nr);
-          if (nr && !tempPlaceData.region) tempPlaceData.region = nr;
-          confirmBtn.disabled = false; confirmBtn.innerText = '💾 加入行程';
-        }).catch(function() { confirmBtn.disabled = false; confirmBtn.innerText = '💾 加入行程'; });
-      };
-
-      // ① getDetails：取 address_components（繁體中文 region 主要來源）+ opening_hours + editorial_summary
-      if (place.place_id) {
-        service.getDetails(
-          { placeId: place.place_id, fields: ['address_components', 'opening_hours', 'editorial_summary'] },
-          function(details, detailStatus) {
-            console.log('[region] getDetails status:', detailStatus, 'address_components:', details && JSON.stringify((details.address_components||[]).slice(0,3)));
-            if (detailStatus === google.maps.places.PlacesServiceStatus.OK && details) {
-              tempPlaceData.openingHours = (details.opening_hours && details.opening_hours.weekday_text)
-                                          ? details.opening_hours.weekday_text : [];
-              tempPlaceData.description  = (details.editorial_summary && details.editorial_summary.overview)
-                                          ? details.editorial_summary.overview : '';
-              if (details.address_components) {
-                var r = regionFromComponents(details.address_components);
-                console.log('[region] regionFromComponents result:', r);
-                if (r) tempPlaceData.region = r;
-              }
-            }
-            _done();
-          }
-        );
-      } else { _done(); }
-
-      // ② Google Geocoder 反查地址取 region（language=zh-TW，繁體中文）
-      reverseGeocodeAddr(lat, lng).then(function(components) {
-        var region = regionFromComponents(components);
-        if (region) tempPlaceData.region = region;
-        _done();
-      }).catch(function() { _done(); });
-    }
-  );
+  } catch(err) {
+    console.error('[searchPlace] error:', err);
+    showToast('搜尋失敗，請換個關鍵字或稍後再試');
+  } finally {
+    searchBtn.disabled    = false;
+    searchBtn.textContent = '🔍 查詢';
+    document.activeElement.blur();
+  }
 }
 
 // formatted_address 解析：直接從 zh-TW 的中文地址字串切出「府縣 町名」
@@ -1368,67 +1366,70 @@ function initModalMap() {
 
   // 點擊地圖 → 放置圖釘
   // e.placeId 存在表示使用者點了 Google Maps 上的 POI（店家/景點），可直接取完整資料
-  modalMap.addListener('click', function(e) {
+  modalMap.addListener('click', async function(e) {
     var lat = e.latLng.lat();
     var lng = e.latLng.lng();
 
     if (e.placeId) {
-      var svc = new google.maps.places.PlacesService(modalMap);
-      svc.getDetails(
-        { placeId: e.placeId, fields: ['place_id', 'name', 'formatted_address', 'address_components', 'geometry', 'opening_hours', 'editorial_summary'] },
-        function(details, status) {
-          if (status !== google.maps.places.PlacesServiceStatus.OK || !details) {
-            placeMarkerAt(lat, lng, null, null);
-            return;
-          }
-          var detailLat = details.geometry.location.lat();
-          var detailLng = details.geometry.location.lng();
-          var hours = (details.opening_hours && details.opening_hours.weekday_text)
-                      ? details.opening_hours.weekday_text : [];
-          var desc  = (details.editorial_summary && details.editorial_summary.overview)
-                      ? details.editorial_summary.overview : '';
+      try {
+        var { Place } = await google.maps.importLibrary('places');
+        var place = new Place({ id: e.placeId });
+        await place.fetchFields({
+          fields: ['id', 'displayName', 'formattedAddress', 'addressComponents', 'location', 'regularOpeningHours', 'editorialSummary']
+        });
 
-          placeMarkerAt(detailLat, detailLng, details.name, desc);
-          tempPlaceData.placeId      = details.place_id || '';
-          tempPlaceData.address      = details.formatted_address || '';
-          tempPlaceData.region       = formatRegionFromAddress(details.formatted_address || '');
-          if (details.address_components) {
-            var r = regionFromComponents(details.address_components);
-            if (r) tempPlaceData.region = r;
-          }
-          tempPlaceData.openingHours = hours;
+        var detailLat = place.location.lat();
+        var detailLng = place.location.lng();
+        var hours = (place.regularOpeningHours && place.regularOpeningHours.weekdayDescriptions)
+                    ? place.regularOpeningHours.weekdayDescriptions : [];
+        var desc  = place.editorialSummary || '';
 
-          document.getElementById('modal-spot-name').value = details.name;
+        placeMarkerAt(detailLat, detailLng, place.displayName || '', desc);
+        tempPlaceData.placeId      = place.id || '';
+        tempPlaceData.address      = place.formattedAddress || '';
+        tempPlaceData.region       = formatRegionFromAddress(place.formattedAddress || '');
+        if (place.addressComponents && place.addressComponents.length) {
+          var shimmed = place.addressComponents.map(function(c) {
+            return { long_name: c.longText, short_name: c.shortText, types: c.types };
+          });
+          var r = regionFromComponents(shimmed);
+          if (r) tempPlaceData.region = r;
+        }
+        tempPlaceData.openingHours = hours;
 
-          // Google Geocoder 反查地址取 region（鎖住確認按鈕直到回傳）
-          var _confirmBtn = document.getElementById('add-confirm-btn');
-          _confirmBtn.disabled  = true;
-          _confirmBtn.innerText = '📍 取得地址中…';
-          reverseGeocodeAddr(detailLat, detailLng).then(function(components) {
-            var region = regionFromComponents(components);
-            if (region) tempPlaceData.region = region;
-            if (tempPlaceData.region) {
-              _confirmBtn.disabled  = false;
-              _confirmBtn.innerText = '💾 加入行程';
-              return;
-            }
-            // Google 全失敗 → Nominatim 保底
-            return reverseGeocodeNominatim(detailLat, detailLng).then(function(addr) {
-              var nr = regionFromNominatim(addr);
-              console.log('[region] Nominatim fallback (map click):', nr);
-              if (nr && !tempPlaceData.region) tempPlaceData.region = nr;
-              _confirmBtn.disabled  = false;
-              _confirmBtn.innerText = '💾 加入行程';
-            });
-          }).then(function() {
+        document.getElementById('modal-spot-name').value = place.displayName || '';
+
+        // JS Geocoder 反查取 zh-TW region（鎖住確認按鈕直到回傳）
+        var _confirmBtn = document.getElementById('add-confirm-btn');
+        _confirmBtn.disabled  = true;
+        _confirmBtn.innerText = '📍 取得地址中…';
+        reverseGeocodeAddr(detailLat, detailLng).then(function(components) {
+          var region = regionFromComponents(components);
+          if (region) tempPlaceData.region = region;
+          if (tempPlaceData.region) {
             _confirmBtn.disabled  = false;
             _confirmBtn.innerText = '💾 加入行程';
-          }).catch(function(){
+            return;
+          }
+          // Google 全失敗 → Nominatim 保底
+          return reverseGeocodeNominatim(detailLat, detailLng).then(function(addr) {
+            var nr = regionFromNominatim(addr);
+            console.log('[region] Nominatim fallback (map click):', nr);
+            if (nr && !tempPlaceData.region) tempPlaceData.region = nr;
             _confirmBtn.disabled  = false;
             _confirmBtn.innerText = '💾 加入行程';
           });
-        }
-      );
+        }).then(function() {
+          _confirmBtn.disabled  = false;
+          _confirmBtn.innerText = '💾 加入行程';
+        }).catch(function() {
+          _confirmBtn.disabled  = false;
+          _confirmBtn.innerText = '💾 加入行程';
+        });
+      } catch(err) {
+        console.error('[map click] fetchFields error:', err);
+        placeMarkerAt(lat, lng, null, null);
+      }
     } else {
       // 點空白處：只有座標，無店家資訊
       placeMarkerAt(lat, lng, null, null);
@@ -1638,18 +1639,16 @@ function regionFromNominatim(addr) {
   return pref + (town ? ' ' + town : '');
 }
 
-/* ─── 反向地理編碼（Google Geocoding REST API，per-request language=zh-TW）── */
+/* ─── 反向地理編碼（Google Maps JS Geocoder，取代 REST API，規避 HTTP referrer 限制）── */
 async function reverseGeocodeAddr(lat, lon) {
   try {
-    var r = await fetch(
-      'https://maps.googleapis.com/maps/api/geocode/json?latlng=' + lat + ',' + lon +
-      '&language=zh-TW&key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww'
-    );
-    var d = await r.json();
-    var pref = d.results && d.results[0] && (d.results[0].address_components||[]).filter(function(c){return c.types.indexOf('administrative_area_level_1')>=0;})[0];
-    console.log('[region] REST geocode status:', d.status, 'pref:', pref && pref.long_name);
-    return (d.results && d.results[0] && d.results[0].address_components) || [];
-  } catch(e) { console.log('[region] REST geocode error:', e); return []; }
+    var geocoder = new google.maps.Geocoder();
+    var response = await geocoder.geocode({ location: { lat: lat, lng: lon }, language: 'zh-TW' });
+    var components = (response.results && response.results[0] && response.results[0].address_components) || [];
+    var pref = components.filter(function(c){ return c.types.indexOf('administrative_area_level_1') >= 0; })[0];
+    console.log('[region] JS Geocoder pref:', pref && pref.long_name);
+    return components;
+  } catch(e) { console.log('[region] JS Geocoder error:', e); return []; }
 }
 
 // 從 Google Geocoder address_components 推斷地區標籤
