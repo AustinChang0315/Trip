@@ -708,15 +708,17 @@ async function boot() {
           // 用 GAS 景點取代 spots，但保留 itinerary.json 的 dining / note
           // 同時用座標強制修正 google_maps_url（GAS 可能只回傳店名版 URL）
           var fixedSpots = gas.spots.map(function(s) {
-            if (s.latitude && s.longitude) {
-              return Object.assign({}, s, {
-                transport: Object.assign({}, s.transport, {
-                  google_maps_url: buildNavUrl(s.latitude, s.longitude, s.spot_name)
-                })
-              });
-            }
-            return s;
+            return Object.assign({}, s, s.latitude && s.longitude ? {
+              transport: Object.assign({}, s.transport, {
+                google_maps_url: buildNavUrl(s.latitude, s.longitude, s.spot_name)
+              })
+            } : {});
           });
+          // GAS 已有 sort_order → 依序排列（否則保持原順序）
+          var hasSortOrder = fixedSpots.some(function(s){ return s.sort_order !== undefined; });
+          if (hasSortOrder) {
+            fixedSpots.sort(function(a, b){ return (a.sort_order || 0) - (b.sort_order || 0); });
+          }
           return Object.assign({}, day, {
             spots:     fixedSpots,
             day_title: gas.day_title || day.day_title,
@@ -1877,7 +1879,8 @@ function confirmAddSpot() {
         longitude:     lng,
         description:   description,
         address:       address,
-        opening_hours: JSON.stringify(openingHours)
+        opening_hours: JSON.stringify(openingHours),
+        sort_order:    dayData.spots.length  // 新景點排在最後
       })
     }).then(function() {
       try { localStorage.removeItem(pendingKey); } catch(e) {}
@@ -1977,6 +1980,7 @@ function moveSpot(dayNum, idx, direction) {
   itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: spots });
   saveDayOrder(dayNum, spots);
   updateDayPanel(itineraryState[dayIdx]);
+  postOrderToGAS(dayNum, spots);
 }
 
 // ⏰ 更新每天出發時間
@@ -2003,7 +2007,21 @@ function triggerOptimizeDay(dayNum) {
   itineraryState[dayIdx] = Object.assign({}, dayData, { spots: optimized });
   saveDayOrder(dayNum, optimized);
   updateDayPanel(itineraryState[dayIdx]);
+  postOrderToGAS(dayNum, optimized);
   showToast('🔀 路線已優化');
+}
+
+// T4：POST 景點順序和交通時間到 GAS
+function postOrderToGAS(dayNum, spots) {
+  if (!API_URL) return;
+  var payload = spots.map(function(s, i) {
+    return { spot_name: s.spot_name, sort_order: i, travel_mins: s.travel_mins || 0 };
+  });
+  fetch(API_URL, {
+    method: 'POST', mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'update_order', day: dayNum, spots: payload })
+  }).catch(function(){});
 }
 
 /* ─── Expense Summary ─────────────────────────────────── */
