@@ -2048,12 +2048,7 @@ function buildMapsUrl(name) {
     + encodeURIComponent(name) + '&travelmode=transit';
 }
 
-// 優先用精確座標當 destination，避免同名店家導航跑錯
 function buildNavUrl(lat, lon, name) {
-  if (lat && lon) {
-    return 'https://www.google.com/maps/dir/?api=1&origin=My+Location&destination='
-      + lat + ',' + lon + '&travelmode=transit';
-  }
   return buildMapsUrl(name);
 }
 
