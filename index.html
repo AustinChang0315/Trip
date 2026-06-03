@@ -1195,7 +1195,7 @@ async function searchPlace() {
     var { places } = await Place.searchByText({
       textQuery: query,
       fields: ['id', 'displayName', 'formattedAddress', 'location', 'addressComponents', 'regularOpeningHours', 'editorialSummary'],
-      language: 'zh-TW',
+      language: 'ja',
       locationBias: { center: biasCenter, radius: 10000 }
     });
 
@@ -1643,7 +1643,7 @@ function regionFromNominatim(addr) {
 async function reverseGeocodeAddr(lat, lon) {
   try {
     var geocoder = new google.maps.Geocoder();
-    var response = await geocoder.geocode({ location: { lat: lat, lng: lon }, language: 'zh-TW' });
+    var response = await geocoder.geocode({ location: { lat: lat, lng: lon }, language: 'ja' });
     var components = (response.results && response.results[0] && response.results[0].address_components) || [];
     var pref = components.filter(function(c){ return c.types.indexOf('administrative_area_level_1') >= 0; })[0];
     console.log('[region] JS Geocoder pref:', pref && pref.long_name);
