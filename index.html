@@ -2269,7 +2269,7 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
       origins:      [new google.maps.LatLng(op[0], op[1])],
       destinations: [new google.maps.LatLng(dp[0], dp[1])],
       travelMode:   'TRANSIT',
-      fields:       ['duration', 'status']
+      fields:       ['duration']
     });
     if (matrix && matrix[0] && matrix[0].status === 'OK') {
       var secs = parseInt(matrix[0].duration, 10);
