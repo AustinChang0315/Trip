@@ -2268,8 +2268,7 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
     var matrix = await RouteMatrix.computeRouteMatrix({
       origins:      [{ waypoint: { location: { latLng: { lat: op[0], lng: op[1] } } } }],
       destinations: [{ waypoint: { location: { latLng: { lat: dp[0], lng: dp[1] } } } }],
-      travelMode:   'TRANSIT',
-      languageCode: 'zh-TW'
+      travelMode:   'TRANSIT'
     });
     if (matrix && matrix[0] && matrix[0].status === 'OK') {
       var secs = parseInt(matrix[0].duration, 10);
