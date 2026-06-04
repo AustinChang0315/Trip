@@ -2263,10 +2263,10 @@ async function calcTravelTimes(dayNum) {
 
   var spots = itineraryState[dayIdx].spots;
 
-  // 只取有座標的非航班景點
+  // 只取有座標的非航班景點（不限 duration，飯店/起點也需計入）
   var validIdxs = [];
   spots.forEach(function(s, i) {
-    if (s.latitude && s.longitude && s.duration > 0) validIdxs.push(i);
+    if (s.latitude && s.longitude && !s._isFlight) validIdxs.push(i);
   });
 
   if (validIdxs.length < 2) {
