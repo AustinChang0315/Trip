@@ -2269,8 +2269,12 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
     const [destLat, destLng] = destinationLatLng.split(',').map(Number);
 
     const request = {
-      origins: [{ waypoint: { location: { latLng: { lat: originLat, lng: originLng } } } }],
-      destinations: [{ waypoint: { location: { latLng: { lat: destLat, lng: destLng } } } }],
+      origins: [{
+        location: new google.maps.LatLng(originLat, originLng)
+      }],
+      destinations: [{
+        location: new google.maps.LatLng(destLat, destLng)
+      }],
       travelMode: 'TRANSIT',
       fields: ['*']
     };
@@ -2279,6 +2283,7 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
 
     if (matrix && matrix[0]) {
       const element = matrix[0];
+
       if (element.duration) {
         let durationSeconds = 0;
         if (typeof element.duration === 'string') {
@@ -2290,13 +2295,18 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
           return Math.ceil(durationSeconds / 60);
         }
       }
+
+      if (element.localizedValues && element.localizedValues.duration) {
+        const text = element.localizedValues.duration.text || element.localizedValues.duration;
+        const matchMinutes = parseInt(text, 10);
+        if (!isNaN(matchMinutes) && matchMinutes > 0) return matchMinutes;
+      }
     }
 
-    console.warn("[Routes API] 無法解析時間資料，回傳防禦預設值 30 分鐘");
     return 30;
 
   } catch (error) {
-    console.error("[Routes API] 2026 執行出錯:", error);
+    console.error("[Routes API] 最終執行時期異常:", error);
     return 30;
   }
 }
