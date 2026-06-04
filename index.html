@@ -1095,13 +1095,14 @@ function renderDayPanel(dayData) {
         var transMins = nextSpot.travel_mins > 0 ? nextSpot.travel_mins : 0;
         var walkMins  = km > 0 ? Math.max(1, Math.round(km * 12.5)) : 0;
         var label = '';
-        if (km >= 0 && km < 1) {
+        if (transMins > 0) {
+          label = '🚃 ' + transMins + ' 分';
+        } else if (km >= 0 && km < 1) {
           label = walkMins > 0 ? ('🚶 ' + walkMins + ' 分') : '';
         } else if (km >= 1 && km < 2) {
-          if (transMins > 0) label = '🚃 ' + transMins + ' 分 ｜ 🚶 ' + walkMins + ' 分';
-          else if (walkMins > 0) label = '🚶 ' + walkMins + ' 分';
+          label = walkMins > 0 ? ('🚶 ' + walkMins + ' 分') : '';
         } else {
-          label = transMins > 0 ? ('🚃 ' + transMins + ' 分') : '🚃 ─';
+          label = '🚃 ─';
         }
         if (!label) return '';
         return '<div class="travel-bridge">'
