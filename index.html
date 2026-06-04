@@ -2281,6 +2281,15 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
 
     const matrix = await RouteMatrix.computeRouteMatrix(request);
 
+    console.log('[RouteMatrix RAW]', JSON.stringify(matrix));
+    const dbgEl = matrix && matrix[0];
+    showToast(
+      'matrix長度:' + (matrix ? matrix.length : 'null') +
+      ' | el0 keys:' + (dbgEl ? Object.keys(dbgEl).join(',') : 'undefined') +
+      ' | duration:' + (dbgEl ? JSON.stringify(dbgEl.duration) : '-') +
+      ' | condition:' + (dbgEl ? dbgEl.condition : '-')
+    );
+
     if (matrix && matrix[0]) {
       const element = matrix[0];
 
