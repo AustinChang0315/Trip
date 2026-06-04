@@ -2271,9 +2271,13 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
       travelMode:   'TRANSIT',
       fields:       ['*']
     });
-    if (matrix && matrix[0] && matrix[0].status === 'OK') {
-      var secs = parseInt(matrix[0].duration, 10);
-      return Math.ceil(secs / 60);
+    if (matrix && matrix[0]) {
+      console.log('[Routes API] element:', JSON.stringify(matrix[0]));
+      var d = matrix[0].duration;
+      if (d != null) {
+        var secs = typeof d === 'object' ? (d.seconds || 0) : parseInt(String(d), 10);
+        if (secs > 0) return Math.ceil(secs / 60);
+      }
     }
     return 0;
   } catch(e) {
