@@ -2247,6 +2247,15 @@ function postOrderToGAS(dayNum, spots) {
   }).catch(function(){});
 }
 
+function haversineMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function getTransitDepartureTime() {
   var now = new Date();
   var h = now.getHours();
@@ -2307,6 +2316,18 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng, depart
     return 30;
 
   } catch (error) {
+    const isZeroResults = error && (
+      error.code === 'ZERO_RESULTS' ||
+      (error.message && error.message.includes('ZERO_RESULTS'))
+    );
+    if (isZeroResults) {
+      const [oLat, oLng] = originLatLng.split(',').map(Number);
+      const [dLat, dLng] = destinationLatLng.split(',').map(Number);
+      const meters = haversineMeters(oLat, oLng, dLat, dLng);
+      const walkMins = Math.max(1, Math.ceil(meters / 66.6));
+      console.log(`🚶 ZERO_RESULTS → 直線距離 ${Math.round(meters)}m → 步行 ${walkMins} 分鐘`);
+      return walkMins;
+    }
     console.error('[DirectionsService] 異常:', error);
     return 30;
   }
