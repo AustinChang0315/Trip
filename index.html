@@ -2257,98 +2257,23 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
 }
 
 function estimateMinsByDistance(meters) {
-  if (meters < 1000) {
-    return Math.max(1, Math.ceil(meters / 80));    // 步行 ~4.8 km/h
+  if (meters < 800) {
+    return Math.max(1, Math.ceil(meters / 80));     // 步行 ~4.8 km/h
+  } else if (meters < 15000) {
+    return Math.max(5, Math.ceil(meters / 350));    // 市區電車/地鐵 ~21 km/h（含候車）
+  } else {
+    return Math.max(20, Math.ceil(meters / 450));   // 特急/JR ~27 km/h（直線距離+候車換車補正）
   }
-  return Math.max(5, Math.ceil(meters / 400));      // 大眾運輸估算 ~24 km/h（含候車）
 }
 
-function getTransitDepartureTime() {
-  var now = new Date();
-  var h = now.getHours();
-  if (h < 7 || h >= 23) {
-    var dep = new Date(now);
-    dep.setHours(9, 0, 0, 0);
-    if (dep <= now) dep.setDate(dep.getDate() + 1);
-    return dep;
-  }
-  return now;
-}
-
-async function getTransitDurationMinutes(originLatLng, destinationLatLng, departureTimeStr) {
+async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
   if (originLatLng === destinationLatLng) return 0;
-
-  console.log('====== [DirectionsService 排查中] ======');
-  console.log(`👉 起點: "${originLatLng}" | 終點: "${destinationLatLng}"`);
-
-  let departureDate = getTransitDepartureTime();
-  if (departureTimeStr) {
-    const d = new Date(departureTimeStr);
-    if (!isNaN(d.getTime())) departureDate = d;
-  }
-  console.log(`👉 出發時間: ${departureDate.toISOString()}`);
-
-  try {
-    const [originLat, originLng] = originLatLng.split(',').map(Number);
-    const [destLat, destLng] = destinationLatLng.split(',').map(Number);
-
-    const { Route } = await google.maps.importLibrary("routes");
-    const response = await Route.computeRoutes({
-      origin:        { location: new google.maps.LatLng(originLat, originLng) },
-      destination:   { location: new google.maps.LatLng(destLat, destLng) },
-      travelMode:    'TRANSIT',
-      departureTime: departureDate
-    });
-
-    console.log('[Route.computeRoutes RAW]', JSON.stringify(response));
-    const route = response && response.routes && response.routes[0];
-    showToast(
-      'routes數量:' + (response && response.routes ? response.routes.length : 'null') +
-      ' | duration:' + (route ? JSON.stringify(route.duration) : '-') +
-      ' | distanceMeters:' + (route ? route.distanceMeters : '-')
-    );
-
-    if (route && route.duration) {
-      let secs = 0;
-      if (typeof route.duration === 'string') {
-        secs = parseInt(route.duration, 10);
-      } else if (typeof route.duration === 'number') {
-        secs = route.duration;
-      } else if (typeof route.duration === 'object' && route.duration.seconds) {
-        secs = Number(route.duration.seconds);
-      }
-      if (!isNaN(secs) && secs > 0) {
-        const mins = Math.ceil(secs / 60);
-        console.log(`✅ 交通時間: ${mins} 分鐘`);
-        return mins;
-      }
-    }
-
-    if (route && route.distanceMeters > 0) {
-      const estMins = estimateMinsByDistance(route.distanceMeters);
-      console.log(`📏 距離估算 ${route.distanceMeters}m → ${estMins} 分鐘`);
-      return estMins;
-    }
-
-    return 30;
-
-  } catch (error) {
-    const isZeroResults = error && (
-      error.code === 'ZERO_RESULTS' ||
-      (error.message && error.message.includes('ZERO_RESULTS'))
-    );
-    const [oLat, oLng] = originLatLng.split(',').map(Number);
-    const [dLat, dLng] = destinationLatLng.split(',').map(Number);
-    const meters = haversineMeters(oLat, oLng, dLat, dLng);
-    const estMins = estimateMinsByDistance(meters);
-    if (isZeroResults) {
-      console.log(`🔄 ZERO_RESULTS → 直線距離 ${Math.round(meters)}m → 估算 ${estMins} 分鐘`);
-    } else {
-      console.error('[Route.computeRoutes] 異常:', error);
-      console.log(`🔄 異常 fallback → 直線距離 ${Math.round(meters)}m → 估算 ${estMins} 分鐘`);
-    }
-    return estMins;
-  }
+  const [oLat, oLng] = originLatLng.split(',').map(Number);
+  const [dLat, dLng] = destinationLatLng.split(',').map(Number);
+  const meters = haversineMeters(oLat, oLng, dLat, dLng);
+  const mins = estimateMinsByDistance(meters);
+  console.log(`📏 ${Math.round(meters)}m → ${mins} 分鐘`);
+  return mins;
 }
 
 // 🕐 Routes API — 一次查整天所有路段的精確大眾運輸交通時間
