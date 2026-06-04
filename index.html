@@ -726,6 +726,9 @@ function prepareAndRender(itinerary, isUpdate) {
     return day;
   });
   tripDays = prepared;
+  var _tCache = {};
+  try { _tCache = JSON.parse(localStorage.getItem('transit_mins_cache') || '{}'); } catch(e) {}
+  var _CACHE_TTL = 4 * 3600 * 1000;
   itineraryState = prepared.map(function(d) {
     var prevSpotsMap = {};
     (itineraryState || []).forEach(function(ps) {
@@ -735,6 +738,12 @@ function prepareAndRender(itinerary, isUpdate) {
     });
     var spots = applyDayOrder(d.day, (d.spots || []).slice()).map(function(s) {
       var withId = s.spot_id ? s : Object.assign({}, s, { spot_id: stableSpotKey(s, d.day) });
+      // Transit cache 優先（防止 GAS 背景輪詢覆蓋剛算好的結果）
+      var cached = withId.spot_id ? _tCache[withId.spot_id] : null;
+      if (cached && (Date.now() - cached.t < _CACHE_TTL)) {
+        return Object.assign({}, withId, { travel_mins: cached.m });
+      }
+      // 次級：GAS=0 時保留本地非零值
       if (!(withId.travel_mins > 0) && withId.spot_id && prevSpotsMap[withId.spot_id] > 0) {
         return Object.assign({}, withId, { travel_mins: prevSpotsMap[withId.spot_id] });
       }
@@ -2309,6 +2318,13 @@ async function calcTravelTimes(dayNum) {
 
     itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: updatedSpots });
     saveDayOrder(dayNum, updatedSpots);
+    // 將新算好的 transit 時間存進 localStorage cache（優先級高於 GAS 返回值，防止 race condition）
+    var tCache = {};
+    try { tCache = JSON.parse(localStorage.getItem('transit_mins_cache') || '{}'); } catch(e) {}
+    updatedSpots.forEach(function(s) {
+      if (s.spot_id && s.travel_mins > 0) tCache[s.spot_id] = { m: s.travel_mins, t: Date.now() };
+    });
+    try { localStorage.setItem('transit_mins_cache', JSON.stringify(tCache)); } catch(e) {}
     updateDayPanel(itineraryState[dayIdx]);
     postOrderToGAS(dayNum, updatedSpots);
     showToast('🕐 交通時間已更新');
