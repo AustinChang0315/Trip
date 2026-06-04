@@ -2271,9 +2271,10 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
       travelMode:   'TRANSIT',
       fields:       ['*']
     });
-    if (matrix && matrix[0]) {
-      console.log('[Routes API] element:', JSON.stringify(matrix[0]));
-      var d = matrix[0].duration;
+    var el0 = matrix && matrix[0];
+    showToast('📦 matrix長度:' + (matrix ? matrix.length : 'null') + ' | el0:' + JSON.stringify(el0).slice(0, 120));
+    if (el0) {
+      var d = el0.duration;
       if (d != null) {
         var secs = typeof d === 'object' ? (d.seconds || 0) : parseInt(String(d), 10);
         if (secs > 0) return Math.ceil(secs / 60);
