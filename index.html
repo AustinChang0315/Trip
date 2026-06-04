@@ -2262,19 +2262,21 @@ function getTransitDepartureTime() {
 async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
   if (originLatLng === destinationLatLng) return 0;
 
+  console.log('====== [Routes API 排查中] ======');
+  console.log(`👉 起點 原始字串: "${originLatLng}"`);
+  console.log(`👉 終點 原始字串: "${destinationLatLng}"`);
+
   try {
     const { RouteMatrix } = await google.maps.importLibrary("routes");
 
     const [originLat, originLng] = originLatLng.split(',').map(Number);
     const [destLat, destLng] = destinationLatLng.split(',').map(Number);
 
+    console.log(`👉 拆解後數字 -> 起點: [${originLat}, ${originLng}], 終點: [${destLat}, ${destLng}]`);
+
     const request = {
-      origins: [{
-        location: new google.maps.LatLng(originLat, originLng)
-      }],
-      destinations: [{
-        location: new google.maps.LatLng(destLat, destLng)
-      }],
+      origins: [{ location: new google.maps.LatLng(originLat, originLng) }],
+      destinations: [{ location: new google.maps.LatLng(destLat, destLng) }],
       travelMode: 'TRANSIT',
       fields: ['*']
     };
@@ -2292,6 +2294,10 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
 
     if (matrix && matrix[0]) {
       const element = matrix[0];
+
+      if (element.condition === 'ROUTE_NOT_FOUND') {
+        console.error('❌ Google 找不到這兩點之間的大眾運輸！請把上面的經緯度複製到 Google Map 看看是不是在海裡或跨國。');
+      }
 
       if (element.duration) {
         let durationSeconds = 0;
@@ -2315,7 +2321,7 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
     return 30;
 
   } catch (error) {
-    console.error("[Routes API] 最終執行時期異常:", error);
+    console.error('[Routes API] 異常:', error);
     return 30;
   }
 }
