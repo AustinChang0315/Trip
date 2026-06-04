@@ -279,7 +279,7 @@ function handleUpdateOrder(sheet, payload) {
   // 建立 spot_id（優先）或 spot_name → { sort_order, travel_mins } 的快查 map
   var orderMap = {};
   spots.forEach(function(s) {
-    var key = (s.spot_id && !s.spot_id.startsWith('local_')) ? String(s.spot_id) : String(s.spot_name);
+    var key = s.spot_id ? String(s.spot_id) : String(s.spot_name);
     orderMap[key] = {
       sort_order:  Number(s.sort_order  || 0),
       travel_mins: Number(s.travel_mins || 0)

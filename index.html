@@ -706,6 +706,17 @@ function fetchWithTimeout(url, ms) {
     .finally(function() { clearTimeout(timer); });
 }
 
+function stableSpotKey(spot, dayNum) {
+  var raw = String(dayNum) + '|' + String(spot.spot_name || '') + '|'
+          + String(spot.latitude || '') + '|' + String(spot.longitude || '');
+  var h = 5381;
+  for (var i = 0; i < raw.length; i++) {
+    h = ((h << 5) + h) ^ raw.charCodeAt(i);
+    h = h >>> 0;
+  }
+  return 'local_' + dayNum + '_' + h.toString(16).slice(-6);
+}
+
 // Step 3 + Step 4 + 渲染 — 可重複呼叫（第一次 & GAS 更新都用）
 function prepareAndRender(itinerary, isUpdate) {
   var prepared = itinerary.map(function(day) {
@@ -716,8 +727,8 @@ function prepareAndRender(itinerary, isUpdate) {
   });
   tripDays = prepared;
   itineraryState = prepared.map(function(d) {
-    var spots = applyDayOrder(d.day, (d.spots || []).slice()).map(function(s, i) {
-      return s.spot_id ? s : Object.assign({}, s, { spot_id: 'local_' + d.day + '_' + i });
+    var spots = applyDayOrder(d.day, (d.spots || []).slice()).map(function(s) {
+      return s.spot_id ? s : Object.assign({}, s, { spot_id: stableSpotKey(s, d.day) });
     });
     var savedStart = localStorage.getItem('day_start_' + d.day);
     return Object.assign({}, d, {
@@ -2123,6 +2134,12 @@ function moveSpot(dayNum, idx, direction) {
   var target = direction === 'up' ? idx - 1 : idx + 1;
   if (target < 0 || target >= spots.length) return;
   var tmp = spots[idx]; spots[idx] = spots[target]; spots[target] = tmp;
+  spots = spots.map(function(s) {
+    if (!s.time) return s;
+    var copy = Object.assign({}, s);
+    delete copy.time;
+    return copy;
+  });
   itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: spots });
   saveDayOrder(dayNum, spots);
   updateDayPanel(itineraryState[dayIdx]);
