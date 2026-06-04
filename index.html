@@ -727,8 +727,18 @@ function prepareAndRender(itinerary, isUpdate) {
   });
   tripDays = prepared;
   itineraryState = prepared.map(function(d) {
+    var prevSpotsMap = {};
+    (itineraryState || []).forEach(function(ps) {
+      if (ps.day === d.day) ps.spots.forEach(function(s) {
+        if (s.spot_id && s.travel_mins > 0) prevSpotsMap[s.spot_id] = s.travel_mins;
+      });
+    });
     var spots = applyDayOrder(d.day, (d.spots || []).slice()).map(function(s) {
-      return s.spot_id ? s : Object.assign({}, s, { spot_id: stableSpotKey(s, d.day) });
+      var withId = s.spot_id ? s : Object.assign({}, s, { spot_id: stableSpotKey(s, d.day) });
+      if (!(withId.travel_mins > 0) && withId.spot_id && prevSpotsMap[withId.spot_id] > 0) {
+        return Object.assign({}, withId, { travel_mins: prevSpotsMap[withId.spot_id] });
+      }
+      return withId;
     });
     var savedStart = localStorage.getItem('day_start_' + d.day);
     return Object.assign({}, d, {
@@ -993,9 +1003,11 @@ function renderDayPanel(dayData) {
     // 加上前往下一個景點的交通時間
     if (ci + 1 < spots.length) {
       var nextS = spots[ci + 1];
-      var tMins = (nextS.travel_mins > 0)
+      var fallbackKm = (cs.latitude && cs.longitude && nextS.latitude && nextS.longitude)
+        ? haversineKm(cs.latitude, cs.longitude, nextS.latitude, nextS.longitude) : 0;
+      var tMins = nextS.travel_mins > 0
         ? nextS.travel_mins
-        : estimateTravelMins(cs.latitude, cs.longitude, nextS.latitude, nextS.longitude);
+        : (fallbackKm > 0 ? Math.max(5, Math.round(fallbackKm * 12.5)) : 15);
       runningMins += tMins;
     }
   }
@@ -1076,11 +1088,26 @@ function renderDayPanel(dayData) {
     + (function() {
         if (isLast || isFlight) return '';
         var nextSpot = spots[i + 1];
-        if (!nextSpot || !(nextSpot.travel_mins > 0)) return '';
+        if (!nextSpot || nextSpot._isFlight) return '';
+        var curr = spots[i];
+        var km = (curr.latitude && curr.longitude && nextSpot.latitude && nextSpot.longitude)
+          ? haversineKm(curr.latitude, curr.longitude, nextSpot.latitude, nextSpot.longitude) : -1;
+        var transMins = nextSpot.travel_mins > 0 ? nextSpot.travel_mins : 0;
+        var walkMins  = km > 0 ? Math.max(1, Math.round(km * 12.5)) : 0;
+        var label = '';
+        if (km >= 0 && km < 1) {
+          label = walkMins > 0 ? ('🚶 ' + walkMins + ' 分') : '';
+        } else if (km >= 1 && km < 2) {
+          if (transMins > 0) label = '🚃 ' + transMins + ' 分 ｜ 🚶 ' + walkMins + ' 分';
+          else if (walkMins > 0) label = '🚶 ' + walkMins + ' 分';
+        } else {
+          label = transMins > 0 ? ('🚃 ' + transMins + ' 分') : '🚃 ─';
+        }
+        if (!label) return '';
         return '<div class="travel-bridge">'
           + '<div></div>'
           + '<div class="travel-bridge-line"></div>'
-          + '<div class="travel-bridge-label">🚃 ' + nextSpot.travel_mins + ' 分</div>'
+          + '<div class="travel-bridge-label">' + label + '</div>'
           + '</div>';
       })();
   }).join('');
@@ -2199,9 +2226,7 @@ function postOrderToGAS(dayNum, spots) {
     var tMins = 0;
     if (i > 0) {
       var prev = spots[i - 1];
-      tMins = (s.travel_mins > 0)
-        ? s.travel_mins
-        : estimateTravelMins(prev.latitude, prev.longitude, s.latitude, s.longitude);
+      tMins = s.travel_mins > 0 ? s.travel_mins : 0;
     }
     return { spot_name: s.spot_name, spot_id: s.spot_id || '', sort_order: i, travel_mins: tMins };
   });
@@ -2210,6 +2235,18 @@ function postOrderToGAS(dayNum, spots) {
     headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify({ action: 'update_order', day: dayNum, spots: payload })
   }).catch(function(){});
+}
+
+function getTransitDepartureTime() {
+  var now = new Date();
+  var h = now.getHours();
+  if (h < 7 || h >= 23) {
+    var dep = new Date(now);
+    dep.setHours(9, 0, 0, 0);
+    if (dep <= now) dep.setDate(dep.getDate() + 1);
+    return dep;
+  }
+  return now;
 }
 
 // 🕐 Distance Matrix API — 一次查整天所有路段的精確大眾運輸交通時間
@@ -2251,7 +2288,7 @@ async function calcTravelTimes(dayNum) {
         origins:        origins.map(function(c){ var p=c.split(','); return {lat:+p[0],lng:+p[1]}; }),
         destinations:   destinations.map(function(c){ var p=c.split(','); return {lat:+p[0],lng:+p[1]}; }),
         travelMode:     google.maps.TravelMode.TRANSIT,
-        transitOptions: { departureTime: new Date() },
+        transitOptions: { departureTime: getTransitDepartureTime() },
         language:       'zh-TW'
       }, function(result, status) {
         if (status === 'OK') resolve(result);
@@ -2468,16 +2505,6 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// T3b：用兩景點 GPS 距離估算交通時間（分鐘）
-function estimateTravelMins(lat1, lon1, lat2, lon2) {
-  if (!lat1 || !lon1 || !lat2 || !lon2) return 15;
-  var km = haversineKm(lat1, lon1, lat2, lon2);
-  if (km < 0.8) return 8;
-  if (km < 2)   return 15;
-  if (km < 4)   return 20;
-  if (km < 8)   return 28;
-  return 40;
-}
 
 // 計算一組景點順序的總移動距離
 function routeTotalKm(arr) {
