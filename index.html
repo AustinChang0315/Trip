@@ -2273,8 +2273,7 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng, depart
   console.log(`👉 出發時間: ${departureDate.toISOString()}`);
 
   try {
-    const { RoutesService } = await google.maps.importLibrary("routes");
-    const service = new RoutesService();
+    const { computeRoutes } = await google.maps.importLibrary("routes");
 
     const [originLat, originLng] = originLatLng.split(',').map(Number);
     const [destLat, destLng] = destinationLatLng.split(',').map(Number);
@@ -2286,8 +2285,8 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng, depart
       departureTime: departureDate
     };
 
-    const response = await service.computeRoutes(request, {
-      otherParamsToPass: { fields: 'routes.duration,routes.distanceMeters' }
+    const response = await computeRoutes(request, {
+      fields: ['routes.duration', 'routes.distanceMeters']
     });
 
     console.log('[RoutesService RAW]', JSON.stringify(response));
