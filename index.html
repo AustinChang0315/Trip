@@ -2262,9 +2262,8 @@ function getTransitDepartureTime() {
 async function getTransitDurationMinutes(originLatLng, destinationLatLng, departureTimeStr) {
   if (originLatLng === destinationLatLng) return 0;
 
-  console.log('====== [Routes API 排查中] ======');
-  console.log(`👉 起點 原始字串: "${originLatLng}"`);
-  console.log(`👉 終點 原始字串: "${destinationLatLng}"`);
+  console.log('====== [RoutesService 排查中] ======');
+  console.log(`👉 起點: "${originLatLng}" | 終點: "${destinationLatLng}"`);
 
   let departureDate = getTransitDepartureTime();
   if (departureTimeStr) {
@@ -2274,68 +2273,59 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng, depart
   console.log(`👉 出發時間: ${departureDate.toISOString()}`);
 
   try {
-    const { RouteMatrix } = await google.maps.importLibrary("routes");
+    const { RoutesService } = await google.maps.importLibrary("routes");
+    const service = new RoutesService();
 
     const [originLat, originLng] = originLatLng.split(',').map(Number);
     const [destLat, destLng] = destinationLatLng.split(',').map(Number);
 
-    console.log(`👉 拆解後數字 -> 起點: [${originLat}, ${originLng}], 終點: [${destLat}, ${destLng}]`);
-
     const request = {
-      origins: [{ location: new google.maps.LatLng(originLat, originLng) }],
-      destinations: [{ location: new google.maps.LatLng(destLat, destLng) }],
-      travelMode: 'TRANSIT',
-      departureTime: departureDate,
-      fields: ['*']
+      origin:        { location: new google.maps.LatLng(originLat, originLng) },
+      destination:   { location: new google.maps.LatLng(destLat, destLng) },
+      travelMode:    'TRANSIT',
+      departureTime: departureDate
     };
 
-    const matrix = await RouteMatrix.computeRouteMatrix(request);
+    const response = await service.computeRoutes(request, {
+      otherParamsToPass: { fields: 'routes.duration,routes.distanceMeters' }
+    });
 
-    console.log('[RouteMatrix RAW]', JSON.stringify(matrix));
-    const dbgEl = matrix && matrix[0];
+    console.log('[RoutesService RAW]', JSON.stringify(response));
+    const route = response && response.routes && response.routes[0];
     showToast(
-      'matrix長度:' + (matrix ? matrix.length : 'null') +
-      ' | el0 keys:' + (dbgEl ? Object.keys(dbgEl).join(',') : 'undefined') +
-      ' | duration:' + (dbgEl ? JSON.stringify(dbgEl.duration) : '-') +
-      ' | condition:' + (dbgEl ? dbgEl.condition : '-')
+      'routes數量:' + (response && response.routes ? response.routes.length : 'null') +
+      ' | duration:' + (route ? JSON.stringify(route.duration) : '-') +
+      ' | distanceMeters:' + (route ? route.distanceMeters : '-')
     );
 
-    if (matrix && matrix[0]) {
-      const element = matrix[0];
-
-      if (element.condition === 'ROUTE_NOT_FOUND') {
-        if (element.distanceMeters && element.distanceMeters > 0) {
-          const walkMins = Math.ceil(element.distanceMeters / 66.6);
-          console.log(`🚶 步行距離 ${element.distanceMeters}m → ${walkMins} 分鐘`);
-          return walkMins;
+    if (route) {
+      if (route.duration) {
+        let secs = 0;
+        if (typeof route.duration === 'string') {
+          secs = parseInt(route.duration, 10);
+        } else if (typeof route.duration === 'number') {
+          secs = route.duration;
+        } else if (typeof route.duration === 'object' && route.duration.seconds) {
+          secs = Number(route.duration.seconds);
         }
-        console.error('❌ ROUTE_NOT_FOUND 且無 distanceMeters，回傳預設值');
-        return 30;
-      }
-
-      if (element.duration) {
-        let durationSeconds = 0;
-        if (typeof element.duration === 'string') {
-          durationSeconds = parseInt(element.duration, 10);
-        } else if (typeof element.duration === 'number') {
-          durationSeconds = element.duration;
-        }
-        if (!isNaN(durationSeconds) && durationSeconds > 0) {
-          return Math.ceil(durationSeconds / 60);
+        if (!isNaN(secs) && secs > 0) {
+          const mins = Math.ceil(secs / 60);
+          console.log(`✅ 交通時間: ${mins} 分鐘`);
+          return mins;
         }
       }
 
-      if (element.localizedValues && element.localizedValues.duration) {
-        const text = element.localizedValues.duration.text || element.localizedValues.duration;
-        const matchMinutes = parseInt(text, 10);
-        if (!isNaN(matchMinutes) && matchMinutes > 0) return matchMinutes;
+      if (route.distanceMeters && route.distanceMeters > 0) {
+        const walkMins = Math.ceil(route.distanceMeters / 66.6);
+        console.log(`🚶 步行距離 ${route.distanceMeters}m → ${walkMins} 分鐘`);
+        return walkMins;
       }
     }
 
     return 30;
 
   } catch (error) {
-    console.error('[Routes API] 異常:', error);
+    console.error('[RoutesService] 異常:', error);
     return 30;
   }
 }
