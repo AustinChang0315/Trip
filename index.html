@@ -2316,6 +2316,17 @@ async function calcTravelTimes(dayNum) {
       }
     }
 
+    // 診斷 toast：顯示每段路線的 API 回傳狀態
+    var diagLines = [];
+    for (var di = 0; di < validIdxs.length - 1; di++) {
+      var de = data.rows[di] && data.rows[di].elements && data.rows[di].elements[di];
+      var fn = (spots[validIdxs[di]].spot_name || '').slice(0, 4);
+      var tn = (spots[validIdxs[di+1]].spot_name || '').slice(0, 4);
+      diagLines.push(fn + '→' + tn + ':' + (de ? de.status + (de.duration ? '=' + Math.round(de.duration.value/60) + 'm' : '') : 'N/A'));
+    }
+    console.log('[calcTravelTimes] validIdxs:', validIdxs, 'results:', diagLines.join(' | '));
+    showToast('📡 ' + (diagLines.join(' | ') || '無路段'));
+
     itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: updatedSpots });
     saveDayOrder(dayNum, updatedSpots);
     // 將新算好的 transit 時間存進 localStorage cache（優先級高於 GAS 返回值，防止 race condition）
