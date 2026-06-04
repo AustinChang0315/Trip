@@ -2266,8 +2266,8 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
     var op = originLatLng.split(',').map(Number);
     var dp = destinationLatLng.split(',').map(Number);
     var matrix = await RouteMatrix.computeRouteMatrix({
-      origins:      [{ waypoint: { location: { latLng: { lat: op[0], lng: op[1] } } } }],
-      destinations: [{ waypoint: { location: { latLng: { lat: dp[0], lng: dp[1] } } } }],
+      origins:      [new google.maps.LatLng(op[0], op[1])],
+      destinations: [new google.maps.LatLng(dp[0], dp[1])],
       travelMode:   'TRANSIT'
     });
     if (matrix && matrix[0] && matrix[0].status === 'OK') {
