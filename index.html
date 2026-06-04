@@ -2260,30 +2260,45 @@ function getTransitDepartureTime() {
 }
 
 async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
-  if (!originLatLng || !destinationLatLng || originLatLng === destinationLatLng) return 0;
+  if (originLatLng === destinationLatLng) return 0;
+
   try {
-    var RouteMatrix = (await google.maps.importLibrary('routes')).RouteMatrix;
-    var op = originLatLng.split(',').map(Number);
-    var dp = destinationLatLng.split(',').map(Number);
-    var matrix = await RouteMatrix.computeRouteMatrix({
-      origins:      [new google.maps.LatLng(op[0], op[1])],
-      destinations: [new google.maps.LatLng(dp[0], dp[1])],
-      travelMode:   'TRANSIT',
-      fields:       ['*']
-    });
-    var el0 = matrix && matrix[0];
-    showToast('📦 matrix長度:' + (matrix ? matrix.length : 'null') + ' | el0:' + JSON.stringify(el0).slice(0, 120));
-    if (el0) {
-      var d = el0.duration;
-      if (d != null) {
-        var secs = typeof d === 'object' ? (d.seconds || 0) : parseInt(String(d), 10);
-        if (secs > 0) return Math.ceil(secs / 60);
+    const { RouteMatrix } = await google.maps.importLibrary("routes");
+
+    const [originLat, originLng] = originLatLng.split(',').map(Number);
+    const [destLat, destLng] = destinationLatLng.split(',').map(Number);
+
+    const request = {
+      origins: [{ waypoint: { location: { latLng: { lat: originLat, lng: originLng } } } }],
+      destinations: [{ waypoint: { location: { latLng: { lat: destLat, lng: destLng } } } }],
+      travelMode: 'TRANSIT',
+      languageCode: 'zh-TW',
+      fields: ['*']
+    };
+
+    const matrix = await RouteMatrix.computeRouteMatrix(request);
+
+    if (matrix && matrix[0]) {
+      const element = matrix[0];
+      if (element.duration) {
+        let durationSeconds = 0;
+        if (typeof element.duration === 'string') {
+          durationSeconds = parseInt(element.duration, 10);
+        } else if (typeof element.duration === 'number') {
+          durationSeconds = element.duration;
+        }
+        if (!isNaN(durationSeconds) && durationSeconds > 0) {
+          return Math.ceil(durationSeconds / 60);
+        }
       }
     }
-    return 0;
-  } catch(e) {
-    console.error('[Routes API]', e);
-    return 0;
+
+    console.warn("[Routes API] 無法解析時間資料，回傳防禦預設值 30 分鐘");
+    return 30;
+
+  } catch (error) {
+    console.error("[Routes API] 2026 執行出錯:", error);
+    return 30;
   }
 }
 
