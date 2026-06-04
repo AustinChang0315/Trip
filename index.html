@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#5c6b8a">
   <title>東京自由行</title>
   <link rel="manifest" href="manifest.json">
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww&libraries=places&language=zh-TW&loading=async" defer></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww&libraries=places,routes&language=zh-TW&loading=async" defer></script>
   <style>
     /* ── Design Tokens ─────────────────────────────────── */
     :root {
@@ -2259,7 +2259,30 @@ function getTransitDepartureTime() {
   return now;
 }
 
-// 🕐 Distance Matrix API — 一次查整天所有路段的精確大眾運輸交通時間
+async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
+  if (!originLatLng || !destinationLatLng || originLatLng === destinationLatLng) return 0;
+  try {
+    var RouteMatrix = (await google.maps.importLibrary('routes')).RouteMatrix;
+    var op = originLatLng.split(',').map(Number);
+    var dp = destinationLatLng.split(',').map(Number);
+    var matrix = await RouteMatrix.computeRouteMatrix({
+      origins:      [{ waypoint: { location: { latLng: { lat: op[0], lng: op[1] } } } }],
+      destinations: [{ waypoint: { location: { latLng: { lat: dp[0], lng: dp[1] } } } }],
+      travelMode:   'TRANSIT',
+      languageCode: 'zh-TW'
+    });
+    if (matrix && matrix[0] && matrix[0].status === 'OK') {
+      var secs = parseInt(matrix[0].duration, 10);
+      return Math.ceil(secs / 60);
+    }
+    return 0;
+  } catch(e) {
+    console.error('[Routes API]', e);
+    return 0;
+  }
+}
+
+// 🕐 Routes API — 一次查整天所有路段的精確大眾運輸交通時間
 async function calcTravelTimes(dayNum) {
   var dayIdx = -1;
   for (var i = 0; i < itineraryState.length; i++) {
@@ -2284,48 +2307,24 @@ async function calcTravelTimes(dayNum) {
     return;
   }
 
-  var origins = [], destinations = [];
-  for (var k = 0; k < validIdxs.length - 1; k++) {
-    var s1 = spots[validIdxs[k]], s2 = spots[validIdxs[k + 1]];
-    origins.push(s1.latitude + ',' + s1.longitude);
-    destinations.push(s2.latitude + ',' + s2.longitude);
-  }
-
   try {
-    var svc  = new google.maps.DistanceMatrixService();
-    var data = await new Promise(function(resolve, reject) {
-      svc.getDistanceMatrix({
-        origins:        origins.map(function(c){ var p=c.split(','); return {lat:+p[0],lng:+p[1]}; }),
-        destinations:   destinations.map(function(c){ var p=c.split(','); return {lat:+p[0],lng:+p[1]}; }),
-        travelMode:     google.maps.TravelMode.TRANSIT,
-        transitOptions: { departureTime: getTransitDepartureTime() },
-        language:       'zh-TW'
-      }, function(result, status) {
-        if (status === 'OK') resolve(result);
-        else reject(new Error('Distance Matrix: ' + status));
-      });
-    });
+    var segPromises = [];
+    for (var k = 0; k < validIdxs.length - 1; k++) {
+      var s1 = spots[validIdxs[k]], s2 = spots[validIdxs[k + 1]];
+      segPromises.push(getTransitDurationMinutes(
+        s1.latitude + ',' + s1.longitude,
+        s2.latitude + ',' + s2.longitude
+      ));
+    }
+    var segMins = await Promise.all(segPromises);
 
     var updatedSpots = spots.slice();
-    for (var k = 0; k < validIdxs.length - 1; k++) {
-      var elem = data.rows[k] && data.rows[k].elements && data.rows[k].elements[k];
-      if (elem && elem.status === 'OK' && elem.duration) {
-        var mins = Math.round(elem.duration.value / 60);
+    for (var k = 0; k < segMins.length; k++) {
+      if (segMins[k] > 0) {
         var spotIdx = validIdxs[k + 1];
-        updatedSpots[spotIdx] = Object.assign({}, updatedSpots[spotIdx], { travel_mins: mins });
+        updatedSpots[spotIdx] = Object.assign({}, updatedSpots[spotIdx], { travel_mins: segMins[k] });
       }
     }
-
-    // 診斷 toast：顯示每段路線的 API 回傳狀態
-    var diagLines = [];
-    for (var di = 0; di < validIdxs.length - 1; di++) {
-      var de = data.rows[di] && data.rows[di].elements && data.rows[di].elements[di];
-      var fn = (spots[validIdxs[di]].spot_name || '').slice(0, 4);
-      var tn = (spots[validIdxs[di+1]].spot_name || '').slice(0, 4);
-      diagLines.push(fn + '→' + tn + ':' + (de ? de.status + (de.duration ? '=' + Math.round(de.duration.value/60) + 'm' : '') : 'N/A'));
-    }
-    console.log('[calcTravelTimes] validIdxs:', validIdxs, 'results:', diagLines.join(' | '));
-    showToast('📡 ' + (diagLines.join(' | ') || '無路段'));
 
     itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: updatedSpots });
     saveDayOrder(dayNum, updatedSpots);
