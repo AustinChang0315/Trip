@@ -2298,7 +2298,7 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng, depart
       destination:   { location: new google.maps.LatLng(destLat, destLng) },
       travelMode:    'TRANSIT',
       departureTime: departureDate
-    }, { fields: 'routes.duration,routes.distanceMeters' });
+    });
 
     console.log('[Route.computeRoutes RAW]', JSON.stringify(response));
     const route = response && response.routes && response.routes[0];
