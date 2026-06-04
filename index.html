@@ -114,20 +114,23 @@
 
     /* Day Header */
     .day-header { padding: 24px 20px 12px; position: relative; }
-    .btn-sort-day {
+    .day-header-actions {
       position: absolute; top: 20px; right: 14px;
+      display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+    }
+    .btn-sort-day, .btn-calc-travel {
       font-size: .7rem; font-weight: 600; padding: 5px 10px;
-      border: 1px solid var(--accent-bd); border-radius: 6px;
-      color: var(--accent); background: var(--accent-lt); white-space: nowrap;
-      transition: opacity .15s;
+      border-radius: 6px; white-space: nowrap;
+      transition: opacity .15s; text-align: center;
+    }
+    .btn-sort-day {
+      border: 1px solid var(--accent-bd);
+      color: var(--accent); background: var(--accent-lt);
     }
     .btn-sort-day:active { opacity: .65; }
     .btn-calc-travel {
-      position: absolute; top: 50px; right: 14px;
-      font-size: .7rem; font-weight: 600; padding: 4px 9px;
-      border: 1px solid var(--border-lt); border-radius: 6px;
-      color: var(--text-2); background: var(--surface); white-space: nowrap;
-      transition: opacity .15s;
+      border: 1px solid var(--border-lt);
+      color: var(--text-2); background: var(--surface);
     }
     .btn-calc-travel:active { opacity: .65; }
     .btn-calc-travel:disabled { opacity: .4; cursor: default; }
@@ -1089,8 +1092,10 @@ function renderDayPanel(dayData) {
 
   return '<section class="day-panel" data-day="' + dayData.day + '">'
     + '<div class="day-header">'
+      + '<div class="day-header-actions">'
       + '<button class="btn-sort-day" onclick="triggerOptimizeDay(' + dayData.day + ')" title="自動排出最短路線">🔀 最佳路線</button>'
       + '<button class="btn-calc-travel" id="btn-calc-' + dayData.day + '" onclick="calcTravelTimes(' + dayData.day + ')" title="查詢精確大眾運輸交通時間">🕐 交通時間</button>'
+      + '</div>'
       + '<span class="day-number-badge">DAY ' + dayData.day + '</span>'
       + '<h2 class="day-panel-title">' + dayData.day_title + '</h2>'
       + '<p class="day-panel-date">' + dateLabel + '</p>'
