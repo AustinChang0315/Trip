@@ -2256,6 +2256,13 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function estimateMinsByDistance(meters) {
+  if (meters < 1000) {
+    return Math.max(1, Math.ceil(meters / 80));    // 步行 ~4.8 km/h
+  }
+  return Math.max(5, Math.ceil(meters / 400));      // 大眾運輸估算 ~24 km/h（含候車）
+}
+
 function getTransitDepartureTime() {
   var now = new Date();
   var h = now.getHours();
@@ -2285,32 +2292,42 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng, depart
     const [originLat, originLng] = originLatLng.split(',').map(Number);
     const [destLat, destLng] = destinationLatLng.split(',').map(Number);
 
-    const service = new google.maps.DirectionsService();
-    const response = await service.route({
-      origin:      new google.maps.LatLng(originLat, originLng),
-      destination: new google.maps.LatLng(destLat, destLng),
-      travelMode:  google.maps.TravelMode.TRANSIT,
-      transitOptions: { departureTime: departureDate }
-    });
+    const { Route } = await google.maps.importLibrary("routes");
+    const response = await Route.computeRoutes({
+      origin:        { location: new google.maps.LatLng(originLat, originLng) },
+      destination:   { location: new google.maps.LatLng(destLat, destLng) },
+      travelMode:    'TRANSIT',
+      departureTime: departureDate
+    }, { fields: ['routes.duration', 'routes.distanceMeters'] });
 
-    console.log('[DirectionsService RAW]', JSON.stringify(response));
-    const leg = response.routes && response.routes[0] && response.routes[0].legs && response.routes[0].legs[0];
+    console.log('[Route.computeRoutes RAW]', JSON.stringify(response));
+    const route = response && response.routes && response.routes[0];
     showToast(
-      'status:' + response.status +
-      ' | duration:' + (leg ? leg.duration.text : '-') +
-      ' | distance:' + (leg ? leg.distance.text : '-')
+      'routes數量:' + (response && response.routes ? response.routes.length : 'null') +
+      ' | duration:' + (route ? JSON.stringify(route.duration) : '-') +
+      ' | distanceMeters:' + (route ? route.distanceMeters : '-')
     );
 
-    if (response.status === 'OK' && leg && leg.duration && leg.duration.value > 0) {
-      const mins = Math.ceil(leg.duration.value / 60);
-      console.log(`✅ 交通時間: ${mins} 分鐘`);
-      return mins;
+    if (route && route.duration) {
+      let secs = 0;
+      if (typeof route.duration === 'string') {
+        secs = parseInt(route.duration, 10);
+      } else if (typeof route.duration === 'number') {
+        secs = route.duration;
+      } else if (typeof route.duration === 'object' && route.duration.seconds) {
+        secs = Number(route.duration.seconds);
+      }
+      if (!isNaN(secs) && secs > 0) {
+        const mins = Math.ceil(secs / 60);
+        console.log(`✅ 交通時間: ${mins} 分鐘`);
+        return mins;
+      }
     }
 
-    if (leg && leg.distance && leg.distance.value > 0) {
-      const walkMins = Math.ceil(leg.distance.value / 66.6);
-      console.log(`🚶 步行距離 ${leg.distance.value}m → ${walkMins} 分鐘`);
-      return walkMins;
+    if (route && route.distanceMeters > 0) {
+      const estMins = estimateMinsByDistance(route.distanceMeters);
+      console.log(`📏 距離估算 ${route.distanceMeters}m → ${estMins} 分鐘`);
+      return estMins;
     }
 
     return 30;
@@ -2320,16 +2337,17 @@ async function getTransitDurationMinutes(originLatLng, destinationLatLng, depart
       error.code === 'ZERO_RESULTS' ||
       (error.message && error.message.includes('ZERO_RESULTS'))
     );
+    const [oLat, oLng] = originLatLng.split(',').map(Number);
+    const [dLat, dLng] = destinationLatLng.split(',').map(Number);
+    const meters = haversineMeters(oLat, oLng, dLat, dLng);
+    const estMins = estimateMinsByDistance(meters);
     if (isZeroResults) {
-      const [oLat, oLng] = originLatLng.split(',').map(Number);
-      const [dLat, dLng] = destinationLatLng.split(',').map(Number);
-      const meters = haversineMeters(oLat, oLng, dLat, dLng);
-      const walkMins = Math.max(1, Math.ceil(meters / 66.6));
-      console.log(`🚶 ZERO_RESULTS → 直線距離 ${Math.round(meters)}m → 步行 ${walkMins} 分鐘`);
-      return walkMins;
+      console.log(`🔄 ZERO_RESULTS → 直線距離 ${Math.round(meters)}m → 估算 ${estMins} 分鐘`);
+    } else {
+      console.error('[Route.computeRoutes] 異常:', error);
+      console.log(`🔄 異常 fallback → 直線距離 ${Math.round(meters)}m → 估算 ${estMins} 分鐘`);
     }
-    console.error('[DirectionsService] 異常:', error);
-    return 30;
+    return estMins;
   }
 }
 
