@@ -586,19 +586,6 @@
             "duration": "約 25 分鐘",
             "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=麻布台ヒルズ&travelmode=transit"
           }
-        },
-        {
-          "time": "11:00",
-          "spot_name": "羽田空港 國際線ターミナル",
-          "region_name": "羽田・東京灣",
-          "latitude": 35.5494,
-          "longitude": 139.7798,
-          "description": "從麻布台之丘搭日比谷線至大門站，轉都營淺草線至泉岳寺，再轉京急線至羽田國際線ターミナル。抵達時間約 11:50-12:10，距起飛 14:30 有充裕時間辦理登機。",
-          "transport": {
-            "method": "從神谷町站搭日比谷線至大門站，轉都營淺草線至泉岳寺站，再轉京急空港線至羽田空港第3ターミナル",
-            "duration": "約 40-50 分鐘",
-            "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=羽田空港第3ターミナル駅&travelmode=transit"
-          }
         }
       ],
       "dining": [

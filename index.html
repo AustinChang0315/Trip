@@ -83,6 +83,14 @@
     .trip-banner-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
     .trip-banner-dates { font-size: .68rem; color: rgba(255,255,255,.58); letter-spacing: .06em; }
     #hdr-weather       { font-size: .62rem; color: rgba(255,255,255,.72); letter-spacing: .03em; }
+    #btn-refresh {
+      background: none; border: none;
+      color: rgba(255,255,255,.65); font-size: .9rem;
+      cursor: pointer; padding: 2px 4px; border-radius: 4px; line-height: 1;
+      transition: opacity .2s;
+      align-self: flex-end;
+    }
+    #btn-refresh:active { opacity: .4; }
 
     /* Day Tabs */
     .day-tabs { display: flex; overflow-x: auto; gap: 8px; padding: 0 16px 12px; scrollbar-width: none; -ms-overflow-style: none; }
@@ -557,6 +565,7 @@
       <div class="trip-banner-right">
         <span class="trip-banner-dates">2026.06.24 — 06.29</span>
         <div id="hdr-weather"></div>
+        <button id="btn-refresh" onclick="manualRefresh()" title="重新整理" aria-label="重新整理">↺</button>
       </div>
     </div>
     <nav class="day-tabs" id="day-tabs"></nav>
@@ -653,6 +662,7 @@ var JPY_TWD        = 0.215;
 var tripDays       = [];
 var itineraryState = [];   // Task 5：增刪操作的可變狀態
 var flightsData    = [];   // 班機資訊（來自 GAS flights 頁籤）
+var _baseItinerary = null; // manualRefresh() 存取用
 var _addTargetDay  = null; // 新增 modal 的目標天數
 var modalMap       = null; // Google Maps 實例（建立後跨 modal 重複使用）
 var currentMarker  = null; // 地圖當前圖釘（永遠只保留一個）
@@ -855,6 +865,7 @@ async function boot() {
       });
     });
   }
+  _baseItinerary = baseItinerary;
 
   // ── Step 2：GAS 快取 + 新資料
   var gasCache = null;
@@ -913,6 +924,28 @@ async function boot() {
       .then(function(r){ return r.json(); })
       .then(function(data){ buildSummary(data); })
       .catch(function(){});
+  }
+}
+
+/* ─── 手動刷新 ────────────────────────────────────────── */
+async function manualRefresh() {
+  var btn = document.getElementById('btn-refresh');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; }
+  showToast('重新整理中…');
+  try {
+    if (!API_URL || !_baseItinerary) { location.reload(); return; }
+    var r     = await fetchWithTimeout(API_URL, 10000);
+    var fresh = await r.json();
+    if (fresh.itinerary && fresh.itinerary.length) {
+      localStorage.setItem('gas_cache', JSON.stringify(fresh));
+      if (fresh.flights && fresh.flights.length) flightsData = fresh.flights;
+      prepareAndRender(mergeGAS(_baseItinerary, fresh), true);
+      showToast('✓ 行程已更新');
+    }
+  } catch(e) {
+    showToast('無法連線，使用本機資料');
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   }
 }
 
