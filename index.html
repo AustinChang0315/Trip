@@ -803,7 +803,7 @@ function mergeGAS(baseItinerary, gasData) {
   return baseItinerary.map(function(day) {
     var gas = gasMap[day.day];
     if (!gas) return day;
-    var fixedSpots = gas.spots.map(function(s) {
+    var fixedSpots = (gas.spots || []).map(function(s) {
       return Object.assign({}, s, s.latitude && s.longitude ? {
         transport: Object.assign({}, s.transport, {
           google_maps_url: buildNavUrl(s.latitude, s.longitude, s.spot_name)
@@ -1394,12 +1394,16 @@ function updTWD() {
 
 async function submitExp(e) {
   e.preventDefault();
+  var amount = +document.getElementById('e-jpy').value;
+  if (!amount || amount <= 0 || isNaN(amount)) { showToast('請輸入有效金額'); return; }
+  var item = document.getElementById('e-item').value.trim();
+  if (!item) { showToast('請輸入項目名稱'); return; }
   var payload = {
     date:       document.getElementById('e-date').value,
-    item:       document.getElementById('e-item').value,
+    item:       item,
     category:   document.getElementById('e-cat').value,
     payment:    document.getElementById('e-pay').value,
-    amount_jpy: +document.getElementById('e-jpy').value
+    amount_jpy: amount
   };
   try {
     await fetch(GAS_URL, {
@@ -1415,7 +1419,7 @@ async function submitExp(e) {
       fetch(GAS_URL)
         .then(function(r){ return r.json(); })
         .then(function(data){ buildSummary(data); showToast('✓ 統計已更新'); })
-        .catch(function(){});
+        .catch(function(){ showToast('統計更新失敗，請手動重整'); });
     }, 2000);
   } catch(e) { showToast('送出失敗，請確認網路'); }
 }
@@ -2485,16 +2489,20 @@ function renderDetailRecords(date) {
   var recs = (window._expRecords || []).filter(function(r){ return normalizeDate(r.date) === date; });
   if (!recs.length) { list.innerHTML = '<div class="record-empty">此日無消費記錄</div>'; return; }
 
-  var subtotal = recs.reduce(function(s,r){ return s + r.amount_jpy; }, 0);
+  var subtotal = recs.reduce(function(s,r){ return s + (+(r.amount_jpy) || 0); }, 0);
   list.innerHTML = '<div class="record-list">'
     + recs.map(function(r){
+      var amt  = +(r.amount_jpy) || 0;
+      var name = r.item     || '—';
+      var cat  = r.category || '—';
+      var pay  = r.payment  || '—';
       return '<div class="record-item">'
         + '<div style="flex:1;min-width:0">'
-          + '<div class="record-name">' + r.item + '</div>'
-          + '<div class="record-meta">' + r.category + ' · ' + r.payment + '</div>'
+          + '<div class="record-name">' + name + '</div>'
+          + '<div class="record-meta">' + cat + ' · ' + pay + '</div>'
         + '</div>'
-        + '<div class="record-amount">¥' + r.amount_jpy.toLocaleString() + '</div>'
-        + '<button class="record-del" data-row="' + r.rowIndex + '" data-name="' + r.item.replace(/"/g,'&quot;') + '">✕</button>'
+        + '<div class="record-amount">¥' + amt.toLocaleString() + '</div>'
+        + '<button class="record-del" data-row="' + (r.rowIndex || '') + '" data-name="' + name.replace(/"/g,'&quot;') + '">✕</button>'
       + '</div>';
     }).join('')
   + '</div>'
