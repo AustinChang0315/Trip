@@ -2199,24 +2199,36 @@ function applyDayOrder(dayNum, spots) {
   if (!saved) return spots;
   try {
     var order = JSON.parse(saved);
+    // byId: id → {spot, idx}；byName: name → [{spot, idx}, ...] 支援同名多個
     var byId = {}, byName = {};
-    spots.forEach(function(s) {
-      if (s.spot_id) byId[s.spot_id] = s;
-      if (s.spot_name) byName[s.spot_name] = s;
+    spots.forEach(function(s, idx) {
+      if (s.spot_id) byId[s.spot_id] = { spot: s, idx: idx };
+      var n = s.spot_name || '';
+      if (!byName[n]) byName[n] = [];
+      byName[n].push({ spot: s, idx: idx });
     });
-    var used = {}, reordered = [];
+    var usedIdx = {}, reordered = [];
     order.forEach(function(entry) {
       var id   = (typeof entry === 'object') ? entry.id   : entry;
       var name = (typeof entry === 'object') ? entry.name : entry;
-      var s = (id && byId[id]) || (name && byName[name]);
-      if (s && !used[s.spot_name]) {
-        reordered.push(s);
-        used[s.spot_name] = true;
+      var found = null, foundIdx = -1;
+      if (id && byId[id] && !usedIdx[byId[id].idx]) {
+        found = byId[id].spot; foundIdx = byId[id].idx;
+      }
+      if (!found && name && byName[name]) {
+        for (var ci = 0; ci < byName[name].length; ci++) {
+          var cand = byName[name][ci];
+          if (!usedIdx[cand.idx]) { found = cand.spot; foundIdx = cand.idx; break; }
+        }
+      }
+      if (found && foundIdx >= 0) {
+        reordered.push(found);
+        usedIdx[foundIdx] = true;
       }
     });
-    // 新增的景點（不在舊順序中）加到最後
-    spots.forEach(function(s) {
-      if (!used[s.spot_name]) reordered.push(s);
+    // 新增的景點（不在舊順序中）補到最後
+    spots.forEach(function(s, idx) {
+      if (!usedIdx[idx]) reordered.push(s);
     });
     return reordered.length ? reordered : spots;
   } catch(e) { return spots; }
