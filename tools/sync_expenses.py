@@ -59,7 +59,7 @@ def sync():
     print(f"[sync_expenses] 取得 {len(records)} 筆記錄")
 
     total_jpy = 0
-    cat_totals = {c: 0 for c in ["餐飲", "交通", "體驗", "購物", "購物-寶寶", "購物-ㄚ鼻", "其他"]}
+    cat_totals = {c: 0 for c in VALID_CATS}
     daily: dict[str, int] = {}
 
     for r in records:

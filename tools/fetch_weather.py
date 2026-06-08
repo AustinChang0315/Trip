@@ -24,8 +24,12 @@ def fetch_weather_for_region(lat: float, lon: float) -> dict:
         "timezone": "Asia/Tokyo",
     })
     url = f"{OPEN_METEO_URL}?{params}"
-    with urllib.request.urlopen(url, timeout=10) as resp:
-        return json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            return json.loads(resp.read())
+    except Exception as e:
+        print(f"  [warn] 天氣 API 失敗：{e}")
+        return {}
 
 
 def weather_alerts(temp: float, precipitation: float) -> list[str]:
@@ -68,6 +72,9 @@ def sync():
     for region_name, coords in regions.items():
         print(f"  → 正在查詢：{region_name} ({coords['latitude']}, {coords['longitude']})")
         raw = fetch_weather_for_region(coords["latitude"], coords["longitude"])
+        if not raw:
+            print(f"  → 略過 {region_name}（API 無回應）")
+            continue
         current = raw["current"]
         temp = current["temperature_2m"]
         precipitation = current["precipitation"]

@@ -2228,11 +2228,11 @@ function moveSpot(dayNum, idx, direction) {
   var target = direction === 'up' ? idx - 1 : idx + 1;
   if (target < 0 || target >= spots.length) return;
   var tmp = spots[idx]; spots[idx] = spots[target]; spots[target] = tmp;
-  spots = spots.map(function(s) {
-    if (!s.time) return s;
-    var copy = Object.assign({}, s);
-    delete copy.time;
-    return copy;
+  [idx, target].forEach(function(i) {
+    if (spots[i] && spots[i].time) {
+      spots[i] = Object.assign({}, spots[i]);
+      delete spots[i].time;
+    }
   });
   itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: spots });
   saveDayOrder(dayNum, spots);
