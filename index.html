@@ -2068,6 +2068,7 @@ function confirmAddSpot() {
     : buildMapsUrl(regionName ? spotName + ' ' + regionName : spotName);
 
   var newSpot = {
+    spot_id:       stableSpotKey({ spot_name: spotName, latitude: lat, longitude: lng }, _addTargetDay),
     spot_name:     spotName,
     duration:      duration,
     region_name:   regionName,
@@ -2293,7 +2294,13 @@ function postOrderToGAS(dayNum, spots) {
     var tMins = 0;
     if (i > 0) {
       var prev = spots[i - 1];
-      tMins = s.travel_mins > 0 ? s.travel_mins : 0;
+      if (prev.latitude && prev.longitude && s.latitude && s.longitude) {
+        tMins = estimateMinsByDistance(
+          haversineMeters(prev.latitude, prev.longitude, s.latitude, s.longitude)
+        );
+      } else if (s.travel_mins > 0) {
+        tMins = s.travel_mins;
+      }
     }
     return { spot_name: s.spot_name, spot_id: s.spot_id || '', sort_order: i, travel_mins: tMins };
   });
@@ -2404,7 +2411,7 @@ async function calcTravelTimes(dayNum) {
 /* ─── Expense Summary ─────────────────────────────────── */
 function buildSummary(data) {
   var wrap = document.getElementById('summary-wrap');
-  if (!data || !data.total_jpy) return;
+  if (!data) return;
 
   var cats   = (data.categories || []).filter(function(c){ return c.jpy > 0; });
   var maxJpy = Math.max.apply(null, cats.map(function(c){ return c.jpy; }).concat([1]));
@@ -2654,7 +2661,7 @@ function sortSpotsOptimal(spots) {
   var middle = spots.slice(1, spots.length - 1);
 
   var heads = [], tails = [], sortable = [];
-  var mid = middle.length / 2;
+  var mid = Math.floor(middle.length / 2);
 
   middle.forEach(function(s, i) {
     var canSort = s.latitude && s.longitude && s.duration > 0;
@@ -2698,6 +2705,7 @@ function reindexTimes(spots, startMins) {
   var mins = (startMins !== undefined) ? startMins : 9 * 60;
   return spots.map(function(s) {
     var copy = Object.assign({}, s);
+    delete copy.travel_mins;
     if (copy.duration > 0) {
       copy.time = minsToTime(mins);
       mins += copy.duration;
