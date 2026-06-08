@@ -762,7 +762,7 @@ function prepareAndRender(itinerary, isUpdate) {
     if (activePanel) activeDayNum = Number(activePanel.dataset.day);
   }
 
-  renderItinerary(prepared);
+  renderItinerary(itineraryState);
 
   if (!isUpdate) {
     buildCountdown(prepared);
@@ -2133,28 +2133,40 @@ function deleteSpot(dayNum, spotName, spotId) {
 
 /* ─── 景點排序（手動移動 + 最佳路線按鈕）──────────────── */
 
-// 儲存當天景點順序到 localStorage（用 spot_name 陣列記錄）
+// 儲存當天景點順序到 localStorage（同時存 id 與 name，防止 spot_id 格式切換時失效）
 function saveDayOrder(dayNum, spots) {
   try {
     localStorage.setItem('day_order_' + dayNum, JSON.stringify(
-      spots.map(function(s){ return s.spot_id || s.spot_name; })
+      spots.map(function(s) { return { id: s.spot_id || '', name: s.spot_name || '' }; })
     ));
   } catch(e) {}
 }
 
 // 從 localStorage 讀回儲存的順序並套用
+// 支援新格式 [{id, name}] 與舊格式 [string]，id 找不到時 fallback 用 name 匹配
 function applyDayOrder(dayNum, spots) {
   var saved = localStorage.getItem('day_order_' + dayNum);
   if (!saved) return spots;
   try {
     var order = JSON.parse(saved);
-    var spotMap = {};
-    spots.forEach(function(s){ spotMap[s.spot_id || s.spot_name] = s; });
-    var reordered = [];
-    order.forEach(function(key){ if (spotMap[key]) reordered.push(spotMap[key]); });
+    var byId = {}, byName = {};
+    spots.forEach(function(s) {
+      if (s.spot_id) byId[s.spot_id] = s;
+      if (s.spot_name) byName[s.spot_name] = s;
+    });
+    var used = {}, reordered = [];
+    order.forEach(function(entry) {
+      var id   = (typeof entry === 'object') ? entry.id   : entry;
+      var name = (typeof entry === 'object') ? entry.name : entry;
+      var s = (id && byId[id]) || (name && byName[name]);
+      if (s && !used[s.spot_name]) {
+        reordered.push(s);
+        used[s.spot_name] = true;
+      }
+    });
     // 新增的景點（不在舊順序中）加到最後
-    spots.forEach(function(s){
-      if (order.indexOf(s.spot_id || s.spot_name) < 0) reordered.push(s);
+    spots.forEach(function(s) {
+      if (!used[s.spot_name]) reordered.push(s);
     });
     return reordered.length ? reordered : spots;
   } catch(e) { return spots; }
