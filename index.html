@@ -657,6 +657,16 @@ var tripDays       = [];
 var itineraryState = [];   // Task 5：增刪操作的可變狀態
 var flightsData    = [];   // 班機資訊（來自 GAS flights 頁籤）
 var _baseItinerary = null; // manualRefresh() 存取用
+
+function markDayMutated(dayNum) {
+  try { localStorage.setItem('day_mutated_' + dayNum, String(Date.now())); } catch(e) {}
+}
+function isDayMutated(dayNum) {
+  try {
+    var t = Number(localStorage.getItem('day_mutated_' + dayNum));
+    return t > 0 && (Date.now() - t) < 30000;
+  } catch(e) { return false; }
+}
 var _addTargetDay  = null; // 新增 modal 的目標天數
 var modalMap       = null; // Google Maps 實例（建立後跨 modal 重複使用）
 var currentMarker  = null; // 地圖當前圖釘（永遠只保留一個）
@@ -734,6 +744,10 @@ function prepareAndRender(itinerary, isUpdate) {
   try { _tCache = JSON.parse(localStorage.getItem('transit_mins_cache') || '{}'); } catch(e) {}
   var _CACHE_TTL = 4 * 3600 * 1000;
   itineraryState = prepared.map(function(d) {
+    if (isUpdate && isDayMutated(d.day)) {
+      var prevDay = (itineraryState || []).filter(function(ps) { return ps.day === d.day; })[0];
+      if (prevDay) return prevDay;
+    }
     var prevSpotsMap = {};
     (itineraryState || []).forEach(function(ps) {
       if (ps.day === d.day) ps.spots.forEach(function(s) {
@@ -923,6 +937,7 @@ async function boot() {
 
 /* ─── 手動刷新 ────────────────────────────────────────── */
 async function manualRefresh() {
+  try { for (var i = 1; i <= 7; i++) localStorage.removeItem('day_mutated_' + i); } catch(e) {}
   var btns = document.querySelectorAll('.btn-refresh');
   btns.forEach(function(b) { b.disabled = true; b.style.opacity = '0.4'; });
   showToast('重新整理中…');
@@ -2074,6 +2089,7 @@ function confirmAddSpot() {
   var merged = dayData.spots.concat([newSpot]);
   itineraryState[dayIdx] = Object.assign({}, dayData, { spots: merged });
   saveDayOrder(_addTargetDay, merged);
+  markDayMutated(_addTargetDay);
 
   closeAddModal();                               // 同時解鎖 body scroll
   updateDayPanel(itineraryState[dayIdx]);
@@ -2146,6 +2162,7 @@ function deleteSpot(dayNum, spotName, spotId) {
 
   itineraryState[dayIndex] = Object.assign({}, dayData, { spots: remaining });
   saveDayOrder(dayNum, remaining);
+  markDayMutated(dayNum);
   updateDayPanel(itineraryState[dayIndex]);
   showToast('✓ 已移除「' + spotName + '」');
 
