@@ -83,15 +83,6 @@
     .trip-banner-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
     .trip-banner-dates { font-size: .68rem; color: rgba(255,255,255,.58); letter-spacing: .06em; }
     #hdr-weather       { font-size: .62rem; color: rgba(255,255,255,.72); letter-spacing: .03em; }
-    #btn-refresh {
-      background: none; border: none;
-      color: rgba(255,255,255,.65); font-size: .9rem;
-      cursor: pointer; padding: 2px 4px; border-radius: 4px; line-height: 1;
-      transition: opacity .2s;
-      align-self: flex-end;
-    }
-    #btn-refresh:active { opacity: .4; }
-
     /* Day Tabs */
     .day-tabs { display: flex; overflow-x: auto; gap: 8px; padding: 0 16px 12px; scrollbar-width: none; -ms-overflow-style: none; }
     .day-tabs::-webkit-scrollbar { display: none; }
@@ -226,9 +217,9 @@
     .btn-move-dn { right: 34px; }
 
     /* Add Spot Button（每天底部） */
-    .add-spot-wrap { padding: 12px 16px 4px; }
+    .add-spot-wrap { padding: 12px 16px 4px; display: flex; gap: 8px; }
     .btn-add-spot {
-      width: 100%; padding: 10px;
+      flex: 1; padding: 10px;
       border: 1.5px dashed var(--accent-bd);
       border-radius: var(--r-sm);
       background: transparent; color: var(--accent);
@@ -236,6 +227,10 @@
       transition: background .15s;
     }
     .btn-add-spot:active { background: var(--accent-lt); }
+    .btn-add-spot.btn-refresh {
+      flex: 0 0 44px;
+      font-size: .95rem; letter-spacing: 0; padding: 10px 0;
+    }
 
     /* Add Spot Modal */
     .geocode-status { font-size: .75rem; color: var(--text-2); min-height: 18px; margin-top: 6px; line-height: 1.5; }
@@ -565,7 +560,6 @@
       <div class="trip-banner-right">
         <span class="trip-banner-dates">2026.06.24 — 06.29</span>
         <div id="hdr-weather"></div>
-        <button id="btn-refresh" onclick="manualRefresh()" title="重新整理" aria-label="重新整理">↺</button>
       </div>
     </div>
     <nav class="day-tabs" id="day-tabs"></nav>
@@ -929,8 +923,8 @@ async function boot() {
 
 /* ─── 手動刷新 ────────────────────────────────────────── */
 async function manualRefresh() {
-  var btn = document.getElementById('btn-refresh');
-  if (btn) { btn.disabled = true; btn.style.opacity = '0.4'; }
+  var btns = document.querySelectorAll('.btn-refresh');
+  btns.forEach(function(b) { b.disabled = true; b.style.opacity = '0.4'; });
   showToast('重新整理中…');
   try {
     if (!API_URL || !_baseItinerary) { location.reload(); return; }
@@ -945,7 +939,7 @@ async function manualRefresh() {
   } catch(e) {
     showToast('無法連線，使用本機資料');
   } finally {
-    if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+    btns.forEach(function(b) { b.disabled = false; b.style.opacity = ''; });
   }
 }
 
@@ -1157,7 +1151,8 @@ function renderDayPanel(dayData) {
 
   var diningStr  = (dayData.dining && dayData.dining.length) ? buildDiningHTML(dayData.dining) : '';
   var addBtnHtml = '<div class="add-spot-wrap">'
-    + '<button class="btn-add-spot" onclick="showAddModal(' + dayData.day + ')">➕ 新增此日景點</button>'
+    + '<button class="btn-add-spot" onclick="showAddModal(' + dayData.day + ')">➕ 新增景點</button>'
+    + '<button class="btn-add-spot btn-refresh" onclick="manualRefresh()" title="重新整理">↺</button>'
   + '</div>';
 
   // 班機卡片：GAS flights 優先，fallback 到 itinerary.json 中的去程/回程 spots
