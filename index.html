@@ -1335,23 +1335,21 @@ async function fetchWeather(days) {
       var prob = loc.data.precipitation_probability_max[di] || 0;
       var key  = tMax + '|' + tMin + '|' + prob;
       if (!seen[key]) {
-        seen[key] = entries.length;
-        entries.push({ tMax: tMax, tMin: tMin, rain: rain, prob: prob, regions: [spot.region_name] });
-      } else {
-        var ex = entries[seen[key]];
-        if (ex.regions.indexOf(spot.region_name) < 0) ex.regions.push(spot.region_name);
+        seen[key] = true;
+        entries.push({ tMax: tMax, tMin: tMin, rain: rain, prob: prob, region: spot.region_name });
       }
     });
     if (!entries.length) return;
     var el = document.getElementById('dw-' + day.date);
     if (!el) return;
+    var showRegion = entries.length > 1;
     var blocksHtml = entries.map(function(e) {
-      var loc = regionMap[e.regions[0]];
+      var loc = regionMap[e.region];
       var alerts = [];
       if (e.rain > 0 || e.prob > 30) alerts.push('<span class="w-alert">☂ 帶傘</span>');
       if (e.tMax < 15) alerts.push('<span class="w-alert">🧥 外套</span>');
       var summaryHtml = '<div class="dw-entry">'
-        + '<span class="dw-region">' + e.regions.join('・') + '</span><span style="color:var(--border)">·</span>'
+        + (showRegion ? '<span class="dw-region">' + e.region + '</span><span style="color:var(--border)">·</span>' : '')
         + '<span class="w-temp">' + e.tMax + '°C</span>'
         + '<span style="color:var(--border)">↕</span>'
         + '<span style="color:var(--text-3)">' + e.tMin + '°C</span>'
