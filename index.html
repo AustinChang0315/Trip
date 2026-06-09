@@ -264,10 +264,11 @@
     .dw-hourly-text {
       margin-top: 6px; padding-top: 6px;
       border-top: 1px solid rgba(122,143,126,.15);
-      display: flex; flex-direction: column; gap: 6px;
+      display: flex; flex-direction: column; gap: 5px;
     }
-    .dw-region-label { font-size: .63rem; color: var(--text-3); font-weight: 500; margin-bottom: 1px; }
-    .dw-hr-row { display: flex; flex-wrap: wrap; gap: 2px 4px; }
+    .dw-region-block { display: flex; gap: 6px; align-items: flex-start; }
+    .dw-region-label { font-size: .63rem; color: var(--text-3); font-weight: 500; white-space: nowrap; padding-top: 3px; min-width: 42px; }
+    .dw-hr-row { display: flex; flex-wrap: wrap; gap: 2px 3px; flex: 1; }
     .dw-hr-item { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 20px; padding: 2px 1px; border-radius: 3px; }
     .dw-hr-time { font-size: .58rem; color: var(--text-3); }
     .dw-hr-prob { font-size: .65rem; font-weight: 600; }
@@ -1369,12 +1370,12 @@ function buildHourlyText(entries, regionMap, date) {
   var blocks = entries.map(function(e) {
     var loc = regionMap[e.region];
     if (!loc || !loc.hourly) return '';
-    var label = showLabel ? '<div class="dw-region-label">' + e.region + '</div>' : '';
     var items = '';
-    for (var h = 8; h <= 22; h++) {
+    for (var h = 10; h <= 20; h++) {
       var key  = date + 'T' + (h < 10 ? '0' : '') + h + ':00';
       var idx  = loc.hourly.time.indexOf(key);
       var prob = idx >= 0 ? (loc.hourly.precipitation_probability[idx] || 0) : 0;
+      prob = Math.round(prob / 5) * 5;
       var color = prob >= 60 ? 'var(--red)'
                 : prob >= 30 ? 'var(--gold)'
                 : 'var(--text-3)';
@@ -1383,7 +1384,10 @@ function buildHourlyText(entries, regionMap, date) {
         + '<span class="dw-hr-prob" style="color:' + color + '">' + prob + '%</span>'
         + '</span>';
     }
-    return label + '<div class="dw-hr-row">' + items + '</div>';
+    return '<div class="dw-region-block">'
+      + (showLabel ? '<span class="dw-region-label">' + e.region + '</span>' : '')
+      + '<div class="dw-hr-row">' + items + '</div>'
+      + '</div>';
   }).filter(Boolean).join('');
   return blocks ? '<div class="dw-hourly-text">' + blocks + '</div>' : '';
 }
