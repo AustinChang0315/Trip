@@ -889,7 +889,9 @@ async function boot() {
           if (fresh.itinerary && fresh.itinerary.length) {
             localStorage.setItem('gas_cache', JSON.stringify(fresh));
             if (fresh.flights && fresh.flights.length) flightsData = fresh.flights;
-            prepareAndRender(mergeGAS(baseItinerary, fresh), true);
+            var updated = mergeGAS(baseItinerary, fresh);
+            prepareAndRender(updated, true);
+            fetchWeather(updated);
           }
         })
         .catch(function() {});
