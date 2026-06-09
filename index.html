@@ -782,7 +782,23 @@ function prepareAndRender(itinerary, isUpdate) {
     if (activePanel) activeDayNum = Number(activePanel.dataset.day);
   }
 
+  var weatherSnap = {};
+  if (isUpdate) {
+    document.querySelectorAll('.day-weather-summary').forEach(function(el) {
+      if (el.style.display !== 'none' && el.innerHTML) {
+        weatherSnap[el.id] = { html: el.innerHTML, disp: el.style.display };
+      }
+    });
+  }
+
   renderItinerary(itineraryState);
+
+  if (isUpdate) {
+    Object.keys(weatherSnap).forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) { el.innerHTML = weatherSnap[id].html; el.style.display = weatherSnap[id].disp; }
+    });
+  }
 
   if (!isUpdate) {
     buildCountdown(prepared);
@@ -956,6 +972,8 @@ async function manualRefresh() {
       prepareAndRender(updated, true);
       fetchWeather(updated);
       showToast('✓ 行程已更新');
+    } else {
+      showToast('行程資料異常，保留現有資料');
     }
   } catch(e) {
     showToast('無法連線，使用本機資料');
