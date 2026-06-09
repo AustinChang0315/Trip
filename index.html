@@ -1366,7 +1366,7 @@ async function fetchWeather(days) {
           var hprob = hidx >= 0 ? (loc.hourly.precipitation_probability[hidx] || 0) : 0;
           hprob = Math.round(hprob / 5) * 5;
           var wcode = (loc.hourly.weathercode && hidx >= 0) ? (loc.hourly.weathercode[hidx] || 0) : -1;
-          var icon  = wcode >= 0 ? getWeatherIcon(wcode) : '';
+          var icon  = wcode >= 0 ? getWeatherIcon(wcode, hprob) : '';
           var hcolor = hprob >= 60 ? 'var(--red)' : hprob >= 30 ? 'var(--gold)' : 'var(--text-3)';
           items += '<span class="dw-hr-item">'
             + '<span class="dw-hr-time">' + h + '</span>'
@@ -1383,7 +1383,9 @@ async function fetchWeather(days) {
   });
 }
 
-function getWeatherIcon(code) {
+function getWeatherIcon(code, prob) {
+  if (prob >= 60) return '🌧️';
+  if (prob >= 30) return '🌦️';
   if (code === 0)                 return '☀️';
   if (code === 1)                 return '🌤️';
   if (code === 2)                 return '⛅';
