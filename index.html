@@ -940,7 +940,9 @@ async function manualRefresh() {
     if (fresh.itinerary && fresh.itinerary.length) {
       localStorage.setItem('gas_cache', JSON.stringify(fresh));
       if (fresh.flights && fresh.flights.length) flightsData = fresh.flights;
-      prepareAndRender(mergeGAS(_baseItinerary, fresh), true);
+      var updated = mergeGAS(_baseItinerary, fresh);
+      prepareAndRender(updated, true);
+      fetchWeather(updated);
       showToast('✓ 行程已更新');
     }
   } catch(e) {
