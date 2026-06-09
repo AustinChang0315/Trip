@@ -251,26 +251,24 @@
 
     /* Weather (day-level summary in day-header) */
     .day-weather-summary {
-      display: flex; flex-direction: column; gap: 0;
+      display: flex; flex-direction: column; gap: 6px;
       margin: 6px 0 0; padding: 6px 10px;
       background: var(--sage-lt); border-radius: 6px;
       font-size: .73rem; border: 1px solid rgba(122,143,126,.2);
     }
-    .dw-daily  { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .dw-entry-block {
+      display: flex; flex-direction: column; gap: 4px;
+      padding-bottom: 6px; border-bottom: 1px solid rgba(122,143,126,.12);
+    }
+    .dw-entry-block:last-child { padding-bottom: 0; border-bottom: none; }
     .dw-entry  { display: flex; align-items: center; gap: 4px; }
     .dw-region { font-size: .65rem; color: var(--text-3); }
     .w-temp    { font-weight: 600; color: var(--sage); }
     .w-alert   { color: var(--red); }
-    .dw-hourly-text {
-      margin-top: 6px; padding-top: 6px;
-      border-top: 1px solid rgba(122,143,126,.15);
-      display: flex; flex-direction: column; gap: 5px;
-    }
-    .dw-region-block { display: flex; gap: 6px; align-items: flex-start; }
-    .dw-region-label { font-size: .63rem; color: var(--text-3); font-weight: 500; white-space: nowrap; padding-top: 3px; min-width: 42px; }
-    .dw-hr-row { display: flex; flex-wrap: wrap; gap: 2px 3px; flex: 1; }
+    .dw-hr-row { display: flex; flex-wrap: wrap; gap: 2px 3px; }
     .dw-hr-item { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 20px; padding: 2px 1px; border-radius: 3px; }
     .dw-hr-time { font-size: .58rem; color: var(--text-3); }
+    .dw-hr-icon { font-size: .8rem; line-height: 1; }
     .dw-hr-prob { font-size: .65rem; font-weight: 600; }
 
     /* Transport */
@@ -1313,7 +1311,7 @@ async function fetchWeather(days) {
     try {
       var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + loc.lat + '&longitude=' + loc.lon
         + '&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max'
-        + '&hourly=precipitation_probability'
+        + '&hourly=precipitation_probability,weathercode'
         + '&timezone=Asia%2FTokyo&forecast_days=16';
       var r = await fetch(url);
       var j = await r.json();
@@ -1345,11 +1343,12 @@ async function fetchWeather(days) {
     var el = document.getElementById('dw-' + day.date);
     if (!el) return;
     var showRegion = entries.length > 1;
-    var dailyHtml = entries.map(function(e) {
+    var blocksHtml = entries.map(function(e) {
+      var loc = regionMap[e.region];
       var alerts = [];
       if (e.rain > 0 || e.prob > 30) alerts.push('<span class="w-alert">☂ 帶傘</span>');
       if (e.tMax < 15) alerts.push('<span class="w-alert">🧥 外套</span>');
-      return '<span class="dw-entry">'
+      var summaryHtml = '<div class="dw-entry">'
         + (showRegion ? '<span class="dw-region">' + e.region + '</span><span style="color:var(--border)">·</span>' : '')
         + '<span class="w-temp">' + e.tMax + '°C</span>'
         + '<span style="color:var(--border)">↕</span>'
@@ -1357,39 +1356,45 @@ async function fetchWeather(days) {
         + '<span style="color:var(--border)">｜</span>'
         + '<span>☔ ' + e.prob + '%</span>'
         + alerts.join('')
-        + '</span>';
-    }).join('<span style="color:var(--border);margin:0 2px">／</span>');
-    el.innerHTML = '<div class="dw-daily">' + dailyHtml + '</div>'
-      + buildHourlyText(entries, regionMap, day.date);
+        + '</div>';
+      var hourlyHtml = '';
+      if (loc && loc.hourly) {
+        var items = '';
+        for (var h = 10; h <= 20; h++) {
+          var hkey  = day.date + 'T' + (h < 10 ? '0' : '') + h + ':00';
+          var hidx  = loc.hourly.time.indexOf(hkey);
+          var hprob = hidx >= 0 ? (loc.hourly.precipitation_probability[hidx] || 0) : 0;
+          hprob = Math.round(hprob / 5) * 5;
+          var wcode = (loc.hourly.weathercode && hidx >= 0) ? (loc.hourly.weathercode[hidx] || 0) : -1;
+          var icon  = wcode >= 0 ? getWeatherIcon(wcode) : '';
+          var hcolor = hprob >= 60 ? 'var(--red)' : hprob >= 30 ? 'var(--gold)' : 'var(--text-3)';
+          items += '<span class="dw-hr-item">'
+            + '<span class="dw-hr-time">' + h + '</span>'
+            + (icon ? '<span class="dw-hr-icon">' + icon + '</span>' : '')
+            + '<span class="dw-hr-prob" style="color:' + hcolor + '">' + hprob + '%</span>'
+            + '</span>';
+        }
+        hourlyHtml = '<div class="dw-hr-row">' + items + '</div>';
+      }
+      return '<div class="dw-entry-block">' + summaryHtml + hourlyHtml + '</div>';
+    }).join('');
+    el.innerHTML = blocksHtml;
     el.style.display = 'flex';
   });
 }
 
-function buildHourlyText(entries, regionMap, date) {
-  var showLabel = entries.length > 1;
-  var blocks = entries.map(function(e) {
-    var loc = regionMap[e.region];
-    if (!loc || !loc.hourly) return '';
-    var items = '';
-    for (var h = 10; h <= 20; h++) {
-      var key  = date + 'T' + (h < 10 ? '0' : '') + h + ':00';
-      var idx  = loc.hourly.time.indexOf(key);
-      var prob = idx >= 0 ? (loc.hourly.precipitation_probability[idx] || 0) : 0;
-      prob = Math.round(prob / 5) * 5;
-      var color = prob >= 60 ? 'var(--red)'
-                : prob >= 30 ? 'var(--gold)'
-                : 'var(--text-3)';
-      items += '<span class="dw-hr-item">'
-        + '<span class="dw-hr-time">' + h + '</span>'
-        + '<span class="dw-hr-prob" style="color:' + color + '">' + prob + '%</span>'
-        + '</span>';
-    }
-    return '<div class="dw-region-block">'
-      + (showLabel ? '<span class="dw-region-label">' + e.region + '</span>' : '')
-      + '<div class="dw-hr-row">' + items + '</div>'
-      + '</div>';
-  }).filter(Boolean).join('');
-  return blocks ? '<div class="dw-hourly-text">' + blocks + '</div>' : '';
+function getWeatherIcon(code) {
+  if (code === 0)                 return '☀️';
+  if (code === 1)                 return '🌤️';
+  if (code === 2)                 return '⛅';
+  if (code === 3)                 return '☁️';
+  if (code === 45 || code === 48) return '🌫️';
+  if (code >= 51 && code <= 55)   return '🌦️';
+  if (code >= 61 && code <= 65)   return '🌧️';
+  if (code >= 71 && code <= 75)   return '❄️';
+  if (code >= 80 && code <= 82)   return '🌦️';
+  if (code >= 95)                 return '⛈️';
+  return '⛅';
 }
 
 /* ─── Expense Form ────────────────────────────────────── */
