@@ -263,12 +263,12 @@
     .w-alert   { color: var(--red); }
     .dw-hourly {
       display: flex; align-items: flex-end; gap: 2px;
-      width: 100%; margin-top: 6px; padding-top: 6px;
+      width: 100%; min-height: 48px; margin-top: 6px; padding-top: 6px;
       border-top: 1px solid rgba(122,143,126,.15);
     }
     .dw-bar-wrap { display: flex; flex-direction: column; align-items: center; flex: 1; }
     .dw-bar      { width: 100%; border-radius: 2px 2px 0 0; min-height: 2px; }
-    .dw-bar-label { font-size: .55rem; color: var(--text-3); margin-top: 2px; line-height: 1; }
+    .dw-bar-label { font-size: .6rem; color: var(--text-3); margin-top: 2px; line-height: 1; }
 
     /* Transport */
     .transport {
@@ -1356,9 +1356,9 @@ async function fetchWeather(days) {
         + alerts.join('')
         + '</span>';
     }).join('<span style="color:var(--border);margin:0 2px">／</span>');
-    var repLoc = regionMap[entries[0].region];
+    var allLocs = entries.map(function(e) { return regionMap[e.region]; });
     el.innerHTML = '<div class="dw-daily">' + dailyHtml + '</div>'
-      + buildHourlyBars(repLoc, day.date);
+      + buildHourlyBarsMerged(allLocs, day.date);
     el.style.display = 'flex';
   });
 }
@@ -1374,7 +1374,7 @@ function buildHourlyBars(loc, date) {
     hours.push({ h: h, prob: idx >= 0 ? (probs[idx] || 0) : 0 });
   }
   var bars = hours.map(function(hd) {
-    var ht    = Math.max(2, Math.round(hd.prob * 0.3));
+    var ht    = Math.max(2, Math.round(hd.prob * 0.5));
     var color = hd.prob >= 60 ? 'var(--red)'
               : hd.prob >= 30 ? 'var(--gold)'
               : 'var(--sage)';
@@ -1387,6 +1387,22 @@ function buildHourlyBars(loc, date) {
       + '</div>';
   }).join('');
   return '<div class="dw-hourly">' + bars + '</div>';
+}
+
+function buildHourlyBarsMerged(locs, date) {
+  var validLocs = locs.filter(function(l) { return l && l.hourly; });
+  if (!validLocs.length) return '';
+  var hours = [];
+  for (var h = 8; h <= 22; h++) {
+    var key = date + 'T' + (h < 10 ? '0' : '') + h + ':00';
+    var maxProb = 0;
+    validLocs.forEach(function(loc) {
+      var idx = loc.hourly.time.indexOf(key);
+      if (idx >= 0) maxProb = Math.max(maxProb, loc.hourly.precipitation_probability[idx] || 0);
+    });
+    hours.push({ h: h, prob: maxProb });
+  }
+  return buildHourlyBars({ hourly: { time: hours.map(function(hd) { return date + 'T' + (hd.h < 10 ? '0' : '') + hd.h + ':00'; }), precipitation_probability: hours.map(function(hd) { return hd.prob; }) } }, date);
 }
 
 /* ─── Expense Form ────────────────────────────────────── */
