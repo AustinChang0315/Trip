@@ -251,15 +251,24 @@
 
     /* Weather (day-level summary in day-header) */
     .day-weather-summary {
-      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      display: flex; flex-direction: column; gap: 0;
       margin: 6px 0 0; padding: 6px 10px;
       background: var(--sage-lt); border-radius: 6px;
       font-size: .73rem; border: 1px solid rgba(122,143,126,.2);
     }
-    .dw-entry { display: flex; align-items: center; gap: 4px; }
+    .dw-daily  { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .dw-entry  { display: flex; align-items: center; gap: 4px; }
     .dw-region { font-size: .65rem; color: var(--text-3); }
-    .w-temp  { font-weight: 600; color: var(--sage); }
-    .w-alert { color: var(--red); }
+    .w-temp    { font-weight: 600; color: var(--sage); }
+    .w-alert   { color: var(--red); }
+    .dw-hourly {
+      display: flex; align-items: flex-end; gap: 2px;
+      width: 100%; margin-top: 6px; padding-top: 6px;
+      border-top: 1px solid rgba(122,143,126,.15);
+    }
+    .dw-bar-wrap { display: flex; flex-direction: column; align-items: center; flex: 1; }
+    .dw-bar      { width: 100%; border-radius: 2px 2px 0 0; min-height: 2px; }
+    .dw-bar-label { font-size: .55rem; color: var(--text-3); margin-top: 2px; line-height: 1; }
 
     /* Transport */
     .transport {
@@ -1301,10 +1310,12 @@ async function fetchWeather(days) {
     try {
       var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + loc.lat + '&longitude=' + loc.lon
         + '&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max'
+        + '&hourly=precipitation_probability'
         + '&timezone=Asia%2FTokyo&forecast_days=16';
       var r = await fetch(url);
       var j = await r.json();
       if (j.daily && j.daily.time && j.daily.time.length) regionMap[region].data = j.daily;
+      if (j.hourly && j.hourly.time && j.hourly.time.length) regionMap[region].hourly = j.hourly;
     } catch(e) {}
   }));
 
@@ -1331,7 +1342,7 @@ async function fetchWeather(days) {
     var el = document.getElementById('dw-' + day.date);
     if (!el) return;
     var showRegion = entries.length > 1;
-    el.innerHTML = entries.map(function(e) {
+    var dailyHtml = entries.map(function(e) {
       var alerts = [];
       if (e.rain > 0 || e.prob > 30) alerts.push('<span class="w-alert">☂ 帶傘</span>');
       if (e.tMax < 15) alerts.push('<span class="w-alert">🧥 外套</span>');
@@ -1345,8 +1356,37 @@ async function fetchWeather(days) {
         + alerts.join('')
         + '</span>';
     }).join('<span style="color:var(--border);margin:0 2px">／</span>');
+    var repLoc = regionMap[entries[0].region];
+    el.innerHTML = '<div class="dw-daily">' + dailyHtml + '</div>'
+      + buildHourlyBars(repLoc, day.date);
     el.style.display = 'flex';
   });
+}
+
+function buildHourlyBars(loc, date) {
+  if (!loc || !loc.hourly) return '';
+  var times = loc.hourly.time;
+  var probs  = loc.hourly.precipitation_probability;
+  var hours  = [];
+  for (var h = 8; h <= 22; h++) {
+    var key = date + 'T' + (h < 10 ? '0' : '') + h + ':00';
+    var idx = times.indexOf(key);
+    hours.push({ h: h, prob: idx >= 0 ? (probs[idx] || 0) : 0 });
+  }
+  var bars = hours.map(function(hd) {
+    var ht    = Math.max(2, Math.round(hd.prob * 0.3));
+    var color = hd.prob >= 60 ? 'var(--red)'
+              : hd.prob >= 30 ? 'var(--gold)'
+              : 'var(--sage)';
+    var lbl   = (hd.h % 3 === 0)
+      ? '<div class="dw-bar-label">' + hd.h + '</div>'
+      : '<div class="dw-bar-label"></div>';
+    return '<div class="dw-bar-wrap">'
+      + '<div class="dw-bar" style="height:' + ht + 'px;background:' + color + '" title="' + hd.h + ':00 ' + hd.prob + '%"></div>'
+      + lbl
+      + '</div>';
+  }).join('');
+  return '<div class="dw-hourly">' + bars + '</div>';
 }
 
 /* ─── Expense Form ────────────────────────────────────── */
