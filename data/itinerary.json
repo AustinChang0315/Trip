@@ -367,60 +367,60 @@
       ],
       "dining": [
         {
-          "name": "Cafe Patricia 川越",
+          "name": "ヨリドコロ 稲村ヶ崎",
           "category": "早餐",
-          "type": "咖啡輕食",
-          "description": "川越站西口步行4分鐘，使用東京目黑名店 Prologue 豆子製作的本格咖啡，搭配季節限定餐點，是開始川越散策前的完美早晨。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=cafe+patricia+川越&travelmode=transit"
+          "type": "和食早餐",
+          "description": "大正時代民家改建的海濱早餐名店，以獨特的泡沫蛋黃卵かけご飯（TKG）聞名，從窗邊可望見江之電奔馳而過。是鎌倉最具詩意的晨間體驗，建議提早排隊。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ヨリドコロ+稲村ヶ崎&travelmode=transit"
         },
         {
-          "name": "Tomarigi Coffee 川越",
+          "name": "BREEZE BIRD CAFE & BAKERY",
           "category": "早餐",
-          "type": "自家烘焙咖啡",
-          "description": "早上7時半開始營業的自家烘焙咖啡店，提供簡單早餐套餐，是川越在地人的早晨秘密基地。蔵造老街散策前先來補充能量。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=トマリギコーヒー+川越&travelmode=transit"
+          "type": "麵包咖啡廳",
+          "description": "江之電和田塚站前的麵包咖啡廳，每日以天然酵母製作10種以上麵包，搭配手沖咖啡是鎌倉最清新的晨間選擇，在地人氣極高。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=BREEZE+BIRD+CAFE+鎌倉&travelmode=transit"
         },
         {
-          "name": "小川菊 川越",
+          "name": "とびっちょ 江の島",
           "category": "午餐",
-          "type": "鰻魚飯",
-          "description": "文化12年（1815年）創業的川越老舖鰻魚飯名店，備長炭炭烤後再蒸製，鰻魚飽滿柔嫩，是川越最具代表性的午餐體驗。建議提早到店或電話預約。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=小川菊+川越&travelmode=transit"
+          "type": "生しらす丼",
+          "description": "江之島最具代表性的白魚丼（しらす丼）名店，使用當天早晨捕撈的鮮活白魚。6月正是白魚旺季，是江之島必吃的鮮味體驗，建議避開正午人潮。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=とびっちょ+江の島&travelmode=transit"
         },
         {
-          "name": "百丈 川越",
+          "name": "TODAI KITCHEN DELI & TEA",
           "category": "午餐",
-          "type": "川越定食",
-          "description": "位於蔵造老街的川越名物料理餐廳，以川越產味噌與在地食材製作定食，蕎麥與豆腐套餐具有濃厚地方風情，感受小江戶飲食文化的好選擇。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=百丈+川越&travelmode=transit"
+          "type": "地產地消",
+          "description": "江之島海蠟燭瞭望台旁的地產地消餐廳，使用湘南藤沢產小麥製作漢堡麵包，搭配本地食材，可在絕景露台邊看海邊用餐。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=TODAI+KITCHEN+江の島&travelmode=transit"
         },
         {
-          "name": "Legato 渋谷",
+          "name": "Amalfi Della Sera 江の島",
           "category": "晚餐",
           "type": "義式料理",
-          "description": "澀谷 Hikarie 11樓的空中義大利餐廳，居高臨下的城市夜景配上精緻義式料理，是澀谷 SKY 觀景台後的最佳晚餐選擇，強烈建議提前預約。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Legato+渋谷&travelmode=transit"
+          "description": "江之島面海的露台義大利餐廳，以高溫石窯烤出的拿坡里披薩配上湘南海景，夕陽西沈時氣氛絕美，是江之島行程最完美的收尾。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=アマルフィ+デッラ+セーラ+江の島&travelmode=transit"
         },
         {
-          "name": "牛かつ もと村 渋谷",
+          "name": "iL CHIANTI CAFE 江の島",
           "category": "晚餐",
-          "type": "牛排炸物",
-          "description": "以低溫油炸保留鮮嫩肉汁的牛排炸物專門店，搭配麥飯與山藥泥，是東京近年人氣高漲的新派炸物料理，澀谷店位置方便。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=牛かつもと村+渋谷&travelmode=transit"
+          "type": "義式料理",
+          "description": "在迷人的海風中享用正統義大利料理，是江之島長期受在地人喜愛的名店。可於露台座位感受湘南海岸的暮色，讓時間在此放慢。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=iL+CHIANTI+CAFE+江の島&travelmode=transit"
         },
         {
-          "name": "8+8 Cafe 川越",
+          "name": "enzan lab.",
           "category": "咖啡廳",
-          "type": "農業咖啡廳",
-          "description": "農家直送無農藥蔬菜入菜的農業咖啡廳，米飯與蔬菜皆出自自家農場，米粉製作的戚風蛋糕是招牌，是川越最具在地溫度的咖啡廳。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=8plus8cafe+川越&travelmode=transit"
+          "type": "精品咖啡",
+          "description": "湘南地區備受注目的精品咖啡廳，以職人手沖咖啡與在地食材輕食著稱。江之島散策途中最有格調的歇腳點，低調質感與湘南海岸氣息完美融合。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=enzan+lab&travelmode=transit"
         },
         {
-          "name": "大正浪漫喫茶 蔵里",
+          "name": "江の島 ENOSHIMA TERRACE",
           "category": "咖啡廳",
-          "type": "古民家咖啡",
-          "description": "蔵造街道上的大正浪漫風格咖啡廳，在保留昭和建築風情的空間裡品嚐手工甜點與咖啡，是川越最有時代感的下午茶空間。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=大正浪漫夢通り+川越&travelmode=transit"
+          "type": "海景咖啡",
+          "description": "江之島神社參道途中的露天咖啡廳，邊喝咖啡邊俯瞰湘南海岸線。6月的薄霧與碧海交織，是逛完島嶼後最想回來歇腳的地方。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ENOSHIMA+TERRACE&travelmode=transit"
         }
       ]
     },
@@ -511,60 +511,60 @@
       ],
       "dining": [
         {
-          "name": "ヨリドコロ 稲村ヶ崎",
+          "name": "Cafe Patricia 川越",
           "category": "早餐",
-          "type": "和食早餐",
-          "description": "大正時代民家改建的海濱早餐名店，以獨特的泡沫蛋黃卵かけご飯（TKG）聞名，從窗邊可望見江之電奔馳而過。是鎌倉最具詩意的晨間體驗，建議提早排隊。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ヨリドコロ+稲村ヶ崎&travelmode=transit"
+          "type": "咖啡輕食",
+          "description": "川越站西口步行4分鐘，使用東京目黑名店 Prologue 豆子製作的本格咖啡，搭配季節限定餐點，是開始川越散策前的完美早晨。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=cafe+patricia+川越&travelmode=transit"
         },
         {
-          "name": "BREEZE BIRD CAFE & BAKERY",
+          "name": "Tomarigi Coffee 川越",
           "category": "早餐",
-          "type": "麵包咖啡廳",
-          "description": "江之電和田塚站前的麵包咖啡廳，每日以天然酵母製作10種以上麵包，搭配手沖咖啡是鎌倉最清新的晨間選擇，在地人氣極高。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=BREEZE+BIRD+CAFE+鎌倉&travelmode=transit"
+          "type": "自家烘焙咖啡",
+          "description": "早上7時半開始營業的自家烘焙咖啡店，提供簡單早餐套餐，是川越在地人的早晨秘密基地。蔵造老街散策前先來補充能量。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=トマリギコーヒー+川越&travelmode=transit"
         },
         {
-          "name": "とびっちょ 江の島",
+          "name": "小川菊 川越",
           "category": "午餐",
-          "type": "生しらす丼",
-          "description": "江之島最具代表性的白魚丼（しらす丼）名店，使用當天早晨捕撈的鮮活白魚。6月正是白魚旺季，是江之島必吃的鮮味體驗，建議避開正午人潮。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=とびっちょ+江の島&travelmode=transit"
+          "type": "鰻魚飯",
+          "description": "文化12年（1815年）創業的川越老舖鰻魚飯名店，備長炭炭烤後再蒸製，鰻魚飽滿柔嫩，是川越最具代表性的午餐體驗。建議提早到店或電話預約。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=小川菊+川越&travelmode=transit"
         },
         {
-          "name": "TODAI KITCHEN DELI & TEA",
+          "name": "百丈 川越",
           "category": "午餐",
-          "type": "地產地消",
-          "description": "江之島海蠟燭瞭望台旁的地產地消餐廳，使用湘南藤沢產小麥製作漢堡麵包，搭配本地食材，可在絕景露台邊看海邊用餐。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=TODAI+KITCHEN+江の島&travelmode=transit"
+          "type": "川越定食",
+          "description": "位於蔵造老街的川越名物料理餐廳，以川越產味噌與在地食材製作定食，蕎麥與豆腐套餐具有濃厚地方風情，感受小江戶飲食文化的好選擇。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=百丈+川越&travelmode=transit"
         },
         {
-          "name": "Amalfi Della Sera 江の島",
+          "name": "Legato 渋谷",
           "category": "晚餐",
           "type": "義式料理",
-          "description": "江之島面海的露台義大利餐廳，以高溫石窯烤出的拿坡里披薩配上湘南海景，夕陽西沈時氣氛絕美，是江之島行程最完美的收尾。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=アマルフィ+デッラ+セーラ+江の島&travelmode=transit"
+          "description": "澀谷 Hikarie 11樓的空中義大利餐廳，居高臨下的城市夜景配上精緻義式料理，是澀谷 SKY 觀景台後的最佳晚餐選擇，強烈建議提前預約。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=Legato+渋谷&travelmode=transit"
         },
         {
-          "name": "iL CHIANTI CAFE 江の島",
+          "name": "牛かつ もと村 渋谷",
           "category": "晚餐",
-          "type": "義式料理",
-          "description": "在迷人的海風中享用正統義大利料理，是江之島長期受在地人喜愛的名店。可於露台座位感受湘南海岸的暮色，讓時間在此放慢。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=iL+CHIANTI+CAFE+江の島&travelmode=transit"
+          "type": "牛排炸物",
+          "description": "以低溫油炸保留鮮嫩肉汁的牛排炸物專門店，搭配麥飯與山藥泥，是東京近年人氣高漲的新派炸物料理，澀谷店位置方便。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=牛かつもと村+渋谷&travelmode=transit"
         },
         {
-          "name": "enzan lab.",
+          "name": "8+8 Cafe 川越",
           "category": "咖啡廳",
-          "type": "精品咖啡",
-          "description": "湘南地區備受注目的精品咖啡廳，以職人手沖咖啡與在地食材輕食著稱。江之島散策途中最有格調的歇腳點，低調質感與湘南海岸氣息完美融合。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=enzan+lab&travelmode=transit"
+          "type": "農業咖啡廳",
+          "description": "農家直送無農藥蔬菜入菜的農業咖啡廳，米飯與蔬菜皆出自自家農場，米粉製作的戚風蛋糕是招牌，是川越最具在地溫度的咖啡廳。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=8plus8cafe+川越&travelmode=transit"
         },
         {
-          "name": "江の島 ENOSHIMA TERRACE",
+          "name": "大正浪漫喫茶 蔵里",
           "category": "咖啡廳",
-          "type": "海景咖啡",
-          "description": "江之島神社參道途中的露天咖啡廳，邊喝咖啡邊俯瞰湘南海岸線。6月的薄霧與碧海交織，是逛完島嶼後最想回來歇腳的地方。",
-          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=ENOSHIMA+TERRACE&travelmode=transit"
+          "type": "古民家咖啡",
+          "description": "蔵造街道上的大正浪漫風格咖啡廳，在保留昭和建築風情的空間裡品嚐手工甜點與咖啡，是川越最有時代感的下午茶空間。",
+          "google_maps_url": "https://www.google.com/maps/dir/?api=1&origin=My+Location&destination=大正浪漫夢通り+川越&travelmode=transit"
         }
       ]
     },
