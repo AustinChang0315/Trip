@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#5c6b8a">
   <title>東京自由行</title>
   <link rel="manifest" href="manifest.json">
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww&libraries=places,routes&language=zh-TW&loading=async" defer></script>
+  <script id="google-maps-script" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww&libraries=places,routes&language=zh-TW&loading=async" defer onerror="handleMapsLoadError()"></script>
   <style>
     /* ── Design Tokens ─────────────────────────────────── */
     :root {
@@ -1705,7 +1705,8 @@ function inferRegionFromPlaceAddress(addr) {
 // 初始化 Google Maps（Modal 開啟時呼叫）
 function initModalMap() {
   if (!window.google || !window.google.maps) {
-    showToast('地圖載入中，請稍後再試');
+    handleMapsLoadError();
+    showToast('地圖載入失敗，請確認 API Key 來源限制設定');
     return;
   }
   // 每次開啟 Modal 時清除舊圖釘與暫存資料
@@ -2541,6 +2542,21 @@ async function doDeleteRecord(rowIndex) {
       fetch(GAS_URL).then(function(r){ return r.json(); }).then(buildSummary).catch(function(){});
     }, 1500);
   } catch(e) { showToast('刪除失敗，請確認網路'); }
+}
+
+/* ─── Google Maps 載入失敗處理 ────────────────────────── */
+function handleMapsLoadError() {
+  var el = document.getElementById('modal-map');
+  if (el) {
+    el.style.display = 'flex';
+    el.style.alignItems = 'center';
+    el.style.justifyContent = 'center';
+    el.style.background = '#f4f2ee';
+    el.style.color = '#999';
+    el.style.fontSize = '13px';
+    el.style.textAlign = 'center';
+    el.innerHTML = '地圖無法載入<br><small>請至 Google Cloud Console<br>確認 API Key 已加入此網站的來源限制</small>';
+  }
 }
 
 /* ─── Toast ───────────────────────────────────────────── */
