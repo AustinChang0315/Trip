@@ -412,7 +412,8 @@
     }
     .record-name   { font-size: .85rem; font-weight: 500; color: var(--text-1); }
     .record-meta   { font-size: .68rem; color: var(--text-3); margin-top: 2px; }
-    .record-amount { font-size: .85rem; font-weight: 600; color: var(--accent-deep); white-space: nowrap; }
+    .record-amount { font-size: .85rem; font-weight: 600; color: var(--accent-deep); white-space: nowrap; text-align: right; }
+    .record-twd    { font-size: .68rem; font-weight: 400; color: var(--text-3); margin-top: 1px; }
     .record-empty  { text-align: center; padding: 20px 0; font-size: .8rem; color: var(--text-3); }
     .record-subtotal { text-align: right; font-size: .7rem; color: var(--text-3); margin-top: 8px; padding-right: 2px; }
     .record-del {
@@ -2504,7 +2505,9 @@ function renderDetailRecords(date) {
           + '<div class="record-name">' + name + '</div>'
           + '<div class="record-meta">' + cat + ' · ' + pay + '</div>'
         + '</div>'
-        + '<div class="record-amount">¥' + amt.toLocaleString() + '</div>'
+        + '<div class="record-amount">¥' + amt.toLocaleString()
+          + '<div class="record-twd">≈ NT$' + Math.round(amt * JPY_TWD).toLocaleString() + '</div>'
+        + '</div>'
         + '<button class="record-del" data-row="' + (r.rowIndex || '') + '" data-name="' + name.replace(/"/g,'&quot;') + '">✕</button>'
       + '</div>';
     }).join('')
