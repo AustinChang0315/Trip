@@ -354,6 +354,14 @@
       border-color: var(--accent); box-shadow: 0 0 0 3px rgba(92,107,138,.08);
     }
     .twd       { font-size: .72rem; color: var(--text-3); text-align: right; margin-top: -6px; min-height: 1em; }
+    .currency-toggle { display: flex; gap: 6px; margin-bottom: 2px; }
+    .ctoggle-btn {
+      padding: 6px 14px; border-radius: 16px;
+      font-size: .78rem; font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-3);
+    }
+    .ctoggle-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
     .submit-btn {
       padding: 13px; background: var(--accent); color: #fff;
       border-radius: var(--r-sm); font-size: .88rem; letter-spacing: .1em;
@@ -832,6 +840,24 @@ function twdToForeign(twd, currency) {
     : FALLBACK_CURRENCY_RATES[String(currency).toUpperCase()];
   return (rate !== undefined && rate !== null) ? twd * rate : null;
 }
+
+// 外幣金額 → 估算 TWD 金額（跟 twdToForeign 方向相反，換算時記帳表單用）
+function foreignToTwd(amount, currency) {
+  if (!currency || !(amount >= 0)) return null;
+  var key = String(currency).toLowerCase();
+  var rate = (liveCurrencyRates && liveCurrencyRates[key] !== undefined)
+    ? liveCurrencyRates[key]
+    : FALLBACK_CURRENCY_RATES[String(currency).toUpperCase()];
+  return (rate) ? amount / rate : null;
+}
+
+// 切換鈕用的簡短符號（CURRENCY_LABELS 是給估算文字用的完整名稱）
+var CURRENCY_SYMBOLS = {
+  TWD: 'NT$', JPY: '¥', EUR: '€', USD: '$', GBP: '£',
+  KRW: '₩', THB: '฿', CNY: '¥', AUD: 'A$', CZK: 'Kč', HUF: 'Ft'
+};
+// 記帳表單金額欄位目前代表哪個幣別（使用者手動切換後會一直維持，不會每筆重置）
+var _amountCurrency = 'TWD';
 
 // 依 CURRENCY_LABELS 動態產生「新增/編輯行程」modal 的幣別下拉選單
 function populateCurrencySelect() {
@@ -1953,6 +1979,17 @@ function buildExpForm() {
     return '<option value="' + d.date + '"' + (d.date === defDate ? ' selected' : '') + '>Day ' + d.day + ' · ' + mmdd + '</option>';
   }).join('');
 
+  var currency   = currentTrip ? currentTrip.currency : '';
+  var hasForeign = currency && currency !== 'TWD';
+  if (!hasForeign) _amountCurrency = 'TWD'; // 沒有外幣可切換時，強制回到 TWD
+
+  var toggleHtml = hasForeign
+    ? '<div class="currency-toggle" id="amt-currency-toggle">'
+        + '<button type="button" class="ctoggle-btn' + (_amountCurrency === 'TWD' ? ' active' : '') + '" data-cur="TWD" onclick="setAmountCurrency(\'TWD\')">' + CURRENCY_SYMBOLS.TWD + '</button>'
+        + '<button type="button" class="ctoggle-btn' + (_amountCurrency === currency ? ' active' : '') + '" data-cur="' + currency + '" onclick="setAmountCurrency(\'' + currency + '\')">' + (CURRENCY_SYMBOLS[currency] || currency) + '</button>'
+      + '</div>'
+    : '';
+
   wrap.innerHTML = '<form class="exp-form" onsubmit="submitExp(event)">'
     + '<div class="field"><label>日期</label><select id="e-date">' + dateOptions + '</select></div>'
     + '<div class="row">'
@@ -1965,26 +2002,46 @@ function buildExpForm() {
       + '</select></div>'
     + '</div>'
     + '<div class="field"><label>項目</label><input type="text" id="e-item" placeholder="例：藏前咖啡" required></div>'
-    + '<div class="field"><label>金額（新台幣 NT$）</label>'
-      + '<input type="number" id="e-twd" placeholder="0" min="0" step="1" oninput="updForeignEstimate()" required>'
+    + '<div class="field"><label>金額</label>'
+      + toggleHtml
+      + '<input type="number" id="e-amt" placeholder="0" min="0" step="0.01" oninput="updForeignEstimate()" required>'
       + '<div class="twd" id="foreign-preview"></div>'
     + '</div>'
     + '<button type="submit" class="submit-btn">記帳</button>'
   + '</form>';
 }
 
+// 手動切換記帳表單金額欄位代表的幣別（TWD 或當地幣別），純手動觸發，不受支付方式影響
+function setAmountCurrency(currency) {
+  _amountCurrency = currency;
+  document.querySelectorAll('#amt-currency-toggle .ctoggle-btn').forEach(function(b) {
+    b.classList.toggle('active', b.dataset.cur === currency);
+  });
+  updForeignEstimate();
+}
+
 function updForeignEstimate() {
-  var twd = +document.getElementById('e-twd').value;
-  var currency = currentTrip ? currentTrip.currency : '';
-  var est = twd > 0 ? twdToForeign(twd, currency) : null;
-  document.getElementById('foreign-preview').textContent =
-    est !== null ? ('≈ ' + CURRENCY_LABELS[currency] + ' ' + est.toLocaleString(undefined, { maximumFractionDigits: 1 })) : '';
+  var val = +document.getElementById('e-amt').value;
+  var tripCurrency = currentTrip ? currentTrip.currency : '';
+  var previewEl = document.getElementById('foreign-preview');
+  if (!val || val <= 0) { previewEl.textContent = ''; return; }
+
+  if (_amountCurrency === 'TWD') {
+    var est = twdToForeign(val, tripCurrency);
+    previewEl.textContent = est !== null ? ('≈ ' + CURRENCY_LABELS[tripCurrency] + ' ' + est.toLocaleString(undefined, { maximumFractionDigits: 1 })) : '';
+  } else {
+    var twd = foreignToTwd(val, _amountCurrency);
+    previewEl.textContent = twd !== null ? ('≈ ' + CURRENCY_LABELS.TWD + ' ' + Math.round(twd).toLocaleString()) : '';
+  }
 }
 
 async function submitExp(e) {
   e.preventDefault();
-  var amount = +document.getElementById('e-twd').value;
-  if (!amount || amount <= 0 || isNaN(amount)) { showToast('請輸入有效金額'); return; }
+  var rawVal = +document.getElementById('e-amt').value;
+  if (!rawVal || rawVal <= 0 || isNaN(rawVal)) { showToast('請輸入有效金額'); return; }
+  var amount = _amountCurrency === 'TWD' ? rawVal : foreignToTwd(rawVal, _amountCurrency);
+  if (amount === null || !(amount > 0)) { showToast('目前無法取得匯率，請改用新台幣輸入'); return; }
+  amount = Math.round(amount);
   var item = document.getElementById('e-item').value.trim();
   if (!item) { showToast('請輸入項目名稱'); return; }
   var payload = {
@@ -2003,7 +2060,7 @@ async function submitExp(e) {
     });
     showToast('✓ 已記帳，統計更新中…');
     document.getElementById('e-item').value = '';
-    document.getElementById('e-twd').value  = '';
+    document.getElementById('e-amt').value  = '';
     document.getElementById('foreign-preview').textContent = '';
     setTimeout(function(){
       fetch(gasUrlFor(currentTrip.trip_id))
