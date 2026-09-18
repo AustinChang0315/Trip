@@ -76,6 +76,15 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // 未知的 action：代表前端版本比目前部署的後端新（例如忘記重新部署）。
+    // 一定要在這裡擋下來，否則會落到最下面的「新增記帳」邏輯，
+    // 誤把一筆不完整的資料寫成一筆金額 0、日期空白的假記帳。
+    if (data.action && data.action !== 'add') {
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: false, error: '不支援的 action: ' + data.action }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(['日期', '項目', '分類', '金額(JPY)', '支付方式', '記錄時間', 'trip_id']);
       sheet.getRange(1, 1, 1, COLS).setFontWeight('bold');
