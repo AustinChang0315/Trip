@@ -49,6 +49,33 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // 編輯行程日期時，把被移出日期範圍的記帳資料一併刪除
+    if (data.action === 'delete_by_dates') {
+      var tripId = String(data.trip_id || '');
+      var dateSet = {};
+      (data.dates || []).forEach(function(d) { dateSet[String(d)] = true; });
+      var lastRow = sheet.getLastRow();
+      var removed = 0;
+      if (tripId && lastRow > 1) {
+        var rows = sheet.getRange(2, 1, lastRow - 1, COLS).getValues();
+        for (var r = rows.length - 1; r >= 0; r--) {
+          var row = rows[r];
+          var rowTripId = String(row[6] || '');
+          if (rowTripId !== tripId) continue;
+          var rowDate = row[0] instanceof Date
+            ? Utilities.formatDate(row[0], 'Asia/Tokyo', 'yyyy-MM-dd')
+            : (row[0] ? String(row[0]).substring(0, 10) : '');
+          if (dateSet[rowDate]) {
+            sheet.deleteRow(r + 2); // +2：跳過標題列 + 轉回 1-based
+            removed++;
+          }
+        }
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify({ success: true, removed: removed }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (sheet.getLastRow() === 0) {
       sheet.appendRow(['日期', '項目', '分類', '金額(JPY)', '支付方式', '記錄時間', 'trip_id']);
       sheet.getRange(1, 1, 1, COLS).setFontWeight('bold');

@@ -224,7 +224,8 @@ function doPost(e) {
     const payload = JSON.parse(e.postData.contents);
     const action  = payload.action;
 
-    if (action === 'add_trip') return handleAddTrip(payload);
+    if (action === 'add_trip')    return handleAddTrip(payload);
+    if (action === 'update_trip') return handleUpdateTrip(payload);
 
     const sheet = getSheet();
 
@@ -413,6 +414,92 @@ function handleAddTrip(payload) {
   return jsonResponse({ success: true, trip_id: tripId, message: '行程已建立：' + (payload.title || tripId) });
 }
 
+// 編輯行程：更新 trips 頁籤的中繼資料，並依「舊/新日期範圍」的差集
+// 自動刪除被移出範圍的日期（itinerary + flights），保留的日期重新編號 day
+function handleUpdateTrip(payload) {
+  const tripId = String(payload.trip_id || '');
+  if (!tripId) return jsonResponse({ success: false, error: 'trip_id is required' });
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var tripsSheet = ss.getSheetByName(TRIPS_SHEET_NAME);
+  if (!tripsSheet) return jsonResponse({ success: false, error: '找不到 trips 頁籤，請先執行 seedTripsTab()' });
+
+  var tData    = tripsSheet.getDataRange().getValues();
+  var tHeaders = tData[0];
+  var tIdCol      = tHeaders.indexOf('trip_id');
+  var tTitleCol   = tHeaders.indexOf('title');
+  var tCountryCol = tHeaders.indexOf('country_or_destination');
+  var tStartCol   = tHeaders.indexOf('start_date');
+  var tEndCol     = tHeaders.indexOf('end_date');
+
+  var rowIdx = -1, oldStart = '', oldEnd = '';
+  for (var i = 1; i < tData.length; i++) {
+    if (String(tData[i][tIdCol]) === tripId) {
+      rowIdx = i;
+      oldStart = toYMD(tData[i][tStartCol]);
+      oldEnd   = toYMD(tData[i][tEndCol]);
+      break;
+    }
+  }
+  if (rowIdx < 0) return jsonResponse({ success: false, error: '找不到行程：' + tripId });
+
+  var newStart = String(payload.start_date || oldStart);
+  var newEnd   = String(payload.end_date   || oldEnd);
+
+  // 更新中繼資料（trip_id 不變）
+  tripsSheet.getRange(rowIdx + 1, tTitleCol + 1).setValue(String(payload.title || ''));
+  if (tCountryCol >= 0) tripsSheet.getRange(rowIdx + 1, tCountryCol + 1).setValue(String(payload.country_or_destination || ''));
+  tripsSheet.getRange(rowIdx + 1, tStartCol + 1).setValue(newStart);
+  tripsSheet.getRange(rowIdx + 1, tEndCol + 1).setValue(newEnd);
+
+  var oldDates = dateRange(oldStart, oldEnd);
+  var newDates = dateRange(newStart, newEnd);
+  var newDateIndex = {}; // date → 新的 1-based day 編號
+  newDates.forEach(function(d, idx) { newDateIndex[d] = idx + 1; });
+  var removedSet = {};
+  var removedDates = oldDates.filter(function(d) { return newDateIndex[d] === undefined; });
+  removedDates.forEach(function(d) { removedSet[d] = true; });
+
+  // ── itinerary 分頁：刪除被移除日期的列；保留的列重編號 day ──
+  var iSheet   = getSheet();
+  var iData    = iSheet.getDataRange().getValues();
+  var iHeaders = iData[0];
+  var iTripCol = iHeaders.indexOf('trip_id');
+  var iDayCol  = iHeaders.indexOf('day');
+  var iDateCol = iHeaders.indexOf('date');
+
+  for (var r = iData.length - 1; r >= 1; r--) {
+    if (String(iData[r][iTripCol]) !== tripId) continue;
+    var rowDate = toYMD(iData[r][iDateCol]);
+    if (removedSet[rowDate]) {
+      iSheet.deleteRow(r + 1);
+    } else if (newDateIndex[rowDate] !== undefined) {
+      iSheet.getRange(r + 1, iDayCol + 1).setValue(newDateIndex[rowDate]);
+    }
+  }
+
+  // ── flights 分頁：沒有 date 欄位，用「舊日期陣列 + 舊 day 數字」換算出每列對應的日期 ──
+  var fSheet = ss.getSheetByName(FLIGHT_SHEET_NAME);
+  if (fSheet && fSheet.getLastRow() > 1) {
+    var fData    = fSheet.getDataRange().getValues();
+    var fHeaders = fData[0];
+    var fTripCol = fHeaders.indexOf('trip_id');
+    var fDayCol  = fHeaders.indexOf('day');
+    for (var fr = fData.length - 1; fr >= 1; fr--) {
+      if (String(fData[fr][fTripCol]) !== tripId) continue;
+      var oldDayNum   = Number(fData[fr][fDayCol]);
+      var flightDate  = oldDates[oldDayNum - 1];
+      if (!flightDate || removedSet[flightDate]) {
+        fSheet.deleteRow(fr + 1);
+      } else if (newDateIndex[flightDate] !== undefined) {
+        fSheet.getRange(fr + 1, fDayCol + 1).setValue(newDateIndex[flightDate]);
+      }
+    }
+  }
+
+  return jsonResponse({ success: true, removed_dates: removedDates, message: '行程已更新' });
+}
+
 // 讀取 trips 頁籤所有行程（供行程列表畫面使用）
 function readTrips() {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
@@ -463,6 +550,20 @@ function formatTimeStr(val) {
   var s = String(val).trim();
   if (/^\d{1,2}:\d{2}$/.test(s)) return s;
   return '';
+}
+
+// 展開連續日期區間為 YYYY-MM-DD 字串陣列（含頭尾），用於編輯行程時的日期差集運算
+function dateRange(startStr, endStr) {
+  var start = new Date(String(startStr) + 'T00:00:00');
+  var end   = new Date(String(endStr)   + 'T00:00:00');
+  var out = [];
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return out;
+  var cursor = new Date(start.getTime());
+  while (cursor <= end) {
+    out.push(toYMD(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
 }
 
 // Google Sheets 的日期欄位可能是 Date 物件，強制轉成 YYYY-MM-DD 字串

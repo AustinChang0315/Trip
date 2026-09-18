@@ -544,11 +544,19 @@
     .trip-list-wrap { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
     .trip-card {
       background: var(--surface); border: 1px solid var(--border-lt);
-      border-radius: var(--r); padding: 16px 18px;
-      box-shadow: var(--shadow); transition: opacity .15s; text-align: left;
-      width: 100%;
+      border-radius: var(--r); box-shadow: var(--shadow);
+      display: flex; align-items: stretch;
     }
-    .trip-card:active { opacity: .7; }
+    .trip-card-main {
+      flex: 1; min-width: 0; text-align: left; padding: 16px 18px;
+      transition: opacity .15s;
+    }
+    .trip-card-main:active { opacity: .7; }
+    .trip-card-edit {
+      flex-shrink: 0; width: 46px; display: flex; align-items: center; justify-content: center;
+      color: var(--text-3); font-size: 1.05rem; border-left: 1px solid var(--border-lt);
+    }
+    .trip-card-edit:active { color: var(--accent); background: var(--accent-lt); }
     .trip-card-title { font-size: 1rem; font-weight: 600; color: var(--text-1); margin-bottom: 4px; }
     .trip-card-dest  { font-size: .8rem; color: var(--text-2); margin-bottom: 6px; }
     .trip-card-dates { font-size: .72rem; color: var(--text-3); letter-spacing: .05em; }
@@ -566,6 +574,11 @@
     }
     .trip-banner-left { display: flex; align-items: center; gap: 2px; min-width: 0; }
     .trip-banner-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn-trip-edit {
+      background: none; border: none; color: rgba(255,255,255,.75);
+      font-size: .85rem; padding: 4px 6px; flex-shrink: 0;
+    }
+    .btn-trip-edit:active { color: #fff; }
 
     /* ── Add Trip Modal ────────────────────────────────── */
     #trip-add-modal .modal-box { width: 300px; text-align: left; }
@@ -623,6 +636,7 @@
         <span class="trip-banner-title" id="trip-banner-title">東京自由行</span>
       </div>
       <div class="trip-banner-right">
+        <button class="btn-trip-edit" id="trip-banner-edit-btn" onclick="currentTrip && openEditTripModal(currentTrip.trip_id)" title="編輯行程">✎</button>
         <span class="trip-banner-dates" id="trip-banner-dates">2026.06.24 — 06.29</span>
         <div id="hdr-weather"></div>
       </div>
@@ -714,7 +728,7 @@
 <div id="trip-add-modal" class="modal hidden">
   <div class="modal-overlay" onclick="closeAddTripModal()"></div>
   <div class="modal-box">
-    <div class="modal-title">新增行程</div>
+    <div class="modal-title" id="trip-modal-title">新增行程</div>
     <div class="modal-form">
       <div class="field">
         <label for="trip-dest-input">目的地／國家</label>
@@ -732,7 +746,7 @@
     <p id="trip-add-error" style="font-size:.78rem;color:var(--red);min-height:18px;margin-bottom:6px;"></p>
     <div class="modal-actions">
       <button class="modal-cancel" onclick="closeAddTripModal()">取消</button>
-      <button class="modal-confirm" id="trip-add-confirm-btn" onclick="confirmAddTrip()" style="background:var(--accent);">建立</button>
+      <button class="modal-confirm" id="trip-add-confirm-btn" onclick="confirmTripModal()" style="background:var(--accent);">建立</button>
     </div>
   </div>
 </div>
@@ -896,11 +910,14 @@ function renderTripList(trips) {
   wrap.innerHTML = sorted.map(function(t) {
     var dest = t.country_or_destination || '';
     var showDest = dest && dest !== t.title; // 目的地與標題相同時（新增行程時同一個欄位）不重複顯示
-    return '<button class="trip-card" onclick="enterTrip(\'' + escHtml(t.trip_id) + '\')">'
-      + '<div class="trip-card-title">' + escHtml(t.title || t.trip_id) + '</div>'
-      + (showDest ? '<div class="trip-card-dest">' + escHtml(dest) + '</div>' : '')
-      + '<div class="trip-card-dates">' + escHtml(formatTripDates(t.start_date, t.end_date)) + '</div>'
-      + '</button>';
+    return '<div class="trip-card">'
+      + '<button class="trip-card-main" onclick="enterTrip(\'' + escHtml(t.trip_id) + '\')">'
+        + '<div class="trip-card-title">' + escHtml(t.title || t.trip_id) + '</div>'
+        + (showDest ? '<div class="trip-card-dest">' + escHtml(dest) + '</div>' : '')
+        + '<div class="trip-card-dates">' + escHtml(formatTripDates(t.start_date, t.end_date)) + '</div>'
+      + '</button>'
+      + '<button class="trip-card-edit" onclick="event.stopPropagation(); openEditTripModal(\'' + escHtml(t.trip_id) + '\')" title="編輯行程">✎</button>'
+    + '</div>';
   }).join('');
 }
 
@@ -919,7 +936,7 @@ function setTripHeader(trip) {
   if (datesEl) datesEl.textContent = formatTripDates(trip.start_date, trip.end_date);
 }
 
-/* ─── 新增行程 Modal ─────────────────────────────────── */
+/* ─── 新增／編輯行程 Modal ───────────────────────────── */
 function slugify(s) {
   var base = String(s || '').trim().toLowerCase()
     .replace(/[^\w一-鿿]+/g, '-')
@@ -927,10 +944,42 @@ function slugify(s) {
   return base || 'trip';
 }
 
+// 展開連續日期區間為 YYYY-MM-DD 字串陣列（含頭尾）
+function datesInRange(startStr, endStr) {
+  var start = parseLocalDate(startStr);
+  var end   = parseLocalDate(endStr);
+  var out   = [];
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return out;
+  var cursor = new Date(start.getTime());
+  while (cursor <= end) {
+    out.push(dateToYMD(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
+
+var _editingTripId = null; // null = 新增模式；否則是正在編輯的 trip_id
+
 function openAddTripModal() {
+  _editingTripId = null;
+  document.getElementById('trip-modal-title').textContent = '新增行程';
+  document.getElementById('trip-add-confirm-btn').textContent = '建立';
   document.getElementById('trip-dest-input').value = '';
   document.getElementById('trip-start-input').value = '';
   document.getElementById('trip-end-input').value = '';
+  document.getElementById('trip-add-error').textContent = '';
+  document.getElementById('trip-add-modal').classList.remove('hidden');
+}
+
+function openEditTripModal(tripId) {
+  var trip = tripRegistryCache.filter(function(t) { return t.trip_id === tripId; })[0];
+  if (!trip) return;
+  _editingTripId = tripId;
+  document.getElementById('trip-modal-title').textContent = '編輯行程';
+  document.getElementById('trip-add-confirm-btn').textContent = '儲存';
+  document.getElementById('trip-dest-input').value = trip.title || trip.country_or_destination || '';
+  document.getElementById('trip-start-input').value = trip.start_date || '';
+  document.getElementById('trip-end-input').value = trip.end_date || '';
   document.getElementById('trip-add-error').textContent = '';
   document.getElementById('trip-add-modal').classList.remove('hidden');
 }
@@ -941,31 +990,39 @@ function closeAddTripModal() {
 
 // 依起訖日期合成空白的每日行程骨架，讓新行程一開始就有正確天數的分頁
 function buildEmptyItinerary(trip) {
-  var start = parseLocalDate(trip.start_date);
-  var end   = parseLocalDate(trip.end_date);
-  var days  = [];
-  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+  var dates = datesInRange(trip.start_date, trip.end_date);
+  if (!dates.length) {
     return [{ day: 1, date: trip.start_date || '', day_title: '', day_start: '09:00', spots: [], dining: [], note: '' }];
   }
-  var cursor = new Date(start.getTime());
-  var dayNum = 1;
-  while (cursor <= end) {
-    days.push({
-      day:       dayNum,
-      date:      dateToYMD(cursor),
+  return dates.map(function(d, i) {
+    return {
+      day:       i + 1,
+      date:      d,
       day_title: '',
       day_start: '09:00',
       spots:     [],
       dining:    [],
       note:      ''
-    });
-    cursor.setDate(cursor.getDate() + 1);
-    dayNum++;
-  }
-  return days;
+    };
+  });
 }
 
-function confirmAddTrip() {
+// 清掉某行程跟「天數」相關的 localStorage 快取（編輯日期後天數編號會變，避免舊快取對錯天）
+function clearTripDayCaches(tripId, maxOldDayCount) {
+  try {
+    localStorage.removeItem(tripId + '__gas_cache');
+    localStorage.removeItem(tripId + '__transit_mins_cache');
+    for (var i = 1; i <= maxOldDayCount; i++) {
+      localStorage.removeItem(tripId + '__day_order_' + i);
+      localStorage.removeItem(tripId + '__day_start_' + i);
+      localStorage.removeItem(tripId + '__day_mutated_' + i);
+    }
+  } catch(e) {}
+}
+
+function confirmTripModal() {
+  if (_editingTripId) { confirmEditTrip(); return; }
+
   var destInput  = document.getElementById('trip-dest-input');
   var startInput = document.getElementById('trip-start-input');
   var endInput   = document.getElementById('trip-end-input');
@@ -1003,6 +1060,99 @@ function confirmAddTrip() {
   closeAddTripModal();
   document.getElementById('trip-list-view').style.display = 'none';
   boot(trip);
+}
+
+// 編輯行程：算出日期差集，若會刪資料先跳確認框，確認後才真的送出
+function confirmEditTrip() {
+  var tripId  = _editingTripId;
+  var oldTrip = tripRegistryCache.filter(function(t) { return t.trip_id === tripId; })[0];
+  if (!oldTrip) { closeAddTripModal(); return; }
+
+  var destInput  = document.getElementById('trip-dest-input');
+  var startInput = document.getElementById('trip-start-input');
+  var endInput   = document.getElementById('trip-end-input');
+  var errEl      = document.getElementById('trip-add-error');
+
+  var dest  = destInput.value.trim();
+  var start = startInput.value;
+  var end   = endInput.value;
+
+  if (!dest) { errEl.textContent = '請輸入目的地／國家'; return; }
+  if (!start || !end) { errEl.textContent = '請選擇出發與結束日期'; return; }
+  if (start > end) { errEl.textContent = '結束日期必須晚於出發日期'; return; }
+
+  var oldDates   = datesInRange(oldTrip.start_date, oldTrip.end_date);
+  var newDateSet = {};
+  datesInRange(start, end).forEach(function(d) { newDateSet[d] = true; });
+  var removedDates = oldDates.filter(function(d) { return !newDateSet[d]; });
+
+  function proceed() {
+    saveTripEdit(tripId, dest, start, end, removedDates, oldDates.length);
+  }
+
+  if (removedDates.length > 0) {
+    var label = removedDates.map(function(d) {
+      var dt = parseLocalDate(d);
+      return (dt.getMonth() + 1) + '/' + dt.getDate() + '（' + WKDAYS[dt.getDay()] + '）';
+    }).join('、');
+    closeAddTripModal(); // 先關掉編輯 modal，避免兩個 modal 疊在一起、確認框被蓋住
+    document.querySelector('#confirm-modal .modal-title').textContent = '確認調整日期';
+    document.getElementById('modal-msg').textContent =
+      '這個調整會刪除以下日期的行程與記帳資料：' + label + '。確定要繼續嗎？';
+    document.getElementById('modal-confirm-btn').onclick = function() {
+      closeModal();
+      proceed();
+    };
+    document.getElementById('confirm-modal').classList.remove('hidden');
+  } else {
+    proceed();
+  }
+}
+
+// 真正送出編輯：更新後端 trips 資料 + 依差集刪除景點/記帳，再重新整理畫面
+async function saveTripEdit(tripId, dest, start, end, removedDates, oldDayCount) {
+  closeAddTripModal();
+  showToast('儲存中…');
+
+  clearTripDayCaches(tripId, oldDayCount);
+
+  var updatedTrip = {
+    trip_id: tripId,
+    title: dest,
+    country_or_destination: dest,
+    start_date: start,
+    end_date: end
+  };
+
+  try {
+    if (API_URL) {
+      await fetch(API_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(Object.assign({ action: 'update_trip' }, updatedTrip))
+      });
+    }
+    if (removedDates.length > 0 && GAS_URL) {
+      await fetch(GAS_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'delete_by_dates', trip_id: tripId, dates: removedDates })
+      });
+    }
+  } catch(e) { /* 忽略網路錯誤，仍以樂觀更新後的本地狀態為主 */ }
+
+  tripRegistryCache = tripRegistryCache.map(function(t) {
+    return t.trip_id === tripId ? updatedTrip : t;
+  });
+  try { localStorage.setItem('trip_registry_cache', JSON.stringify({ trips: tripRegistryCache })); } catch(e) {}
+
+  showToast(removedDates.length > 0 ? ('✓ 已更新，刪除 ' + removedDates.length + ' 天資料') : '✓ 行程已更新');
+
+  if (currentTrip && currentTrip.trip_id === tripId) {
+    boot(updatedTrip); // 正在瀏覽這個行程：重新載入以反映新的天數/日期
+  } else if (document.getElementById('trip-list-view').style.display !== 'none') {
+    renderTripList(tripRegistryCache);
+  }
 }
 
 /* ─── Boot Helpers ───────────────────────────────── */
