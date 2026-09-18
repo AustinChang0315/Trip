@@ -33,6 +33,27 @@ var JPY_TWD = 0.215; // 匯率，可自行調整
 var CATS    = ['餐飲', '交通', '體驗', '購物', '購物-寶寶', '購物-ㄚ鼻', '其他'];
 var COLS    = 7; // A~G
 
+// 日期欄位可能是 Date 物件、YYYY-MM-DD 字串，或「Wed Nov 18 2026 ...」這種
+// toString() 字串（Sheets 有時不會把日期字串自動轉成 Date 型別，讀回來就是這種格式）。
+// 一律正規化成 YYYY-MM-DD，直接從字串裡的月/日/年 token 取值，不透過 Date 物件運算，
+// 避免 Apps Script 專案預設時區跟 Asia/Tokyo 不一致時，日期被前後位移一天。
+function normalizeExpenseDate(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, 'Asia/Tokyo', 'yyyy-MM-dd');
+  }
+  var s = String(val).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+  var m = s.match(/([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})/); // 例如 "Wed Nov 18 2026 ..."
+  if (m) {
+    var MON = { Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06',
+                Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12' };
+    var mm = MON[m[1]];
+    if (mm) return m[3] + '-' + mm + '-' + (m[2].length < 2 ? '0' + m[2] : m[2]);
+  }
+  return s.substring(0, 10);
+}
+
 // ── POST：接收前端記帳資料，寫入試算表 ──────────────
 function doPost(e) {
   try {
@@ -62,9 +83,7 @@ function doPost(e) {
           var row = rows[r];
           var rowTripId = String(row[6] || '');
           if (rowTripId !== tripId) continue;
-          var rowDate = row[0] instanceof Date
-            ? Utilities.formatDate(row[0], 'Asia/Tokyo', 'yyyy-MM-dd')
-            : (row[0] ? String(row[0]).substring(0, 10) : '');
+          var rowDate = normalizeExpenseDate(row[0]);
           if (dateSet[rowDate]) {
             sheet.deleteRow(r + 2); // +2：跳過標題列 + 轉回 1-based
             removed++;
@@ -135,9 +154,7 @@ function doGet(e) {
         var rowTripId = String(row[6] || '');
         if (rowTripId !== String(tripId)) return; // 只統計當前行程的記帳資料
 
-        var date = row[0] instanceof Date
-          ? Utilities.formatDate(row[0], 'Asia/Tokyo', 'yyyy-MM-dd')
-          : (row[0] ? String(row[0]).substring(0, 10) : '');
+        var date = normalizeExpenseDate(row[0]);
         var cat  = String(row[2] || '其他').trim();
         var jpy  = parseInt(row[3]) || 0;
 
