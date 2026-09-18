@@ -250,3 +250,39 @@ function migrateAmountsToTWD() {
   }
   Logger.log('migrateAmountsToTWD() 完成，共轉換 ' + count + ' 筆（日圓 → TWD，僅限東京行程）。');
 }
+
+// 執行方式：Apps Script 編輯器 → 選擇 fixLegacyTwdMigration → 點執行
+// migrateAmountsToTWD() 用的是 App 裡舊的寫死匯率（0.215），跟實際匯率有落差
+// （2026-09 實際約 0.204），換算出來的 TWD 金額偏高。這裡改抓即時匯率，
+// 把已經換算過的東京資料再校正一次。只需要執行一次；如果已經校正過，
+// 不要再執行第二次，否則會被重複校正變成錯誤數字。
+function fixLegacyTwdMigration() {
+  var sheet   = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) { Logger.log('沒有資料，跳過。'); return; }
+
+  var liveRate;
+  try {
+    var resp = UrlFetchApp.fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/jpy.json');
+    var json = JSON.parse(resp.getContentText());
+    liveRate = json && json.jpy && json.jpy.twd;
+  } catch (err) {
+    Logger.log('抓即時匯率失敗，中止校正：' + err);
+    return;
+  }
+  if (!liveRate) { Logger.log('即時匯率回傳格式異常，中止校正。'); return; }
+
+  var correctionFactor = liveRate / LEGACY_JPY_TO_TWD; // 把舊版 0.215 的結果修正成即時匯率
+  var rows  = sheet.getRange(2, 1, lastRow - 1, COLS).getValues();
+  var count = 0;
+  for (var r = 0; r < rows.length; r++) {
+    var tripId = String(rows[r][6] || '');
+    if (tripId !== DEFAULT_TRIP_ID) continue; // 只校正東京舊資料
+    var oldTwd = Number(rows[r][3]) || 0;
+    var newTwd = Math.round(oldTwd * correctionFactor);
+    sheet.getRange(r + 2, 4).setValue(newTwd);
+    count++;
+  }
+  Logger.log('fixLegacyTwdMigration() 完成，即時匯率 1 JPY ≈ ' + liveRate + ' TWD，'
+    + '校正係數 ' + correctionFactor.toFixed(4) + '，共修正 ' + count + ' 筆。');
+}
