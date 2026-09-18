@@ -41,7 +41,8 @@ const TRIPS_HEADERS = [
   'country_or_destination',  // 目的地／國家
   'start_date',               // 起始日期 YYYY-MM-DD
   'end_date',                 // 結束日期 YYYY-MM-DD
-  'created_at'                 // 建立時間
+  'created_at',                // 建立時間
+  'currency'                   // 當地幣別（例如 JPY、EUR），僅用於前端估算記帳外幣，純顯示用途
 ];
 
 const FLIGHT_HEADERS = [
@@ -402,16 +403,28 @@ function handleAddTrip(payload) {
   var sheet = ss.getSheetByName(TRIPS_SHEET_NAME);
   if (!sheet) sheet = createTripsSheet(ss);
 
+  ensureTripsCurrencyColumn(sheet);
+
   sheet.appendRow([
     tripId,
     String(payload.title || ''),
     String(payload.country_or_destination || ''),
     String(payload.start_date || ''),
     String(payload.end_date   || ''),
-    new Date()
+    new Date(),
+    String(payload.currency || '')
   ]);
 
   return jsonResponse({ success: true, trip_id: tripId, message: '行程已建立：' + (payload.title || tripId) });
+}
+
+// 舊版 trips 分頁（多行程改版前）沒有 currency 欄位，第一次寫入時自動補上表頭，
+// 讓 appendRow 的第 7 個值（currency）有對應的欄位名稱可以被 readTrips() 用 indexOf 找到
+function ensureTripsCurrencyColumn(sheet) {
+  var headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  if (headers.indexOf('currency') < 0) {
+    sheet.getRange(1, sheet.getLastColumn() + 1).setValue('currency');
+  }
 }
 
 // 編輯行程：更新 trips 頁籤的中繼資料，並依「舊/新日期範圍」的差集
@@ -424,6 +437,7 @@ function handleUpdateTrip(payload) {
   var tripsSheet = ss.getSheetByName(TRIPS_SHEET_NAME);
   if (!tripsSheet) return jsonResponse({ success: false, error: '找不到 trips 頁籤，請先執行 seedTripsTab()' });
 
+  ensureTripsCurrencyColumn(tripsSheet);
   var tData    = tripsSheet.getDataRange().getValues();
   var tHeaders = tData[0];
   var tIdCol      = tHeaders.indexOf('trip_id');
@@ -431,6 +445,7 @@ function handleUpdateTrip(payload) {
   var tCountryCol = tHeaders.indexOf('country_or_destination');
   var tStartCol   = tHeaders.indexOf('start_date');
   var tEndCol     = tHeaders.indexOf('end_date');
+  var tCurrencyCol = tHeaders.indexOf('currency');
 
   var rowIdx = -1, oldStart = '', oldEnd = '';
   for (var i = 1; i < tData.length; i++) {
@@ -449,6 +464,7 @@ function handleUpdateTrip(payload) {
   // 更新中繼資料（trip_id 不變）
   tripsSheet.getRange(rowIdx + 1, tTitleCol + 1).setValue(String(payload.title || ''));
   if (tCountryCol >= 0) tripsSheet.getRange(rowIdx + 1, tCountryCol + 1).setValue(String(payload.country_or_destination || ''));
+  if (tCurrencyCol >= 0 && payload.currency !== undefined) tripsSheet.getRange(rowIdx + 1, tCurrencyCol + 1).setValue(String(payload.currency || ''));
   tripsSheet.getRange(rowIdx + 1, tStartCol + 1).setValue(newStart);
   tripsSheet.getRange(rowIdx + 1, tEndCol + 1).setValue(newEnd);
 
@@ -514,7 +530,8 @@ function readTrips() {
     country:    headers.indexOf('country_or_destination'),
     start_date: headers.indexOf('start_date'),
     end_date:   headers.indexOf('end_date'),
-    created_at: headers.indexOf('created_at')
+    created_at: headers.indexOf('created_at'),
+    currency:   headers.indexOf('currency')
   };
 
   return data.slice(1)
@@ -526,7 +543,8 @@ function readTrips() {
         country_or_destination:  C.country >= 0 ? String(row[C.country] || '') : '',
         start_date:              toYMD(row[C.start_date]),
         end_date:                toYMD(row[C.end_date]),
-        created_at:              C.created_at >= 0 && row[C.created_at] ? String(row[C.created_at]) : ''
+        created_at:              C.created_at >= 0 && row[C.created_at] ? String(row[C.created_at]) : '',
+        currency:                C.currency >= 0 ? String(row[C.currency] || '') : ''
       };
     });
 }
@@ -799,9 +817,34 @@ function seedTripsTab() {
     '日本・東京',
     '2026-06-24',
     '2026-06-29',
-    new Date()
+    new Date(),
+    'JPY'
   ]);
   Logger.log('seedTripsTab() 完成，已登記東京行程（trip_id = ' + DEFAULT_TRIP_ID + '）。');
+}
+
+// 執行方式：Apps Script 編輯器 → 選擇 backfillTripCurrency → 點執行
+// 記帳改成輸入 TWD + 估算當地幣別時，補上既有東京行程的 currency = JPY
+// （currency 只影響前端「估算外幣」的顯示，不影響任何已存的金額數字）
+function backfillTripCurrency() {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(TRIPS_SHEET_NAME);
+  if (!sheet) { Logger.log('找不到 trips 頁籤，請先執行 seedTripsTab()'); return; }
+
+  ensureTripsCurrencyColumn(sheet);
+
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idCol   = headers.indexOf('trip_id');
+  var curCol  = headers.indexOf('currency');
+  var count   = 0;
+
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][idCol]) !== DEFAULT_TRIP_ID) continue;
+    var cell = sheet.getRange(r + 1, curCol + 1);
+    if (!cell.getValue()) { cell.setValue('JPY'); count++; }
+  }
+  Logger.log('backfillTripCurrency() 完成，補填了 ' + count + ' 筆（東京行程 → JPY）。');
 }
 
 // ──────────────────────────────────────────

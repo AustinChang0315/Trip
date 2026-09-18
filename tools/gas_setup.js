@@ -1,7 +1,7 @@
 /**
  * ══════════════════════════════════════════════════
  *  Google Apps Script — 旅遊記帳接收 + 即時統計
- *  版本：3.0（多行程：依 trip_id 分流）
+ *  版本：4.0（記帳金額統一輸入 TWD，外幣估算改由前端即時匯率負責）
  * ══════════════════════════════════════════════════
  *
  *  【設定步驟】（如果是第一次設定）
@@ -15,7 +15,7 @@
  *     - 具有存取權：所有人
  *  5. 複製網址貼回 index.html 的 GAS_URL
  *
- *  【已有設定，更新腳本（改版為多行程）】
+ *  【已有設定，更新腳本】
  *  1. 貼上新程式碼後
  *  2. 部署 → 管理部署作業 → 編輯（鉛筆圖示）
  *  3. 版本選「建立新版本」→ 部署
@@ -23,15 +23,22 @@
  *  4. 若試算表已有舊資料（沒有 trip_id 欄位），
  *     在 G 欄手動補上 trip_id = 'tokyo-2026-06'
  *     （跟 google-backend.js 的 DEFAULT_TRIP_ID 一致）
+ *  5. 這次改版把金額欄位的意義從「日圓」統一改成「新台幣」。
+ *     舊資料（東京行程）本來存的是真實日圓數字，需要執行一次
+ *     migrateAmountsToTWD() 把既有東京資料換算成 TWD，其他行程不受影響。
  *
  *  【試算表欄位格式】
- *  A: 日期　B: 項目　C: 分類　D: 金額(JPY)　E: 支付方式　F: 記錄時間　G: trip_id
+ *  A: 日期　B: 項目　C: 分類　D: 金額(TWD)　E: 支付方式　F: 記錄時間　G: trip_id
  * ══════════════════════════════════════════════════
  */
 
-var JPY_TWD = 0.215; // 匯率，可自行調整
-var CATS    = ['餐飲', '交通', '體驗', '購物', '購物-寶寶', '購物-ㄚ鼻', '其他'];
-var COLS    = 7; // A~G
+var CATS = ['餐飲', '交通', '體驗', '購物', '購物-寶寶', '購物-ㄚ鼻', '其他'];
+var COLS = 7; // A~G
+
+// 既有東京行程升級時使用的固定 ID（與 google-backend.js 的 DEFAULT_TRIP_ID 一致）
+var DEFAULT_TRIP_ID  = 'tokyo-2026-06';
+// 東京舊資料原本是日圓，一次性遷移換算成 TWD 用的匯率（跟舊版 JPY_TWD 常數相同）
+var LEGACY_JPY_TO_TWD = 0.215;
 
 // 日期欄位可能是 Date 物件、YYYY-MM-DD 字串，或「Wed Nov 18 2026 ...」這種
 // toString() 字串（Sheets 有時不會把日期字串自動轉成 Date 型別，讀回來就是這種格式）。
@@ -105,7 +112,7 @@ function doPost(e) {
     }
 
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow(['日期', '項目', '分類', '金額(JPY)', '支付方式', '記錄時間', 'trip_id']);
+      sheet.appendRow(['日期', '項目', '分類', '金額(TWD)', '支付方式', '記錄時間', 'trip_id']);
       sheet.getRange(1, 1, 1, COLS).setFontWeight('bold');
     }
 
@@ -113,7 +120,7 @@ function doPost(e) {
       data.date       || '',
       data.item       || '',
       data.category   || '其他',
-      data.amount_jpy || 0,
+      data.amount_twd || 0,
       data.payment    || '現金',
       new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
       data.trip_id    || ''
@@ -130,6 +137,8 @@ function doPost(e) {
 }
 
 // ── GET：即時計算統計資料，回傳給前端圖表（依 trip_id 過濾）───
+// 金額欄位一律是 TWD 原始數字，不在後端做任何幣別換算——
+// 「估算外幣」是純顯示需求，且每個行程當地幣別不同，換算交給前端處理。
 function doGet(e) {
   try {
     var tripId = e && e.parameter && e.parameter.trip_id;
@@ -156,24 +165,24 @@ function doGet(e) {
 
         var date = normalizeExpenseDate(row[0]);
         var cat  = String(row[2] || '其他').trim();
-        var jpy  = parseInt(row[3]) || 0;
+        var twd  = parseInt(row[3]) || 0;
 
-        total += jpy;
+        total += twd;
 
         if (catTotals.hasOwnProperty(cat)) {
-          catTotals[cat] += jpy;
+          catTotals[cat] += twd;
         } else {
-          catTotals['其他'] += jpy;
+          catTotals['其他'] += twd;
         }
 
         if (date) {
-          daily[date] = (daily[date] || 0) + jpy;
+          daily[date] = (daily[date] || 0) + twd;
           records.push({
             rowIndex:   i + 2,
             date:       date,
             item:       String(row[1] || ''),
             category:   cat,
-            amount_jpy: jpy,
+            amount_twd: twd,
             payment:    String(row[4] || '現金')
           });
         }
@@ -183,18 +192,17 @@ function doGet(e) {
     var categories = CATS.map(function(name) {
       return {
         name: name,
-        jpy:  catTotals[name],
+        twd:  catTotals[name],
         percentage: total > 0 ? Math.round(catTotals[name] / total * 100) : 0
       };
     });
 
     var dailyBreakdown = Object.keys(daily).sort().map(function(date) {
-      return { date: date, jpy: daily[date], twd: Math.round(daily[date] * JPY_TWD) };
+      return { date: date, twd: daily[date] };
     });
 
     var result = {
-      total_jpy:       total,
-      total_twd:       Math.round(total * JPY_TWD),
+      total_twd:       total,
       categories:      categories,
       daily_breakdown: dailyBreakdown,
       records:         records,
@@ -209,4 +217,36 @@ function doGet(e) {
       .createTextOutput(JSON.stringify({ error: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
   }
+}
+
+// ──────────────────────────────────────────
+//  一次性資料遷移（記帳金額改成 TWD 計價時執行一次）
+// ──────────────────────────────────────────
+
+// 執行方式：Apps Script 編輯器 → 選擇 migrateAmountsToTWD → 點執行
+// 只處理 trip_id = DEFAULT_TRIP_ID（東京行程）的既有資料列——
+// 這些數字原本真的是日圓，換算成 TWD 才能跟其他行程用同一套欄位意義。
+// 其他行程（本來就沒有資料，或已經是用 TWD 輸入）完全不受影響。
+function migrateAmountsToTWD() {
+  var sheet   = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) { Logger.log('沒有資料，跳過。'); return; }
+
+  // 表頭文字順便更新成 TWD
+  var headerCell = sheet.getRange(1, 4);
+  if (String(headerCell.getValue()).indexOf('JPY') >= 0) {
+    headerCell.setValue('金額(TWD)');
+  }
+
+  var rows  = sheet.getRange(2, 1, lastRow - 1, COLS).getValues();
+  var count = 0;
+  for (var r = 0; r < rows.length; r++) {
+    var tripId = String(rows[r][6] || '');
+    if (tripId !== DEFAULT_TRIP_ID) continue; // 只換算東京舊資料
+    var oldAmount = Number(rows[r][3]) || 0;
+    var newAmount = Math.round(oldAmount * LEGACY_JPY_TO_TWD);
+    sheet.getRange(r + 2, 4).setValue(newAmount);
+    count++;
+  }
+  Logger.log('migrateAmountsToTWD() 完成，共轉換 ' + count + ' 筆（日圓 → TWD，僅限東京行程）。');
 }

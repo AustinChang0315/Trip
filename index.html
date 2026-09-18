@@ -369,8 +369,8 @@
     /* ── Expense Summary ───────────────────────────────── */
     .total-box  { text-align: center; margin-bottom: 22px; }
     .total-lbl  { font-size: .68rem; letter-spacing: .15em; color: var(--text-3); margin-bottom: 6px; }
-    .total-jpy  { font-size: 2.1rem; font-weight: 300; letter-spacing: .04em; color: var(--text-1); }
-    .total-twd  { font-size: .82rem; color: var(--text-3); margin-top: 2px; }
+    .total-main    { font-size: 2.1rem; font-weight: 300; letter-spacing: .04em; color: var(--text-1); }
+    .total-foreign { font-size: .82rem; color: var(--text-3); margin-top: 2px; min-height: 1.1em; }
     .chart      { display: flex; flex-direction: column; gap: 12px; }
     .chart-row  { display: flex; align-items: center; gap: 10px; }
     .chart-lbl  { flex: 0 0 68px; font-size: .7rem; color: var(--text-2); text-align: right; }
@@ -413,7 +413,7 @@
     .record-name   { font-size: .85rem; font-weight: 500; color: var(--text-1); }
     .record-meta   { font-size: .68rem; color: var(--text-3); margin-top: 2px; }
     .record-amount { font-size: .85rem; font-weight: 600; color: var(--accent-deep); white-space: nowrap; text-align: right; }
-    .record-twd    { font-size: .68rem; font-weight: 400; color: var(--text-3); margin-top: 1px; }
+    .record-foreign { font-size: .68rem; font-weight: 400; color: var(--text-3); margin-top: 1px; }
     .record-empty  { text-align: center; padding: 20px 0; font-size: .8rem; color: var(--text-3); }
     .record-subtotal { text-align: right; font-size: .7rem; color: var(--text-3); margin-top: 8px; padding-right: 2px; }
     .record-del {
@@ -742,6 +742,10 @@
         <label for="trip-end-input">結束日期</label>
         <input id="trip-end-input" type="date" />
       </div>
+      <div class="field">
+        <label for="trip-currency-input">當地幣別（記帳估算用）</label>
+        <select id="trip-currency-input"></select>
+      </div>
     </div>
     <p id="trip-add-error" style="font-size:.78rem;color:var(--red);min-height:18px;margin-bottom:6px;"></p>
     <div class="modal-actions">
@@ -759,7 +763,6 @@ var GAS_URL   = 'https://script.google.com/macros/s/AKfycbw2dnCQjJJv8yBo--WVmSJ5
 var PASS_CODE = '0315';
 var AUTH_KEY  = 'tokyo_trip_auth';
 var AUTH_DAYS = 3;
-var JPY_TWD        = 0.215;
 var tripDays       = [];
 var itineraryState = [];   // Task 5：增刪操作的可變狀態
 var flightsData    = [];   // 班機資訊（來自 GAS flights 頁籤）
@@ -780,6 +783,63 @@ function apiUrlFor(tripId) {
 }
 function gasUrlFor(tripId) {
   return GAS_URL + '?trip_id=' + encodeURIComponent(tripId);
+}
+
+/* ─── 記帳幣別：輸入永遠是 TWD，用即時匯率估算當地幣別 ──── */
+// 顯示名稱/符號（純文字，不需要即時更新）
+var CURRENCY_LABELS = {
+  TWD: '新台幣 NT$', JPY: '日圓 ¥',   EUR: '歐元 €',   USD: '美金 $',
+  GBP: '英鎊 £',     KRW: '韓元 ₩',   THB: '泰銖 ฿',   CNY: '人民幣 ¥',
+  AUD: '澳幣 A$',    CZK: '克朗 Kč',  HUF: '福林 Ft'
+};
+// 備援匯率（1 TWD ≈ 多少外幣），只有完全抓不到即時匯率時才會用到
+var FALLBACK_CURRENCY_RATES = {
+  TWD: 1, JPY: 4.65, EUR: 0.029, USD: 0.031, GBP: 0.024,
+  KRW: 43, THB: 0.95, CNY: 0.21, AUD: 0.044, CZK: 0.67, HUF: 10
+};
+var CURRENCY_RATES_CACHE_KEY = 'currency_rates_cache'; // 全域快取，不分行程
+var CURRENCY_RATES_TTL       = 12 * 3600 * 1000;        // 12 小時內沿用快取
+var liveCurrencyRates        = null; // { jpy: 4.65, eur: 0.029, ... }（key 為小寫）
+
+// 進到行程時背景抓一次即時匯率（比照 fetchWeather 的背景更新模式），
+// 快取未過期就直接沿用，不用每次開 App 都打 API
+function fetchCurrencyRates() {
+  try {
+    var cached = JSON.parse(localStorage.getItem(CURRENCY_RATES_CACHE_KEY) || 'null');
+    if (cached && cached.rates && (Date.now() - cached.t) < CURRENCY_RATES_TTL) {
+      liveCurrencyRates = cached.rates;
+      return;
+    }
+  } catch(e) {}
+
+  fetchWithTimeout('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/twd.json', 6000)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data && data.twd) {
+        liveCurrencyRates = data.twd;
+        try { localStorage.setItem(CURRENCY_RATES_CACHE_KEY, JSON.stringify({ rates: data.twd, t: Date.now() })); } catch(e) {}
+      }
+    })
+    .catch(function() { /* 抓不到就沿用備援匯率表，不影響記帳功能本身 */ });
+}
+
+// TWD 金額 → 估算外幣金額（currency 用大寫如 'EUR'，內部匯率表 key 是小寫）
+function twdToForeign(twd, currency) {
+  if (!currency || !(twd >= 0)) return null;
+  var key = String(currency).toLowerCase();
+  var rate = (liveCurrencyRates && liveCurrencyRates[key] !== undefined)
+    ? liveCurrencyRates[key]
+    : FALLBACK_CURRENCY_RATES[String(currency).toUpperCase()];
+  return (rate !== undefined && rate !== null) ? twd * rate : null;
+}
+
+// 依 CURRENCY_LABELS 動態產生「新增/編輯行程」modal 的幣別下拉選單
+function populateCurrencySelect() {
+  var sel = document.getElementById('trip-currency-input');
+  if (!sel || sel.options.length) return; // 只需要建立一次
+  sel.innerHTML = Object.keys(CURRENCY_LABELS).map(function(code) {
+    return '<option value="' + code + '">' + CURRENCY_LABELS[code] + '</option>';
+  }).join('');
 }
 
 function markDayMutated(dayNum) {
@@ -961,12 +1021,14 @@ function datesInRange(startStr, endStr) {
 var _editingTripId = null; // null = 新增模式；否則是正在編輯的 trip_id
 
 function openAddTripModal() {
+  populateCurrencySelect();
   _editingTripId = null;
   document.getElementById('trip-modal-title').textContent = '新增行程';
   document.getElementById('trip-add-confirm-btn').textContent = '建立';
   document.getElementById('trip-dest-input').value = '';
   document.getElementById('trip-start-input').value = '';
   document.getElementById('trip-end-input').value = '';
+  document.getElementById('trip-currency-input').value = 'JPY';
   document.getElementById('trip-add-error').textContent = '';
   document.getElementById('trip-add-modal').classList.remove('hidden');
 }
@@ -974,12 +1036,14 @@ function openAddTripModal() {
 function openEditTripModal(tripId) {
   var trip = tripRegistryCache.filter(function(t) { return t.trip_id === tripId; })[0];
   if (!trip) return;
+  populateCurrencySelect();
   _editingTripId = tripId;
   document.getElementById('trip-modal-title').textContent = '編輯行程';
   document.getElementById('trip-add-confirm-btn').textContent = '儲存';
   document.getElementById('trip-dest-input').value = trip.title || trip.country_or_destination || '';
   document.getElementById('trip-start-input').value = trip.start_date || '';
   document.getElementById('trip-end-input').value = trip.end_date || '';
+  document.getElementById('trip-currency-input').value = trip.currency || 'JPY';
   document.getElementById('trip-add-error').textContent = '';
   document.getElementById('trip-add-modal').classList.remove('hidden');
 }
@@ -1042,7 +1106,8 @@ function confirmTripModal() {
     title: dest,
     country_or_destination: dest,
     start_date: start,
-    end_date: end
+    end_date: end,
+    currency: document.getElementById('trip-currency-input').value || 'JPY'
   };
 
   // Local-first：先樂觀寫入快取，讓使用者立即看到新卡片，背景再同步到 GAS
@@ -1081,13 +1146,15 @@ function confirmEditTrip() {
   if (!start || !end) { errEl.textContent = '請選擇出發與結束日期'; return; }
   if (start > end) { errEl.textContent = '結束日期必須晚於出發日期'; return; }
 
+  var currency = document.getElementById('trip-currency-input').value || 'JPY';
+
   var oldDates   = datesInRange(oldTrip.start_date, oldTrip.end_date);
   var newDateSet = {};
   datesInRange(start, end).forEach(function(d) { newDateSet[d] = true; });
   var removedDates = oldDates.filter(function(d) { return !newDateSet[d]; });
 
   function proceed() {
-    saveTripEdit(tripId, dest, start, end, removedDates, oldDates.length);
+    saveTripEdit(tripId, dest, start, end, currency, removedDates, oldDates.length);
   }
 
   if (removedDates.length > 0) {
@@ -1099,6 +1166,7 @@ function confirmEditTrip() {
     document.querySelector('#confirm-modal .modal-title').textContent = '確認調整日期';
     document.getElementById('modal-msg').textContent =
       '這個調整會刪除以下日期的行程與記帳資料：' + label + '。確定要繼續嗎？';
+    document.getElementById('modal-confirm-btn').textContent = '確定';
     document.getElementById('modal-confirm-btn').onclick = function() {
       closeModal();
       proceed();
@@ -1110,7 +1178,7 @@ function confirmEditTrip() {
 }
 
 // 真正送出編輯：更新後端 trips 資料 + 依差集刪除景點/記帳，再重新整理畫面
-async function saveTripEdit(tripId, dest, start, end, removedDates, oldDayCount) {
+async function saveTripEdit(tripId, dest, start, end, currency, removedDates, oldDayCount) {
   closeAddTripModal();
   showToast('儲存中…');
 
@@ -1121,7 +1189,8 @@ async function saveTripEdit(tripId, dest, start, end, removedDates, oldDayCount)
     title: dest,
     country_or_destination: dest,
     start_date: start,
-    end_date: end
+    end_date: end,
+    currency: currency
   };
 
   try {
@@ -1305,6 +1374,7 @@ async function boot(trip) {
   flightsData = []; // 重設，避免切換行程時殘留上一個行程的班機資料
   setTripHeader(trip);
   document.getElementById('app').style.display = 'block';
+  fetchCurrencyRates(); // 背景抓即時匯率，供記帳「估算外幣」使用
 
   var isKnownTrip = trip.trip_id === DEFAULT_TRIP_ID;
 
@@ -1895,23 +1965,25 @@ function buildExpForm() {
       + '</select></div>'
     + '</div>'
     + '<div class="field"><label>項目</label><input type="text" id="e-item" placeholder="例：藏前咖啡" required></div>'
-    + '<div class="field"><label>金額（日圓 ¥）</label>'
-      + '<input type="number" id="e-jpy" placeholder="0" min="0" step="1" oninput="updTWD()" required>'
-      + '<div class="twd" id="twd-preview">≈ TWD —</div>'
+    + '<div class="field"><label>金額（新台幣 NT$）</label>'
+      + '<input type="number" id="e-twd" placeholder="0" min="0" step="1" oninput="updForeignEstimate()" required>'
+      + '<div class="twd" id="foreign-preview"></div>'
     + '</div>'
     + '<button type="submit" class="submit-btn">記帳</button>'
   + '</form>';
 }
 
-function updTWD() {
-  var jpy = +document.getElementById('e-jpy').value;
-  document.getElementById('twd-preview').textContent =
-    jpy > 0 ? '≈ TWD ' + Math.round(jpy * JPY_TWD).toLocaleString() : '≈ TWD —';
+function updForeignEstimate() {
+  var twd = +document.getElementById('e-twd').value;
+  var currency = currentTrip ? currentTrip.currency : '';
+  var est = twd > 0 ? twdToForeign(twd, currency) : null;
+  document.getElementById('foreign-preview').textContent =
+    est !== null ? ('≈ ' + CURRENCY_LABELS[currency] + ' ' + est.toLocaleString(undefined, { maximumFractionDigits: 1 })) : '';
 }
 
 async function submitExp(e) {
   e.preventDefault();
-  var amount = +document.getElementById('e-jpy').value;
+  var amount = +document.getElementById('e-twd').value;
   if (!amount || amount <= 0 || isNaN(amount)) { showToast('請輸入有效金額'); return; }
   var item = document.getElementById('e-item').value.trim();
   if (!item) { showToast('請輸入項目名稱'); return; }
@@ -1920,7 +1992,7 @@ async function submitExp(e) {
     item:       item,
     category:   document.getElementById('e-cat').value,
     payment:    document.getElementById('e-pay').value,
-    amount_jpy: amount,
+    amount_twd: amount,
     trip_id:    currentTrip ? currentTrip.trip_id : ''
   };
   try {
@@ -1931,8 +2003,8 @@ async function submitExp(e) {
     });
     showToast('✓ 已記帳，統計更新中…');
     document.getElementById('e-item').value = '';
-    document.getElementById('e-jpy').value  = '';
-    document.getElementById('twd-preview').textContent = '≈ TWD —';
+    document.getElementById('e-twd').value  = '';
+    document.getElementById('foreign-preview').textContent = '';
     setTimeout(function(){
       fetch(gasUrlFor(currentTrip.trip_id))
         .then(function(r){ return r.json(); })
@@ -2657,6 +2729,7 @@ function confirmDeleteSpot(btn) {
   // 更新確認 Modal 內容
   document.querySelector('#confirm-modal .modal-title').textContent = '刪除景點';
   document.getElementById('modal-msg').textContent = '確認要刪除「' + spotName + '」嗎？';
+  document.getElementById('modal-confirm-btn').textContent = '刪除';
   document.getElementById('modal-confirm-btn').onclick = function() {
     closeModal();
     deleteSpot(dayNum, spotName, spotId);
@@ -2879,14 +2952,15 @@ function buildSummary(data) {
   var wrap = document.getElementById('summary-wrap');
   if (!data) return;
 
-  var cats   = (data.categories || []).filter(function(c){ return c.jpy > 0; });
-  var maxJpy = Math.max.apply(null, cats.map(function(c){ return c.jpy; }).concat([1]));
+  var currency = currentTrip ? currentTrip.currency : '';
+  var cats   = (data.categories || []).filter(function(c){ return c.twd > 0; });
+  var maxTwd = Math.max.apply(null, cats.map(function(c){ return c.twd; }).concat([1]));
 
   var bars = cats.map(function(c){
     return '<div class="chart-row">'
       + '<div class="chart-lbl">' + c.name + '</div>'
-      + '<div class="chart-bar-bg"><div class="chart-bar" style="width:' + (c.jpy/maxJpy*100).toFixed(1) + '%"></div></div>'
-      + '<div class="chart-amt">¥' + c.jpy.toLocaleString() + '</div>'
+      + '<div class="chart-bar-bg"><div class="chart-bar" style="width:' + (c.twd/maxTwd*100).toFixed(1) + '%"></div></div>'
+      + '<div class="chart-amt">NT$' + c.twd.toLocaleString() + '</div>'
     + '</div>';
   }).join('');
 
@@ -2911,10 +2985,11 @@ function buildSummary(data) {
       + 'Day ' + d.day + '<span>' + mmdd + wday + '</span></button>';
   }).join('');
 
+  var totalEst = twdToForeign(data.total_twd, currency);
   wrap.innerHTML = '<div class="total-box">'
     + '<div class="total-lbl">旅遊總花費</div>'
-    + '<div class="total-jpy">¥ ' + data.total_jpy.toLocaleString() + '</div>'
-    + '<div class="total-twd">≈ TWD ' + data.total_twd.toLocaleString() + '</div>'
+    + '<div class="total-main">NT$ ' + data.total_twd.toLocaleString() + '</div>'
+    + '<div class="total-foreign">' + (totalEst !== null ? '≈ ' + CURRENCY_LABELS[currency] + ' ' + totalEst.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '') + '</div>'
   + '</div>'
   + '<div class="chart">' + bars + '</div>'
   + '<div class="synced-at">' + synced + '</div>'
@@ -2939,26 +3014,30 @@ function renderDetailRecords(date) {
   var recs = (window._expRecords || []).filter(function(r){ return normalizeDate(r.date) === date; });
   if (!recs.length) { list.innerHTML = '<div class="record-empty">此日無消費記錄</div>'; return; }
 
-  var subtotal = recs.reduce(function(s,r){ return s + (+(r.amount_jpy) || 0); }, 0);
+  var currency = currentTrip ? currentTrip.currency : '';
+  var subtotal = recs.reduce(function(s,r){ return s + (+(r.amount_twd) || 0); }, 0);
   list.innerHTML = '<div class="record-list">'
     + recs.map(function(r){
-      var amt  = +(r.amount_jpy) || 0;
+      var amt  = +(r.amount_twd) || 0;
       var name = r.item     || '—';
       var cat  = r.category || '—';
       var pay  = r.payment  || '—';
+      var est  = twdToForeign(amt, currency);
       return '<div class="record-item">'
         + '<div style="flex:1;min-width:0">'
           + '<div class="record-name">' + name + '</div>'
           + '<div class="record-meta">' + cat + ' · ' + pay + '</div>'
         + '</div>'
-        + '<div class="record-amount">¥' + amt.toLocaleString()
-          + '<div class="record-twd">≈ NT$' + Math.round(amt * JPY_TWD).toLocaleString() + '</div>'
+        + '<div class="record-amount">NT$' + amt.toLocaleString()
+          + (est !== null ? '<div class="record-foreign">≈ ' + CURRENCY_LABELS[currency] + ' ' + est.toLocaleString(undefined, { maximumFractionDigits: 1 }) + '</div>' : '')
         + '</div>'
         + '<button class="record-del" data-row="' + (r.rowIndex || '') + '" data-name="' + name.replace(/"/g,'&quot;') + '">✕</button>'
       + '</div>';
     }).join('')
   + '</div>'
-  + '<div class="record-subtotal">小計 ¥' + subtotal.toLocaleString() + ' ≈ TWD ' + Math.round(subtotal * JPY_TWD).toLocaleString() + '</div>';
+  + '<div class="record-subtotal">小計 NT$' + subtotal.toLocaleString()
+    + (twdToForeign(subtotal, currency) !== null ? ' ≈ ' + CURRENCY_LABELS[currency] + ' ' + twdToForeign(subtotal, currency).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '')
+    + '</div>';
 
   list.querySelectorAll('.record-del').forEach(function(btn){
     btn.addEventListener('click', function(){ showDeleteConfirm(+btn.dataset.row, btn.dataset.name); });
@@ -2968,7 +3047,9 @@ function renderDetailRecords(date) {
 /* ─── Delete Record ───────────────────────────────────── */
 function showDeleteConfirm(rowIndex, itemName) {
   if (!rowIndex) { showToast('請先重新部署 GAS 才能使用刪除功能'); return; }
+  document.querySelector('#confirm-modal .modal-title').textContent = '確認刪除';
   document.getElementById('modal-msg').textContent = '確定要刪除「' + itemName + '」這筆記錄嗎？';
+  document.getElementById('modal-confirm-btn').textContent = '刪除';
   document.getElementById('modal-confirm-btn').onclick = function() {
     closeModal(); doDeleteRecord(rowIndex);
   };
