@@ -1,4 +1,4 @@
-const CACHE = 'tokyo-trip-v11';
+const CACHE = 'tokyo-trip-v12';
 
 self.addEventListener('install', e => {
   self.skipWaiting();

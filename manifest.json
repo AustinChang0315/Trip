@@ -1,7 +1,7 @@
 {
-  "name": "東京自由行",
-  "short_name": "東京行程",
-  "description": "雲端行程 + 最短路由排序 — 為老婆打造的專屬旅行 App",
+  "name": "我的行程",
+  "short_name": "我的行程",
+  "description": "雲端多行程規劃 + 最短路由排序 — 為老婆打造的專屬旅行 App",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#f4f2ee",

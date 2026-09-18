@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="東京自由行">
+  <meta name="apple-mobile-web-app-title" content="我的行程">
   <meta name="theme-color" content="#5c6b8a">
-  <title>東京自由行</title>
+  <title>我的行程</title>
   <link rel="manifest" href="manifest.json">
   <script id="google-maps-script" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA7pEPkce8tZawB7gf9Ae-a4HiCRb5oXww&libraries=places,routes&language=zh-TW&loading=async" defer onerror="handleMapsLoadError()"></script>
   <style>
@@ -539,9 +539,45 @@
     .btn-modal-confirm { background: var(--accent); color: #fff; }
     .btn-modal-confirm:disabled { opacity: .6; cursor: not-allowed; }
 
+    /* ── Trip List View ────────────────────────────────── */
+    #trip-list-view { display: none; min-height: 100vh; }
+    .trip-list-wrap { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+    .trip-card {
+      background: var(--surface); border: 1px solid var(--border-lt);
+      border-radius: var(--r); padding: 16px 18px;
+      box-shadow: var(--shadow); transition: opacity .15s; text-align: left;
+      width: 100%;
+    }
+    .trip-card:active { opacity: .7; }
+    .trip-card-title { font-size: 1rem; font-weight: 600; color: var(--text-1); margin-bottom: 4px; }
+    .trip-card-dest  { font-size: .8rem; color: var(--text-2); margin-bottom: 6px; }
+    .trip-card-dates { font-size: .72rem; color: var(--text-3); letter-spacing: .05em; }
+    .fab-add-trip {
+      position: fixed; right: 20px; bottom: 28px; z-index: 50;
+      padding: 14px 22px; border-radius: 999px;
+      background: var(--accent); color: #fff;
+      font-size: .85rem; letter-spacing: .05em;
+      box-shadow: 0 4px 16px rgba(42,37,32,.2);
+    }
+    .fab-add-trip:active { opacity: .85; }
+    .btn-trip-list-back {
+      background: none; border: none; color: rgba(255,255,255,.8);
+      font-size: .95rem; padding: 4px 8px 4px 0; margin-right: 2px; flex-shrink: 0;
+    }
+    .trip-banner-left { display: flex; align-items: center; gap: 2px; min-width: 0; }
+    .trip-banner-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Add Trip Modal ────────────────────────────────── */
+    #trip-add-modal .modal-box { width: 300px; text-align: left; }
+    #trip-add-modal .modal-title { text-align: center; margin-bottom: 18px; }
+    #trip-add-modal .modal-form { padding: 0; border-top: none; gap: 14px; margin-bottom: 20px; }
+    #trip-add-modal .field input {
+      font-size: 16px;
+    }
+
     /* ── Print ─────────────────────────────────────────── */
     @media print {
-      #auth-overlay, .app-header, .day-tabs, .btn-nav, .section, .print-wrap, #toast, .divider, #countdown { display: none !important; }
+      #auth-overlay, #trip-list-view, .app-header, .day-tabs, .btn-nav, .section, .print-wrap, #toast, .divider, #countdown { display: none !important; }
       .day-panel { display: block !important; page-break-inside: avoid; }
       body { background: #fff; }
     }
@@ -552,9 +588,9 @@
 <!-- ── Password Overlay ─────────────────────────────────── -->
 <div id="auth-overlay">
   <div class="auth-card">
-    <span class="auth-icon">⛩</span>
-    <h1 class="auth-title">東京自由行</h1>
-    <p class="auth-sub">2026.06.24 — 06.29</p>
+    <span class="auth-icon">✈</span>
+    <h1 class="auth-title">我的行程</h1>
+    <p class="auth-sub">旅行規劃</p>
     <input
       type="password" id="auth-input"
       placeholder="・ ・ ・ ・"
@@ -565,13 +601,29 @@
   </div>
 </div>
 
+<!-- ── Trip List View ───────────────────────────────────── -->
+<div id="trip-list-view">
+  <header class="app-header">
+    <div class="trip-banner">
+      <span class="trip-banner-title">我的行程</span>
+    </div>
+  </header>
+  <div class="trip-list-wrap" id="trip-list-wrap">
+    <div class="panel-empty">載入行程中…</div>
+  </div>
+  <button class="fab-add-trip" onclick="openAddTripModal()">＋ 新增行程</button>
+</div>
+
 <!-- ── Main App ─────────────────────────────────────────── -->
 <div id="app">
   <header class="app-header">
     <div class="trip-banner">
-      <span class="trip-banner-title">東京自由行</span>
+      <div class="trip-banner-left">
+        <button class="btn-trip-list-back" onclick="showTripList()">←</button>
+        <span class="trip-banner-title" id="trip-banner-title">東京自由行</span>
+      </div>
       <div class="trip-banner-right">
-        <span class="trip-banner-dates">2026.06.24 — 06.29</span>
+        <span class="trip-banner-dates" id="trip-banner-dates">2026.06.24 — 06.29</span>
         <div id="hdr-weather"></div>
       </div>
     </div>
@@ -658,6 +710,33 @@
   </div>
 </div>
 
+<!-- ── Add Trip Modal ──────────────────────────────────── -->
+<div id="trip-add-modal" class="modal hidden">
+  <div class="modal-overlay" onclick="closeAddTripModal()"></div>
+  <div class="modal-box">
+    <div class="modal-title">新增行程</div>
+    <div class="modal-form">
+      <div class="field">
+        <label for="trip-dest-input">目的地／國家</label>
+        <input id="trip-dest-input" type="text" placeholder="例如：日本・大阪" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="trip-start-input">出發日期</label>
+        <input id="trip-start-input" type="date" />
+      </div>
+      <div class="field">
+        <label for="trip-end-input">結束日期</label>
+        <input id="trip-end-input" type="date" />
+      </div>
+    </div>
+    <p id="trip-add-error" style="font-size:.78rem;color:var(--red);min-height:18px;margin-bottom:6px;"></p>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeAddTripModal()">取消</button>
+      <button class="modal-confirm" id="trip-add-confirm-btn" onclick="confirmAddTrip()" style="background:var(--accent);">建立</button>
+    </div>
+  </div>
+</div>
+
 <script src="js/utils.js"></script>
 <script>
 /* ─── Config ──────────────────────────────────────────── */
@@ -672,12 +751,29 @@ var itineraryState = [];   // Task 5：增刪操作的可變狀態
 var flightsData    = [];   // 班機資訊（來自 GAS flights 頁籤）
 var _baseItinerary = null; // manualRefresh() 存取用
 
+/* ─── Multi-trip：行程識別 ───────────────────────────── */
+var DEFAULT_TRIP_ID   = 'tokyo-2026-06'; // 既有東京行程的固定 ID（與 google-backend.js 一致）
+var currentTrip        = null; // { trip_id, title, country_or_destination, start_date, end_date }
+var tripRegistryCache   = [];   // 行程列表快取（來自 trip_registry_cache）
+
+// 依目前行程組出 namespaced localStorage key，避免不同行程資料互相污染
+function tripKey(base) {
+  return (currentTrip ? currentTrip.trip_id : 'no_trip') + '__' + base;
+}
+
+function apiUrlFor(tripId) {
+  return API_URL + '?trip_id=' + encodeURIComponent(tripId);
+}
+function gasUrlFor(tripId) {
+  return GAS_URL + '?trip_id=' + encodeURIComponent(tripId);
+}
+
 function markDayMutated(dayNum) {
-  try { localStorage.setItem('day_mutated_' + dayNum, String(Date.now())); } catch(e) {}
+  try { localStorage.setItem(tripKey('day_mutated_' + dayNum), String(Date.now())); } catch(e) {}
 }
 function isDayMutated(dayNum) {
   try {
-    var t = Number(localStorage.getItem('day_mutated_' + dayNum));
+    var t = Number(localStorage.getItem(tripKey('day_mutated_' + dayNum)));
     return t > 0 && (Date.now() - t) < 30000;
   } catch(e) { return false; }
 }
@@ -699,7 +795,7 @@ function saveAuth() {
 }
 
 function initAuth() {
-  if (isAuthed()) { boot(); return; }
+  if (isAuthed()) { showTripList(); return; }
 
   var overlay = document.getElementById('auth-overlay');
   var input   = document.getElementById('auth-input');
@@ -711,7 +807,7 @@ function initAuth() {
     if (input.value === PASS_CODE) {
       saveAuth();
       overlay.style.display = 'none';
-      boot();
+      showTripList();
     } else {
       errEl.textContent = '密碼錯誤，請再試一次';
       input.value = '';
@@ -722,6 +818,191 @@ function initAuth() {
 
   input.addEventListener('input',   function(){ if (input.value.length === 4) tryLogin(); });
   input.addEventListener('keydown', function(e){ if (e.key === 'Enter') tryLogin(); });
+}
+
+/* ─── Trip List ───────────────────────────────────────── */
+var PLACEHOLDER_TRIPS = [
+  { trip_id: DEFAULT_TRIP_ID, title: '東京質感自由行 2026', country_or_destination: '日本・東京', start_date: '2026-06-24', end_date: '2026-06-29' }
+];
+
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+  });
+}
+
+function showTripList() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('trip-list-view').style.display = 'block';
+  document.title = '我的行程';
+  currentTrip = null;
+  loadTripList();
+}
+
+function loadTripList() {
+  var wrap = document.getElementById('trip-list-wrap');
+  var cached = null;
+  try { cached = JSON.parse(localStorage.getItem('trip_registry_cache') || 'null'); } catch(e) {}
+
+  if (cached && cached.trips && cached.trips.length) {
+    tripRegistryCache = cached.trips;
+    renderTripList(tripRegistryCache);
+  } else {
+    wrap.innerHTML = '<div class="panel-empty">載入行程中…</div>';
+  }
+
+  if (!API_URL) {
+    if (!tripRegistryCache.length) { tripRegistryCache = PLACEHOLDER_TRIPS; renderTripList(tripRegistryCache); }
+    return;
+  }
+
+  fetchWithTimeout(API_URL + '?resource=trips', 8000)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var trips = data.trips || [];
+      if (trips.length) {
+        tripRegistryCache = trips;
+        try { localStorage.setItem('trip_registry_cache', JSON.stringify({ trips: trips })); } catch(e) {}
+        renderTripList(trips);
+      } else if (!tripRegistryCache.length) {
+        tripRegistryCache = PLACEHOLDER_TRIPS;
+        renderTripList(tripRegistryCache);
+      }
+    })
+    .catch(function() {
+      if (!tripRegistryCache.length) {
+        tripRegistryCache = PLACEHOLDER_TRIPS;
+        renderTripList(tripRegistryCache);
+      }
+    });
+}
+
+function formatTripDates(start, end) {
+  function short(d) { return d ? d.replace(/^\d{4}-/, '').replace(/-/g, '.') : ''; }
+  if (!start && !end) return '';
+  if (start && end) return start.slice(0, 4) + '.' + short(start) + ' — ' + short(end);
+  return start || end;
+}
+
+function renderTripList(trips) {
+  var wrap = document.getElementById('trip-list-wrap');
+  if (!trips || !trips.length) {
+    wrap.innerHTML = '<div class="panel-empty">尚無行程，點右下角新增第一個行程吧</div>';
+    return;
+  }
+  var sorted = trips.slice().sort(function(a, b) {
+    return String(b.start_date || '').localeCompare(String(a.start_date || ''));
+  });
+  wrap.innerHTML = sorted.map(function(t) {
+    var dest = t.country_or_destination || '';
+    var showDest = dest && dest !== t.title; // 目的地與標題相同時（新增行程時同一個欄位）不重複顯示
+    return '<button class="trip-card" onclick="enterTrip(\'' + escHtml(t.trip_id) + '\')">'
+      + '<div class="trip-card-title">' + escHtml(t.title || t.trip_id) + '</div>'
+      + (showDest ? '<div class="trip-card-dest">' + escHtml(dest) + '</div>' : '')
+      + '<div class="trip-card-dates">' + escHtml(formatTripDates(t.start_date, t.end_date)) + '</div>'
+      + '</button>';
+  }).join('');
+}
+
+function enterTrip(tripId) {
+  var trip = tripRegistryCache.filter(function(t) { return t.trip_id === tripId; })[0];
+  if (!trip) return;
+  document.getElementById('trip-list-view').style.display = 'none';
+  boot(trip);
+}
+
+function setTripHeader(trip) {
+  document.title = trip.title || '我的行程';
+  var titleEl = document.getElementById('trip-banner-title');
+  var datesEl = document.getElementById('trip-banner-dates');
+  if (titleEl) titleEl.textContent = trip.title || trip.trip_id;
+  if (datesEl) datesEl.textContent = formatTripDates(trip.start_date, trip.end_date);
+}
+
+/* ─── 新增行程 Modal ─────────────────────────────────── */
+function slugify(s) {
+  var base = String(s || '').trim().toLowerCase()
+    .replace(/[^\w一-鿿]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return base || 'trip';
+}
+
+function openAddTripModal() {
+  document.getElementById('trip-dest-input').value = '';
+  document.getElementById('trip-start-input').value = '';
+  document.getElementById('trip-end-input').value = '';
+  document.getElementById('trip-add-error').textContent = '';
+  document.getElementById('trip-add-modal').classList.remove('hidden');
+}
+
+function closeAddTripModal() {
+  document.getElementById('trip-add-modal').classList.add('hidden');
+}
+
+// 依起訖日期合成空白的每日行程骨架，讓新行程一開始就有正確天數的分頁
+function buildEmptyItinerary(trip) {
+  var start = parseLocalDate(trip.start_date);
+  var end   = parseLocalDate(trip.end_date);
+  var days  = [];
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+    return [{ day: 1, date: trip.start_date || '', day_title: '', day_start: '09:00', spots: [], dining: [], note: '' }];
+  }
+  var cursor = new Date(start.getTime());
+  var dayNum = 1;
+  while (cursor <= end) {
+    days.push({
+      day:       dayNum,
+      date:      dateToYMD(cursor),
+      day_title: '',
+      day_start: '09:00',
+      spots:     [],
+      dining:    [],
+      note:      ''
+    });
+    cursor.setDate(cursor.getDate() + 1);
+    dayNum++;
+  }
+  return days;
+}
+
+function confirmAddTrip() {
+  var destInput  = document.getElementById('trip-dest-input');
+  var startInput = document.getElementById('trip-start-input');
+  var endInput   = document.getElementById('trip-end-input');
+  var errEl      = document.getElementById('trip-add-error');
+
+  var dest  = destInput.value.trim();
+  var start = startInput.value;
+  var end   = endInput.value;
+
+  if (!dest) { errEl.textContent = '請輸入目的地／國家'; return; }
+  if (!start || !end) { errEl.textContent = '請選擇出發與結束日期'; return; }
+  if (start > end) { errEl.textContent = '結束日期必須晚於出發日期'; return; }
+
+  var tripId = slugify(dest) + '-' + start.slice(0, 7);
+  var trip = {
+    trip_id: tripId,
+    title: dest,
+    country_or_destination: dest,
+    start_date: start,
+    end_date: end
+  };
+
+  // Local-first：先樂觀寫入快取，讓使用者立即看到新卡片，背景再同步到 GAS
+  tripRegistryCache = tripRegistryCache.concat([trip]);
+  try { localStorage.setItem('trip_registry_cache', JSON.stringify({ trips: tripRegistryCache })); } catch(e) {}
+
+  if (API_URL) {
+    fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(Object.assign({ action: 'add_trip' }, trip))
+    }).catch(function() {});
+  }
+
+  closeAddTripModal();
+  document.getElementById('trip-list-view').style.display = 'none';
+  boot(trip);
 }
 
 /* ─── Boot Helpers ───────────────────────────────── */
@@ -736,15 +1017,16 @@ function fetchWithTimeout(url, ms) {
 
 // Step 3 + Step 4 + 渲染 — 可重複呼叫（第一次 & GAS 更新都用）
 function prepareAndRender(itinerary, isUpdate) {
+  var fallback = getTripFallback();
   var prepared = itinerary.map(function(day) {
     if (!day.dining || !day.dining.length) {
-      return Object.assign({}, day, { dining: STATIC_DINING[day.day] || [] });
+      return Object.assign({}, day, { dining: fallback.staticDining[day.day] || [] });
     }
     return day;
   });
   tripDays = prepared;
   var _tCache = {};
-  try { _tCache = JSON.parse(localStorage.getItem('transit_mins_cache') || '{}'); } catch(e) {}
+  try { _tCache = JSON.parse(localStorage.getItem(tripKey('transit_mins_cache')) || '{}'); } catch(e) {}
   var _CACHE_TTL = 4 * 3600 * 1000;
   itineraryState = prepared.map(function(d) {
     if (isUpdate && isDayMutated(d.day)) {
@@ -757,7 +1039,7 @@ function prepareAndRender(itinerary, isUpdate) {
         if (s.spot_id && s.travel_mins > 0) prevSpotsMap[s.spot_id] = s.travel_mins;
       });
     });
-    var spots = applyDayOrder(d.day, (d.spots || []).slice()).map(function(s) {
+    var spots = applyDayOrder(d.day, (d.spots || []).slice(), tripKey('')).map(function(s) {
       var withId = s.spot_id ? s : Object.assign({}, s, { spot_id: stableSpotKey(s, d.day) });
       // Transit cache 優先（防止 GAS 背景輪詢覆蓋剛算好的結果）
       var cached = withId.spot_id ? _tCache[withId.spot_id] : null;
@@ -770,7 +1052,7 @@ function prepareAndRender(itinerary, isUpdate) {
       }
       return withId;
     });
-    var savedStart = localStorage.getItem('day_start_' + d.day);
+    var savedStart = localStorage.getItem(tripKey('day_start_' + d.day));
     return Object.assign({}, d, {
       spots:     spots,
       day_start: d._gas_day_start || savedStart || d.day_start
@@ -867,39 +1149,49 @@ function setupGeocodeListener() {
   }, { once: true });
 }
 
-/* ─── Boot（Task 4：雙向 API 串接）─────────────────── */
-async function boot() {
+/* ─── Boot（Task 4：雙向 API 串接，多行程版）───────── */
+async function boot(trip) {
+  currentTrip = trip;
+  flightsData = []; // 重設，避免切換行程時殘留上一個行程的班機資料
+  setTripHeader(trip);
   document.getElementById('app').style.display = 'block';
 
-  // ── Step 1：載入 itinerary.json（dining/note 基底）
+  var isKnownTrip = trip.trip_id === DEFAULT_TRIP_ID;
+
+  // ── Step 1：載入基底行程（只有既有東京行程才讀 itinerary.json，
+  //           新行程一律用起訖日期合成的空白骨架，避免混入東京內容）
   var baseItinerary;
-  try {
-    var r1 = await fetch('./data/itinerary.json');
-    var j1 = await r1.json();
-    baseItinerary = (j1.itinerary || []).map(function(day) {
-      var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
-      return Object.assign({}, day, {
-        date:      dateToYMD(day.date),
-        day_start: firstReal ? firstReal.time : '09:00'
+  if (isKnownTrip) {
+    try {
+      var r1 = await fetch('./data/itinerary.json');
+      var j1 = await r1.json();
+      baseItinerary = (j1.itinerary || []).map(function(day) {
+        var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
+        return Object.assign({}, day, {
+          date:      dateToYMD(day.date),
+          day_start: firstReal ? firstReal.time : '09:00'
+        });
       });
-    });
-  } catch(e) {
-    baseItinerary = PLACEHOLDER_DATA.itinerary.map(function(day) {
-      var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
-      return Object.assign({}, day, {
-        date:      dateToYMD(day.date),
-        day_start: firstReal ? firstReal.time : '09:00'
+    } catch(e) {
+      baseItinerary = getTripFallback().placeholderData.itinerary.map(function(day) {
+        var firstReal = (day.spots || []).filter(function(s){ return s.duration > 0 && s.time; })[0];
+        return Object.assign({}, day, {
+          date:      dateToYMD(day.date),
+          day_start: firstReal ? firstReal.time : '09:00'
+        });
       });
-    });
+    }
+  } else {
+    baseItinerary = buildEmptyItinerary(trip);
   }
   _baseItinerary = baseItinerary;
 
   // ── Step 2：GAS 快取 + 新資料
   var gasCache = null;
   try {
-    var cached = localStorage.getItem('gas_cache');
+    var cached = localStorage.getItem(tripKey('gas_cache'));
     if (cached) gasCache = JSON.parse(cached);
-  } catch(e) { localStorage.removeItem('gas_cache'); }
+  } catch(e) { localStorage.removeItem(tripKey('gas_cache')); }
 
   if (gasCache && gasCache.itinerary && gasCache.itinerary.length) {
     // ── 快取路徑：立即用上次 GAS 資料渲染（第二次以後開啟超快）
@@ -912,11 +1204,11 @@ async function boot() {
 
     // 背景抓新 GAS，到了更新快取並靜默重渲染
     if (API_URL) {
-      fetchWithTimeout(API_URL, 6000)
+      fetchWithTimeout(apiUrlFor(trip.trip_id), 6000)
         .then(function(r) { return r.json(); })
         .then(function(fresh) {
           if (fresh.itinerary && fresh.itinerary.length) {
-            localStorage.setItem('gas_cache', JSON.stringify(fresh));
+            localStorage.setItem(tripKey('gas_cache'), JSON.stringify(fresh));
             if (fresh.flights && fresh.flights.length) flightsData = fresh.flights;
             var updated = mergeGAS(baseItinerary, fresh);
             prepareAndRender(updated, true);
@@ -932,14 +1224,14 @@ async function boot() {
     if (API_URL) {
       try {
         showToast('載入行程中…');
-        var r2    = await fetch(API_URL);
+        var r2    = await fetch(apiUrlFor(trip.trip_id));
         var json2 = await r2.json();
         if (json2.itinerary && json2.itinerary.length) {
-          localStorage.setItem('gas_cache', JSON.stringify(json2));
+          localStorage.setItem(tripKey('gas_cache'), JSON.stringify(json2));
           if (json2.flights && json2.flights.length) flightsData = json2.flights;
           itinerary = mergeGAS(baseItinerary, json2);
         }
-      } catch(e) { /* GAS 失敗，沿用 itinerary.json */ }
+      } catch(e) { /* GAS 失敗，沿用基底資料 */ }
     }
     prepareAndRender(itinerary, false);
     fetchWeather(itinerary);
@@ -947,9 +1239,11 @@ async function boot() {
     setupGeocodeListener();
   }
 
-  // ── 背景：記帳統計
+  // ── 背景：記帳統計（先重設，避免切換行程時殘留上一個行程的統計畫面）
+  var summaryWrap = document.getElementById('summary-wrap');
+  if (summaryWrap) summaryWrap.innerHTML = '<div class="panel-empty">尚未同步資料</div>';
   if (GAS_URL && GAS_URL.indexOf('YOUR_') === -1) {
-    fetch(GAS_URL)
+    fetch(gasUrlFor(trip.trip_id))
       .then(function(r){ return r.json(); })
       .then(function(data){ buildSummary(data); })
       .catch(function(){});
@@ -958,16 +1252,16 @@ async function boot() {
 
 /* ─── 手動刷新 ────────────────────────────────────────── */
 async function manualRefresh() {
-  try { for (var i = 1; i <= 7; i++) localStorage.removeItem('day_mutated_' + i); } catch(e) {}
+  try { for (var i = 1; i <= 7; i++) localStorage.removeItem(tripKey('day_mutated_' + i)); } catch(e) {}
   var btns = document.querySelectorAll('.btn-refresh');
   btns.forEach(function(b) { b.disabled = true; b.style.opacity = '0.4'; });
   showToast('重新整理中…');
   try {
-    if (!API_URL || !_baseItinerary) { location.reload(); return; }
-    var r     = await fetchWithTimeout(API_URL, 10000);
+    if (!API_URL || !_baseItinerary || !currentTrip) { location.reload(); return; }
+    var r     = await fetchWithTimeout(apiUrlFor(currentTrip.trip_id), 10000);
     var fresh = await r.json();
     if (fresh.itinerary && fresh.itinerary.length) {
-      localStorage.setItem('gas_cache', JSON.stringify(fresh));
+      localStorage.setItem(tripKey('gas_cache'), JSON.stringify(fresh));
       if (fresh.flights && fresh.flights.length) flightsData = fresh.flights;
       var updated = mergeGAS(_baseItinerary, fresh);
       prepareAndRender(updated, true);
@@ -985,13 +1279,13 @@ async function manualRefresh() {
 
 /* ─── Countdown ───────────────────────────────────────── */
 function buildCountdown(days) {
+  var el = document.getElementById('countdown');
   var tripStart = parseLocalDate(days[0].date);
   var now = new Date();
   var jst = new Date(now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60000);
   var todayMid = new Date(jst.getFullYear(), jst.getMonth(), jst.getDate());
   var diff = Math.round((tripStart - todayMid) / 86400000);
-  if (diff <= 0) return;
-  var el = document.getElementById('countdown');
+  if (diff <= 0) { el.setAttribute('hidden', ''); return; } // 切換行程時重設，避免殘留上一個行程的倒數
   el.innerHTML = '距離出發還有 <strong>' + diff + '</strong> 天';
   el.removeAttribute('hidden');
 }
@@ -1476,7 +1770,8 @@ async function submitExp(e) {
     item:       item,
     category:   document.getElementById('e-cat').value,
     payment:    document.getElementById('e-pay').value,
-    amount_jpy: amount
+    amount_jpy: amount,
+    trip_id:    currentTrip ? currentTrip.trip_id : ''
   };
   try {
     await fetch(GAS_URL, {
@@ -1489,7 +1784,7 @@ async function submitExp(e) {
     document.getElementById('e-jpy').value  = '';
     document.getElementById('twd-preview').textContent = '≈ TWD —';
     setTimeout(function(){
-      fetch(GAS_URL)
+      fetch(gasUrlFor(currentTrip.trip_id))
         .then(function(r){ return r.json(); })
         .then(function(data){ buildSummary(data); showToast('✓ 統計已更新'); })
         .catch(function(){ showToast('統計更新失敗，請手動重整'); });
@@ -2159,7 +2454,7 @@ function confirmAddSpot() {
   };
 
   // 4-2 Layer 1：LocalStorage 立即寫入（GAS 同步前的離線防禦）
-  var pendingKey = 'pending_spot_' + Date.now();
+  var pendingKey = tripKey('pending_spot_' + Date.now());
   try {
     localStorage.setItem(pendingKey, JSON.stringify({ day: _addTargetDay, spot: newSpot }));
   } catch(e) {}
@@ -2167,7 +2462,7 @@ function confirmAddSpot() {
   // 4-2 Layer 2：立刻更新 UI（使用者體感「秒完成」）
   var merged = dayData.spots.concat([newSpot]);
   itineraryState[dayIdx] = Object.assign({}, dayData, { spots: merged });
-  saveDayOrder(_addTargetDay, merged);
+  saveDayOrder(_addTargetDay, merged, tripKey(''));
   markDayMutated(_addTargetDay);
 
   closeAddModal();                               // 同時解鎖 body scroll
@@ -2175,12 +2470,13 @@ function confirmAddSpot() {
   showToast('✅ 已新增「' + spotName + '」');
 
   // 4-2 Layer 3：背景 GAS 同步（不阻擋 UI，網路不穩時 localStorage 保留備份）
-  if (API_URL) {
-    fetch(API_URL, {
+  if (API_URL && currentTrip) {
+    fetch(apiUrlFor(currentTrip.trip_id), {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({
         action:        'add',
+        trip_id:       currentTrip.trip_id,
         day:           dayData.day,
         date:          dayData.date,
         day_title:     dayData.day_title,
@@ -2240,17 +2536,17 @@ function deleteSpot(dayNum, spotName, spotId) {
   if (!deleted) return;
 
   itineraryState[dayIndex] = Object.assign({}, dayData, { spots: remaining });
-  saveDayOrder(dayNum, remaining);
+  saveDayOrder(dayNum, remaining, tripKey(''));
   markDayMutated(dayNum);
   updateDayPanel(itineraryState[dayIndex]);
   showToast('✓ 已移除「' + spotName + '」');
 
   // 背景同步 GAS
-  if (API_URL) {
-    fetch(API_URL, {
+  if (API_URL && currentTrip) {
+    fetch(apiUrlFor(currentTrip.trip_id), {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'delete', spot_name: spotName, spot_id: spotId || '', day: dayNum })
+      body: JSON.stringify({ action: 'delete', trip_id: currentTrip.trip_id, spot_name: spotName, spot_id: spotId || '', day: dayNum })
     }).catch(function(){});
   }
 }
@@ -2275,7 +2571,7 @@ function moveSpot(dayNum, idx, direction) {
     }
   });
   itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: spots });
-  saveDayOrder(dayNum, spots);
+  saveDayOrder(dayNum, spots, tripKey(''));
   updateDayPanel(itineraryState[dayIdx]);
   postOrderToGAS(dayNum, spots);
 }
@@ -2288,7 +2584,7 @@ function storeDayStart(dayNum, timeStr) {
   }
   if (dayIdx < 0) return;
   itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { day_start: timeStr });
-  try { localStorage.setItem('day_start_' + dayNum, timeStr); } catch(e) {}
+  try { localStorage.setItem(tripKey('day_start_' + dayNum), timeStr); } catch(e) {}
 }
 
 // ⏰ 確認時間後重繪 + GAS 同步（由 onblur 觸發）
@@ -2299,13 +2595,13 @@ function updateDayStart(dayNum, timeStr) {
   }
   if (dayIdx < 0) return;
   itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { day_start: timeStr });
-  try { localStorage.setItem('day_start_' + dayNum, timeStr); } catch(e) {}
+  try { localStorage.setItem(tripKey('day_start_' + dayNum), timeStr); } catch(e) {}
   updateDayPanel(itineraryState[dayIdx]);
-  if (API_URL) {
-    fetch(API_URL, {
+  if (API_URL && currentTrip) {
+    fetch(apiUrlFor(currentTrip.trip_id), {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'update_day_start', day: dayNum, day_start: timeStr })
+      body: JSON.stringify({ action: 'update_day_start', trip_id: currentTrip.trip_id, day: dayNum, day_start: timeStr })
     }).catch(function(){});
   }
 }
@@ -2320,7 +2616,7 @@ function triggerOptimizeDay(dayNum) {
   var dayData = itineraryState[dayIdx];
   var optimized = optimizeDayRoute(dayData.spots, dayData.day_start);
   itineraryState[dayIdx] = Object.assign({}, dayData, { spots: optimized });
-  saveDayOrder(dayNum, optimized);
+  saveDayOrder(dayNum, optimized, tripKey(''));
   updateDayPanel(itineraryState[dayIdx]);
   postOrderToGAS(dayNum, optimized);
   showToast('🔀 路線已優化');
@@ -2328,7 +2624,7 @@ function triggerOptimizeDay(dayNum) {
 
 // T4：POST 景點順序和交通時間到 GAS
 function postOrderToGAS(dayNum, spots) {
-  if (!API_URL) return;
+  if (!API_URL || !currentTrip) return;
   var payload = spots.map(function(s, i) {
     var tMins = 0;
     if (i > 0) {
@@ -2343,10 +2639,10 @@ function postOrderToGAS(dayNum, spots) {
     }
     return { spot_name: s.spot_name, spot_id: s.spot_id || '', sort_order: i, travel_mins: tMins };
   });
-  fetch(API_URL, {
+  fetch(apiUrlFor(currentTrip.trip_id), {
     method: 'POST', mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ action: 'update_order', day: dayNum, spots: payload })
+    body: JSON.stringify({ action: 'update_order', trip_id: currentTrip.trip_id, day: dayNum, spots: payload })
   }).catch(function(){});
 }
 
@@ -2407,14 +2703,14 @@ async function calcTravelTimes(dayNum) {
     }
 
     itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: updatedSpots });
-    saveDayOrder(dayNum, updatedSpots);
+    saveDayOrder(dayNum, updatedSpots, tripKey(''));
     // 將新算好的 transit 時間存進 localStorage cache（優先級高於 GAS 返回值，防止 race condition）
     var tCache = {};
-    try { tCache = JSON.parse(localStorage.getItem('transit_mins_cache') || '{}'); } catch(e) {}
+    try { tCache = JSON.parse(localStorage.getItem(tripKey('transit_mins_cache')) || '{}'); } catch(e) {}
     updatedSpots.forEach(function(s) {
       if (s.spot_id && s.travel_mins > 0) tCache[s.spot_id] = { m: s.travel_mins, t: Date.now() };
     });
-    try { localStorage.setItem('transit_mins_cache', JSON.stringify(tCache)); } catch(e) {}
+    try { localStorage.setItem(tripKey('transit_mins_cache'), JSON.stringify(tCache)); } catch(e) {}
     updateDayPanel(itineraryState[dayIdx]);
     postOrderToGAS(dayNum, updatedSpots);
     showToast('🕐 交通時間已更新');
@@ -2542,7 +2838,7 @@ async function doDeleteRecord(rowIndex) {
     });
     showToast('✓ 已刪除');
     setTimeout(function(){
-      fetch(GAS_URL).then(function(r){ return r.json(); }).then(buildSummary).catch(function(){});
+      fetch(gasUrlFor(currentTrip.trip_id)).then(function(r){ return r.json(); }).then(buildSummary).catch(function(){});
     }, 1500);
   } catch(e) { showToast('刪除失敗，請確認網路'); }
 }
@@ -2677,6 +2973,19 @@ var PLACEHOLDER_DATA = {
     ]}
   ]
 };
+
+/* ─── Trip Fallbacks（既有行程的寫死內容，依 trip_id 查表）── */
+// 新行程（不在此表中）一律拿到空 fallback，不會混入東京的餐廳/景點假資料
+var TRIP_FALLBACKS = {};
+TRIP_FALLBACKS[DEFAULT_TRIP_ID] = {
+  staticDining:    STATIC_DINING,
+  placeholderData: PLACEHOLDER_DATA
+};
+
+function getTripFallback() {
+  var tripId = currentTrip ? currentTrip.trip_id : '';
+  return TRIP_FALLBACKS[tripId] || { staticDining: {}, placeholderData: { itinerary: [] } };
+}
 
 /* ─── Service Worker ──────────────────────────────────── */
 if ('serviceWorker' in navigator) {

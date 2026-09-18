@@ -224,9 +224,10 @@ function stableSpotKey(spot, dayNum) {
 }
 
 // 儲存當天景點順序到 localStorage（同時存 id 與 name，防止 spot_id 格式切換時失效）
-function saveDayOrder(dayNum, spots) {
+// prefix：多行程時用來區隔不同行程的 key（例如 tripId + '__'），預設不加前綴
+function saveDayOrder(dayNum, spots, prefix) {
   try {
-    localStorage.setItem('day_order_' + dayNum, JSON.stringify(
+    localStorage.setItem((prefix || '') + 'day_order_' + dayNum, JSON.stringify(
       spots.map(function(s) { return { id: s.spot_id || '', name: s.spot_name || '' }; })
     ));
   } catch(e) {}
@@ -234,8 +235,8 @@ function saveDayOrder(dayNum, spots) {
 
 // 從 localStorage 讀回儲存的順序並套用
 // 支援新格式 [{id, name}] 與舊格式 [string]，id 找不到時 fallback 用 name 匹配
-function applyDayOrder(dayNum, spots) {
-  var saved = localStorage.getItem('day_order_' + dayNum);
+function applyDayOrder(dayNum, spots, prefix) {
+  var saved = localStorage.getItem((prefix || '') + 'day_order_' + dayNum);
   if (!saved) return spots;
   try {
     var order = JSON.parse(saved);

@@ -1,7 +1,7 @@
 /**
  * ══════════════════════════════════════════════════
  *  Google Apps Script — 旅遊記帳接收 + 即時統計
- *  版本：2.0
+ *  版本：3.0（多行程：依 trip_id 分流）
  * ══════════════════════════════════════════════════
  *
  *  【設定步驟】（如果是第一次設定）
@@ -15,19 +15,23 @@
  *     - 具有存取權：所有人
  *  5. 複製網址貼回 index.html 的 GAS_URL
  *
- *  【已有設定，更新腳本】
+ *  【已有設定，更新腳本（改版為多行程）】
  *  1. 貼上新程式碼後
  *  2. 部署 → 管理部署作業 → 編輯（鉛筆圖示）
  *  3. 版本選「建立新版本」→ 部署
  *  （網址不變，不需要改 index.html）
+ *  4. 若試算表已有舊資料（沒有 trip_id 欄位），
+ *     在 G 欄手動補上 trip_id = 'tokyo-2026-06'
+ *     （跟 google-backend.js 的 DEFAULT_TRIP_ID 一致）
  *
  *  【試算表欄位格式】
- *  A: 日期　B: 項目　C: 分類　D: 金額(JPY)　E: 支付方式　F: 記錄時間
+ *  A: 日期　B: 項目　C: 分類　D: 金額(JPY)　E: 支付方式　F: 記錄時間　G: trip_id
  * ══════════════════════════════════════════════════
  */
 
 var JPY_TWD = 0.215; // 匯率，可自行調整
 var CATS    = ['餐飲', '交通', '體驗', '購物', '購物-寶寶', '購物-ㄚ鼻', '其他'];
+var COLS    = 7; // A~G
 
 // ── POST：接收前端記帳資料，寫入試算表 ──────────────
 function doPost(e) {
@@ -46,8 +50,8 @@ function doPost(e) {
     }
 
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow(['日期', '項目', '分類', '金額(JPY)', '支付方式', '記錄時間']);
-      sheet.getRange(1, 1, 1, 6).setFontWeight('bold');
+      sheet.appendRow(['日期', '項目', '分類', '金額(JPY)', '支付方式', '記錄時間', 'trip_id']);
+      sheet.getRange(1, 1, 1, COLS).setFontWeight('bold');
     }
 
     sheet.appendRow([
@@ -56,7 +60,8 @@ function doPost(e) {
       data.category   || '其他',
       data.amount_jpy || 0,
       data.payment    || '現金',
-      new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
+      new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }),
+      data.trip_id    || ''
     ]);
 
     return ContentService
@@ -69,9 +74,16 @@ function doPost(e) {
   }
 }
 
-// ── GET：即時計算統計資料，回傳給前端圖表 ────────────
-function doGet() {
+// ── GET：即時計算統計資料，回傳給前端圖表（依 trip_id 過濾）───
+function doGet(e) {
   try {
+    var tripId = e && e.parameter && e.parameter.trip_id;
+    if (!tripId) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ error: 'trip_id is required' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     var sheet   = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     var lastRow = sheet.getLastRow();
 
@@ -82,8 +94,11 @@ function doGet() {
     var records = [];
 
     if (lastRow > 1) {
-      var rows = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+      var rows = sheet.getRange(2, 1, lastRow - 1, COLS).getValues();
       rows.forEach(function(row, i) {
+        var rowTripId = String(row[6] || '');
+        if (rowTripId !== String(tripId)) return; // 只統計當前行程的記帳資料
+
         var date = row[0] instanceof Date
           ? Utilities.formatDate(row[0], 'Asia/Tokyo', 'yyyy-MM-dd')
           : (row[0] ? String(row[0]).substring(0, 10) : '');

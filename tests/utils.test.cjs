@@ -20,7 +20,7 @@ const {
   sortSpotsOptimal, reindexTimes, optimizeDayRoute,
   minsToTime, parseTimeMins, normalizeHHMM,
   normalizeDate, dateToYMD, parseLocalDate,
-  stableSpotKey, applyDayOrder
+  stableSpotKey, applyDayOrder, saveDayOrder
 } = require('../js/utils.js');
 
 /* ═══════════════════════════════════════════════════════════
@@ -287,5 +287,44 @@ describe('applyDayOrder', () => {
     assert.strictEqual(result.length, 1);
     assert.strictEqual(result[0].spot_id, 'sid_1');
     localStorage.removeItem('day_order_2');
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════
+   Cluster 4b — 多行程：day_order 的 prefix 隔離
+   ═══════════════════════════════════════════════════════════ */
+describe('saveDayOrder / applyDayOrder with prefix（多行程 key 隔離）', () => {
+  before(() => { localStorage.clear(); });
+
+  it('不同 prefix 各自存到不同的 localStorage key', () => {
+    const spotsA = [{ spot_id: 'sid_a1', spot_name: 'A1' }];
+    const spotsB = [{ spot_id: 'sid_b1', spot_name: 'B1' }];
+    saveDayOrder(1, spotsA, 'tripA__');
+    saveDayOrder(1, spotsB, 'tripB__');
+    assert.notStrictEqual(
+      localStorage.getItem('tripA__day_order_1'),
+      localStorage.getItem('tripB__day_order_1')
+    );
+    localStorage.removeItem('tripA__day_order_1');
+    localStorage.removeItem('tripB__day_order_1');
+  });
+
+  it('applyDayOrder 只讀取同一 prefix 的順序，不受其他行程影響', () => {
+    const spots = [
+      { spot_id: 'sid_1', spot_name: 'A' },
+      { spot_id: 'sid_2', spot_name: 'B' }
+    ];
+    saveDayOrder(1, spots.slice().reverse(), 'tripA__');
+    // tripB 沒有存過順序，applyDayOrder 應該原序回傳
+    const result = applyDayOrder(1, spots, 'tripB__');
+    assert.deepStrictEqual(result, spots);
+    localStorage.removeItem('tripA__day_order_1');
+  });
+
+  it('不帶 prefix 時行為與舊版一致（預設空字串）', () => {
+    const spots = [{ spot_id: 'sid_1', spot_name: 'A' }];
+    saveDayOrder(5, spots);
+    assert.ok(localStorage.getItem('day_order_5'));
+    localStorage.removeItem('day_order_5');
   });
 });
