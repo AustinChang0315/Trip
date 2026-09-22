@@ -819,8 +819,18 @@
       </div>
       <div class="row">
         <div class="field">
+          <label for="flight-dep-date-input">出發日期</label>
+          <input id="flight-dep-date-input" type="date" />
+        </div>
+        <div class="field">
           <label for="flight-dep-time-input">起飛時間</label>
           <input id="flight-dep-time-input" type="time" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="flight-arr-date-input">抵達日期</label>
+          <input id="flight-arr-date-input" type="date" />
         </div>
         <div class="field">
           <label for="flight-arr-time-input">抵達時間</label>
@@ -1218,6 +1228,8 @@ function openAddFlightModal(dayNum) {
   _editingFlightOldDay = null;
   _editingFlightOldName = '';
   populateFlightDaySelect(dayNum);
+  var dayData = itineraryState.filter(function(d) { return d.day === dayNum; })[0];
+  var defaultDate = dayData ? dayData.date : '';
   document.getElementById('flight-modal-title').textContent = '新增班機';
   document.getElementById('flight-modal-confirm-btn').textContent = '建立';
   document.getElementById('flight-modal-delete-btn').style.display = 'none';
@@ -1225,7 +1237,9 @@ function openAddFlightModal(dayNum) {
   document.getElementById('flight-no-input').value = '';
   document.getElementById('flight-origin-input').value = '';
   document.getElementById('flight-destination-input').value = '';
+  document.getElementById('flight-dep-date-input').value = defaultDate;
   document.getElementById('flight-dep-time-input').value = '';
+  document.getElementById('flight-arr-date-input').value = defaultDate;
   document.getElementById('flight-arr-time-input').value = '';
   document.getElementById('flight-transport-input').value = '';
   document.getElementById('flight-modal-error').textContent = '';
@@ -1250,7 +1264,9 @@ function openEditFlightModal(flightId, day, spotName) {
   document.getElementById('flight-no-input').value = flight.flight_no || '';
   document.getElementById('flight-origin-input').value = flight.origin || '';
   document.getElementById('flight-destination-input').value = flight.destination || '';
+  document.getElementById('flight-dep-date-input').value = flight.departure_date || '';
   document.getElementById('flight-dep-time-input').value = flight.departure_time || '';
+  document.getElementById('flight-arr-date-input').value = flight.arrival_date || '';
   document.getElementById('flight-arr-time-input').value = flight.arrival_time || '';
   document.getElementById('flight-transport-input').value = (flight.transport && flight.transport.method) || '';
   document.getElementById('flight-modal-error').textContent = '';
@@ -1268,16 +1284,10 @@ function _flightMatchesEditing(f) {
     : (f.day === _editingFlightOldDay && f.spot_name === _editingFlightOldName);
 }
 
-// 依起飛/抵達時間（HH:MM）算出飛行時間文字，例如「3 小時 10 分」；跨夜航班（抵達時間小於起飛時間）視為隔天抵達
-function calcFlightDuration(depTime, arrTime) {
-  if (!depTime || !arrTime) return '';
-  var dep = parseTimeMins(depTime);
-  var arr = parseTimeMins(arrTime);
-  var diff = arr - dep;
-  if (diff < 0) diff += 24 * 60;
-  var h = Math.floor(diff / 60), m = diff % 60;
-  if (h <= 0) return m + ' 分';
-  return h + ' 小時' + (m > 0 ? ' ' + m + ' 分' : '');
+// YYYY-MM-DD → M/D，供班機說明文字使用
+function formatFlightDate(dateStr) {
+  var dt = parseLocalDate(dateStr);
+  return isNaN(dt) ? '' : (dt.getMonth() + 1) + '/' + dt.getDate();
 }
 
 function confirmFlightModal() {
@@ -1286,19 +1296,21 @@ function confirmFlightModal() {
   var flightNo    = document.getElementById('flight-no-input').value.trim();
   var origin      = document.getElementById('flight-origin-input').value.trim();
   var destination = document.getElementById('flight-destination-input').value.trim();
+  var depDate     = document.getElementById('flight-dep-date-input').value;
   var depTime     = document.getElementById('flight-dep-time-input').value;
+  var arrDate     = document.getElementById('flight-arr-date-input').value;
   var arrTime     = document.getElementById('flight-arr-time-input').value;
   var method      = document.getElementById('flight-transport-input').value.trim();
   var errEl       = document.getElementById('flight-modal-error');
 
-  if (!airline || !flightNo)     { errEl.textContent = '請輸入航空公司與班機代號'; return; }
-  if (!origin || !destination)   { errEl.textContent = '請輸入出發地與目的地'; return; }
-  if (!depTime || !arrTime)      { errEl.textContent = '請輸入起飛與抵達時間'; return; }
+  if (!airline || !flightNo)             { errEl.textContent = '請輸入航空公司與班機代號'; return; }
+  if (!origin || !destination)           { errEl.textContent = '請輸入出發地與目的地'; return; }
+  if (!depDate || !depTime || !arrDate || !arrTime) { errEl.textContent = '請輸入起飛與抵達的日期時間'; return; }
 
-  var durationLabel = calcFlightDuration(depTime, arrTime);
   var spotName    = origin + ' → ' + destination;
-  var description = airline + ' ' + flightNo + '，' + depTime + ' 起飛 → ' + arrTime + ' 抵達'
-    + (durationLabel ? '（飛行時間約 ' + durationLabel + '）' : '');
+  var description = airline + ' ' + flightNo + '，'
+    + formatFlightDate(depDate) + ' ' + depTime + ' 起飛 → '
+    + formatFlightDate(arrDate) + ' ' + arrTime + ' 抵達';
 
   var flight = {
     flight_id:       _editingFlightMode ? _editingFlightId : ('fid_' + Date.now() + '_' + Math.floor(Math.random() * 9999)),
@@ -1309,7 +1321,9 @@ function confirmFlightModal() {
     flight_no:       flightNo,
     origin:          origin,
     destination:     destination,
+    departure_date:  depDate,
     departure_time:  depTime,
+    arrival_date:    arrDate,
     arrival_time:    arrTime,
     transport:       { method: method, duration: '', google_maps_url: '' },
     _editable:       true
@@ -1340,7 +1354,9 @@ function confirmFlightModal() {
         flight_no: flightNo,
         origin: origin,
         destination: destination,
+        departure_date: depDate,
         departure_time: depTime,
+        arrival_date: arrDate,
         arrival_time: arrTime,
         transport_method: method
       })

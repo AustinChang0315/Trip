@@ -47,9 +47,9 @@ const TRIPS_HEADERS = [
 
 const FLIGHT_HEADERS = [
   'trip_id',            // 所屬行程 ID
-  'day',                // 行程第幾天
+  'day',                // 行程第幾天（純粹決定卡片顯示在哪個 Day 分頁，不代表實際出發/抵達日期）
   'spot_name',          // 航班標題（前端由 origin/destination 組成，例如「桃園機場 → 羽田機場」）
-  'description',        // 完整說明（前端由 airline/flight_no/時間組成，含自動算出的飛行時間）
+  'description',        // 完整說明（前端由 airline/flight_no/日期時間組成）
   'transport_method',   // 入境/出境後的交通方式
   'transport_duration', // （已停用，僅為相容改版前舊資料保留欄位，新流程不再寫入）
   'maps_url',           // Google Maps 導航連結
@@ -58,8 +58,10 @@ const FLIGHT_HEADERS = [
   'flight_no',          // 班機代號
   'origin',             // 出發地
   'destination',        // 目的地
+  'departure_date',     // 出發日期 YYYY-MM-DD（可早於行程起始日，例如跨夜班機）
   'departure_time',     // 起飛時間 HH:MM
-  'arrival_time'         // 抵達時間 HH:MM
+  'arrival_date',       // 抵達日期 YYYY-MM-DD
+  'arrival_time'        // 抵達時間 HH:MM
 ];
 const HEADERS = [
   'trip_id',      // 所屬行程 ID
@@ -206,7 +208,9 @@ function doGet(e) {
           flight_no:          fHeaders.indexOf('flight_no'),
           origin:             fHeaders.indexOf('origin'),
           destination:        fHeaders.indexOf('destination'),
+          departure_date:     fHeaders.indexOf('departure_date'),
           departure_time:     fHeaders.indexOf('departure_time'),
+          arrival_date:       fHeaders.indexOf('arrival_date'),
           arrival_time:       fHeaders.indexOf('arrival_time')
         };
         fData.slice(1).forEach(function(row) {
@@ -221,8 +225,10 @@ function doGet(e) {
             flight_no:      String(row[FC.flight_no]      || ''),
             origin:         String(row[FC.origin]         || ''),
             destination:    String(row[FC.destination]    || ''),
-            departure_time: String(row[FC.departure_time] || ''),
-            arrival_time:   String(row[FC.arrival_time]   || ''),
+            departure_date: FC.departure_date >= 0 ? toYMD(row[FC.departure_date]) : '',
+            departure_time: toHHMM(row[FC.departure_time]),
+            arrival_date:   FC.arrival_date >= 0 ? toYMD(row[FC.arrival_date]) : '',
+            arrival_time:   toHHMM(row[FC.arrival_time]),
             transport: {
               method:          String(row[FC.transport_method]   || ''),
               duration:        String(row[FC.transport_duration] || ''),
@@ -574,6 +580,8 @@ function handleAddFlight(payload) {
   var sheet = getOrCreateFlightSheet(ss);
   ensureFlightColumns(sheet);
 
+  // 出發/抵達日期時間欄位留空先寫入，appendRow 之後再用 setNumberFormat('@') 強制文字格式寫入，
+  // 避免 Google Sheets 把 "23:45"／"2026-11-17" 這種字串自動解析成日期時間序列值（[google-backend.js:419](google-backend.js#L419) handleUpdateDayStart 已有的既有寫法）
   sheet.appendRow([
     tripId,
     Number(payload.day),
@@ -587,9 +595,18 @@ function handleAddFlight(payload) {
     String(payload.flight_no      || ''),
     String(payload.origin         || ''),
     String(payload.destination    || ''),
-    String(payload.departure_time || ''),
-    String(payload.arrival_time   || '')
+    '', // departure_date：下面補寫
+    '', // departure_time：下面補寫
+    '', // arrival_date：下面補寫
+    ''  // arrival_time：下面補寫
   ]);
+
+  var newRow  = sheet.getLastRow();
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  ['departure_date', 'departure_time', 'arrival_date', 'arrival_time'].forEach(function(h) {
+    var c = headers.indexOf(h);
+    if (c >= 0) sheet.getRange(newRow, c + 1).setNumberFormat('@').setValue(String(payload[h] || ''));
+  });
 
   return jsonResponse({ success: true, message: '班機已新增：' + payload.spot_name });
 }
@@ -639,7 +656,9 @@ function handleUpdateFlight(payload) {
     flight_no:        headers.indexOf('flight_no'),
     origin:           headers.indexOf('origin'),
     destination:      headers.indexOf('destination'),
+    departure_date:   headers.indexOf('departure_date'),
     departure_time:   headers.indexOf('departure_time'),
+    arrival_date:     headers.indexOf('arrival_date'),
     arrival_time:     headers.indexOf('arrival_time')
     // transport_duration 已停用，維持列上舊值不動（改版前舊資料可能還有內容）
   };
@@ -652,8 +671,11 @@ function handleUpdateFlight(payload) {
   sheet.getRange(r, col.flight_no + 1).setValue(String(payload.flight_no || ''));
   sheet.getRange(r, col.origin + 1).setValue(String(payload.origin || ''));
   sheet.getRange(r, col.destination + 1).setValue(String(payload.destination || ''));
-  sheet.getRange(r, col.departure_time + 1).setValue(String(payload.departure_time || ''));
-  sheet.getRange(r, col.arrival_time + 1).setValue(String(payload.arrival_time || ''));
+  // setNumberFormat('@') 強制文字格式，避免 "23:45"／"2026-11-17" 被 Sheets 自動解析成日期時間序列值
+  sheet.getRange(r, col.departure_date + 1).setNumberFormat('@').setValue(String(payload.departure_date || ''));
+  sheet.getRange(r, col.departure_time + 1).setNumberFormat('@').setValue(String(payload.departure_time || ''));
+  sheet.getRange(r, col.arrival_date + 1).setNumberFormat('@').setValue(String(payload.arrival_date || ''));
+  sheet.getRange(r, col.arrival_time + 1).setNumberFormat('@').setValue(String(payload.arrival_time || ''));
 
   return jsonResponse({ success: true, message: '班機已更新：' + payload.spot_name });
 }
@@ -747,6 +769,18 @@ function toYMD(val) {
   var m = String(d.getMonth() + 1).padStart(2, '0');
   var day = String(d.getDate()).padStart(2, '0');
   return y + '-' + m + '-' + day;
+}
+
+// 寫入端已用 setNumberFormat('@') 強制文字格式，但改版前寫入的舊資料列可能已經被 Sheets
+// 自動解析成 Date 物件，讀取時一併防呆轉回 HH:MM，避免顯示出 "Sat Dec 30 1899 23:45:00 ..." 這種原始 Date 字串
+function toHHMM(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    var h = String(val.getHours()).padStart(2, '0');
+    var m = String(val.getMinutes()).padStart(2, '0');
+    return h + ':' + m;
+  }
+  return String(val);
 }
 
 function getSheet() {
