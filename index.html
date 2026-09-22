@@ -614,10 +614,16 @@
     #trip-add-modal .field input {
       font-size: 16px;
     }
-    #flight-modal .modal-box { width: 300px; text-align: left; }
+    #flight-modal .modal-box { width: 350px; text-align: left; }
     #flight-modal .modal-title { text-align: center; margin-bottom: 18px; }
     #flight-modal .modal-form { padding: 0; border-top: none; gap: 12px; margin-bottom: 14px; }
     #flight-modal .row { gap: 8px; }
+    #flight-modal .row .field { min-width: 0; }
+    #flight-modal .field-date { flex: 1.1; }
+    #flight-modal .field-time { flex: 1; }
+    #flight-modal input[type="date"], #flight-modal input[type="time"] {
+      min-width: 0; padding-left: 6px; padding-right: 4px;
+    }
 
     /* ── Print ─────────────────────────────────────────── */
     @media print {
@@ -818,21 +824,21 @@
         </div>
       </div>
       <div class="row">
-        <div class="field">
+        <div class="field field-date">
           <label for="flight-dep-date-input">出發日期</label>
           <input id="flight-dep-date-input" type="date" />
         </div>
-        <div class="field">
+        <div class="field field-time">
           <label for="flight-dep-time-input">起飛時間</label>
           <input id="flight-dep-time-input" type="time" />
         </div>
       </div>
       <div class="row">
-        <div class="field">
+        <div class="field field-date">
           <label for="flight-arr-date-input">抵達日期</label>
           <input id="flight-arr-date-input" type="date" />
         </div>
-        <div class="field">
+        <div class="field field-time">
           <label for="flight-arr-time-input">抵達時間</label>
           <input id="flight-arr-time-input" type="time" />
         </div>
