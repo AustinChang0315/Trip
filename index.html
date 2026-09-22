@@ -624,6 +624,14 @@
     #flight-modal input[type="date"], #flight-modal input[type="time"] {
       min-width: 0; padding-left: 6px; padding-right: 4px;
     }
+    .field-with-btn { display: flex; gap: 6px; }
+    .field-with-btn input { flex: 1; min-width: 0; }
+    .btn-airport-search {
+      flex-shrink: 0; width: 42px;
+      background: var(--accent); color: #fff;
+      border-radius: var(--r-sm); font-size: .95rem;
+    }
+    .btn-airport-search:disabled { opacity: .6; }
 
     /* ── Print ─────────────────────────────────────────── */
     @media print {
@@ -816,11 +824,17 @@
       <div class="row">
         <div class="field">
           <label for="flight-origin-input">出發地</label>
-          <input id="flight-origin-input" type="text" placeholder="例如：桃園機場" autocomplete="off" />
+          <div class="field-with-btn">
+            <input id="flight-origin-input" type="text" placeholder="桃園、TPE…" autocomplete="off" />
+            <button type="button" class="btn-airport-search" onclick="searchAirport(document.getElementById('flight-origin-input'), this)" title="搜尋機場">🔍</button>
+          </div>
         </div>
         <div class="field">
           <label for="flight-destination-input">目的地</label>
-          <input id="flight-destination-input" type="text" placeholder="例如：羽田機場" autocomplete="off" />
+          <div class="field-with-btn">
+            <input id="flight-destination-input" type="text" placeholder="羽田、HND…" autocomplete="off" />
+            <button type="button" class="btn-airport-search" onclick="searchAirport(document.getElementById('flight-destination-input'), this)" title="搜尋機場">🔍</button>
+          </div>
         </div>
       </div>
       <div class="row">
@@ -1281,6 +1295,40 @@ function openEditFlightModal(flightId, day, spotName) {
 
 function closeFlightModal() {
   document.getElementById('flight-modal').classList.add('hidden');
+}
+
+// 出發地/目的地欄位的機場搜尋：重用既有 searchPlace() 的 Places API 呼叫方式（language: 'zh-TW'），
+// 但只需要 displayName、且限定 includedType: 'airport'，讓使用者輸入代號（TPE）或中文地名（桃園）都能查到
+async function searchAirport(inputEl, btnEl) {
+  var query = inputEl.value.trim();
+  if (!query) return;
+
+  var originalText = btnEl.textContent;
+  btnEl.disabled = true;
+  btnEl.textContent = '…';
+
+  try {
+    var { Place } = await google.maps.importLibrary('places');
+    var { places } = await Place.searchByText({
+      textQuery: query,
+      fields: ['displayName'],
+      language: 'zh-TW',
+      includedType: 'airport'
+    });
+
+    if (!places || !places[0]) {
+      showToast('找不到機場，請換個關鍵字');
+      return;
+    }
+
+    inputEl.value = places[0].displayName || query;
+  } catch (err) {
+    console.error('[searchAirport]', err);
+    showToast('搜尋失敗，請稍後再試');
+  } finally {
+    btnEl.disabled = false;
+    btnEl.textContent = originalText;
+  }
 }
 
 // 找出 flightsData 裡符合「編輯中那筆」的判斷式：有 flight_id 就比對 id，
