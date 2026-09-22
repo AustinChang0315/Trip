@@ -188,15 +188,23 @@
 
     /* Flight Info Card（班機獨立卡片） */
     .flight-card {
+      position: relative;
       margin: 0 16px 14px; padding: 12px 14px;
       background: var(--surface-sub); border: 1px dashed var(--text-3);
       border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;
     }
     .flight-card-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; color: var(--text-3); }
-    .flight-card-body { flex: 1; min-width: 0; }
+    .flight-card-body { flex: 1; min-width: 0; padding-right: 22px; }
     .flight-card-title { font-size: .9rem; font-weight: 700; color: var(--text-1); line-height: 1.35; margin-bottom: 5px; }
     .flight-card-desc  { font-size: .76rem; color: var(--text-2); line-height: 1.7; margin-bottom: 5px; }
     .flight-card-transport { font-size: .72rem; color: var(--text-3); line-height: 1.5; }
+    .flight-card-edit {
+      position: absolute; top: 8px; right: 10px;
+      font-size: .8rem; color: var(--text-3);
+      padding: 3px 5px; border-radius: 5px; line-height: 1;
+      background: transparent; transition: color .15s;
+    }
+    .flight-card-edit:active { color: var(--accent); }
 
     /* Delete Button（景點右上角） */
     .btn-del-spot {
@@ -344,13 +352,14 @@
     .row      { display: flex; gap: 10px; }
     .field    { display: flex; flex-direction: column; gap: 4px; flex: 1; }
     .field label { font-size: .68rem; color: var(--text-3); letter-spacing: .06em; }
-    .field input, .field select {
+    .field input, .field select, .field textarea {
       padding: 10px 12px; border: 1px solid var(--border);
       background: var(--surface); border-radius: var(--r-sm);
       width: 100%; font-size: 16px; outline: none; /* 16px 避免 iOS Safari 聚焦時自動放大畫面 */
       -webkit-appearance: none; appearance: none; color: var(--text-1);
+      font-family: inherit; resize: vertical;
     }
-    .field input:focus, .field select:focus {
+    .field input:focus, .field select:focus, .field textarea:focus {
       border-color: var(--accent); box-shadow: 0 0 0 3px rgba(92,107,138,.08);
     }
     .twd       { font-size: .72rem; color: var(--text-3); text-align: right; margin-top: -6px; min-height: 1em; }
@@ -774,6 +783,42 @@
   </div>
 </div>
 
+<!-- ── Add/Edit Flight Modal ──────────────────────────────── -->
+<div id="flight-modal" class="modal hidden">
+  <div class="modal-overlay" onclick="closeFlightModal()"></div>
+  <div class="modal-box">
+    <div class="modal-title" id="flight-modal-title">新增班機</div>
+    <div class="modal-form">
+      <div class="field">
+        <label for="flight-day-input">天數</label>
+        <select id="flight-day-input"></select>
+      </div>
+      <div class="field">
+        <label for="flight-name-input">航班標題</label>
+        <input id="flight-name-input" type="text" placeholder="例如：去程 CI107 桃園 → 羽田" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="flight-desc-input">說明</label>
+        <textarea id="flight-desc-input" rows="2" placeholder="例如：12:20 起飛，16:35 抵達，航廈2"></textarea>
+      </div>
+      <div class="field">
+        <label for="flight-transport-input">交通方式</label>
+        <input id="flight-transport-input" type="text" placeholder="例如：搭乘京急線至品川站轉JR" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="flight-duration-input">預估交通時間</label>
+        <input id="flight-duration-input" type="text" placeholder="例如：約 40 分鐘" autocomplete="off" />
+      </div>
+    </div>
+    <p id="flight-modal-error" style="font-size:.78rem;color:var(--red);min-height:18px;margin-bottom:6px;"></p>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeFlightModal()">取消</button>
+      <button class="modal-confirm" id="flight-modal-confirm-btn" onclick="confirmFlightModal()" style="background:var(--accent);">建立</button>
+    </div>
+    <button id="flight-modal-delete-btn" onclick="confirmDeleteFlight()" style="display:none;width:100%;margin-top:10px;background:none;border:none;color:var(--red);font-size:.8rem;padding:6px;">🗑 刪除班機</button>
+  </div>
+</div>
+
 <script src="js/utils.js"></script>
 <script>
 /* ─── Config ──────────────────────────────────────────── */
@@ -1126,6 +1171,162 @@ function openEditTripModal(tripId) {
 
 function closeAddTripModal() {
   document.getElementById('trip-add-modal').classList.add('hidden');
+}
+
+/* ─── 班機新增/編輯/刪除 Modal ──────────────────────────── */
+var _editingFlightMode = false;   // true = 編輯模式
+var _editingFlightId   = '';      // 編輯中的 flight_id（可能為空字串，代表改版前的舊資料，此時改用下面兩個欄位比對）
+var _editingFlightOldDay  = null; // 編輯前的天數（沒有 flight_id 時，用來定位原始列）
+var _editingFlightOldName = '';   // 編輯前的航班標題（同上）
+
+function populateFlightDaySelect(selectedDay) {
+  var sel = document.getElementById('flight-day-input');
+  sel.innerHTML = itineraryState.map(function(d) {
+    var dt = parseLocalDate(d.date);
+    var label = isNaN(dt)
+      ? ('Day ' + d.day)
+      : 'Day ' + d.day + '（' + (dt.getMonth()+1) + '/' + dt.getDate() + ' ' + WKDAYS[dt.getDay()] + '）';
+    return '<option value="' + d.day + '"' + (d.day === selectedDay ? ' selected' : '') + '>' + label + '</option>';
+  }).join('');
+}
+
+function openAddFlightModal(dayNum) {
+  _editingFlightMode = false;
+  _editingFlightId = '';
+  _editingFlightOldDay = null;
+  _editingFlightOldName = '';
+  populateFlightDaySelect(dayNum);
+  document.getElementById('flight-modal-title').textContent = '新增班機';
+  document.getElementById('flight-modal-confirm-btn').textContent = '建立';
+  document.getElementById('flight-modal-delete-btn').style.display = 'none';
+  document.getElementById('flight-name-input').value = '';
+  document.getElementById('flight-desc-input').value = '';
+  document.getElementById('flight-transport-input').value = '';
+  document.getElementById('flight-duration-input').value = '';
+  document.getElementById('flight-modal-error').textContent = '';
+  document.getElementById('flight-modal').classList.remove('hidden');
+}
+
+function openEditFlightModal(flightId, day, spotName) {
+  var flight = flightsData.filter(function(f) {
+    return flightId ? f.flight_id === flightId : (f.day === day && f.spot_name === spotName);
+  })[0];
+  if (!flight) return;
+
+  _editingFlightMode = true;
+  _editingFlightId = flightId || '';
+  _editingFlightOldDay = flight.day;
+  _editingFlightOldName = flight.spot_name || '';
+  populateFlightDaySelect(flight.day);
+  document.getElementById('flight-modal-title').textContent = '編輯班機';
+  document.getElementById('flight-modal-confirm-btn').textContent = '儲存';
+  document.getElementById('flight-modal-delete-btn').style.display = 'block';
+  document.getElementById('flight-name-input').value = flight.spot_name || '';
+  document.getElementById('flight-desc-input').value = flight.description || '';
+  document.getElementById('flight-transport-input').value = (flight.transport && flight.transport.method) || '';
+  document.getElementById('flight-duration-input').value = (flight.transport && flight.transport.duration) || '';
+  document.getElementById('flight-modal-error').textContent = '';
+  document.getElementById('flight-modal').classList.remove('hidden');
+}
+
+function closeFlightModal() {
+  document.getElementById('flight-modal').classList.add('hidden');
+}
+
+// 找出 flightsData 裡符合「編輯中那筆」的判斷式：有 flight_id 就比對 id，
+// 沒有（改版前舊資料）就比對開 modal 當下記下的舊天數＋舊標題
+function _flightMatchesEditing(f) {
+  return _editingFlightId ? f.flight_id === _editingFlightId
+    : (f.day === _editingFlightOldDay && f.spot_name === _editingFlightOldName);
+}
+
+function confirmFlightModal() {
+  var day         = Number(document.getElementById('flight-day-input').value);
+  var spotName    = document.getElementById('flight-name-input').value.trim();
+  var description = document.getElementById('flight-desc-input').value.trim();
+  var method      = document.getElementById('flight-transport-input').value.trim();
+  var duration    = document.getElementById('flight-duration-input').value.trim();
+  var errEl       = document.getElementById('flight-modal-error');
+
+  if (!spotName) { errEl.textContent = '請輸入航班標題'; return; }
+
+  var flight = {
+    flight_id:   _editingFlightMode ? _editingFlightId : ('fid_' + Date.now() + '_' + Math.floor(Math.random() * 9999)),
+    day:         day,
+    spot_name:   spotName,
+    description: description,
+    transport:   { method: method, duration: duration, google_maps_url: '' },
+    _editable:   true
+  };
+
+  if (_editingFlightMode) {
+    flightsData = flightsData.map(function(f) { return _flightMatchesEditing(f) ? flight : f; });
+  } else {
+    flightsData = flightsData.concat([flight]);
+  }
+
+  closeFlightModal();
+  rerenderFlightDays(_editingFlightOldDay, day);
+  showToast(_editingFlightMode ? ('✓ 已更新「' + spotName + '」') : ('✅ 已新增「' + spotName + '」'));
+
+  if (API_URL && currentTrip) {
+    fetch(apiUrlFor(currentTrip.trip_id), {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: _editingFlightMode ? 'update_flight' : 'add_flight',
+        trip_id: currentTrip.trip_id,
+        flight_id: flight.flight_id,
+        day: day,
+        spot_name: spotName,
+        description: description,
+        transport_method: method,
+        transport_duration: duration
+      })
+    }).catch(function(){});
+  }
+}
+
+// 重繪受影響的那幾天（編輯時天數可能改變，舊/新天數都要重繪）
+function rerenderFlightDays() {
+  var days = {};
+  for (var i = 0; i < arguments.length; i++) {
+    if (arguments[i] !== null && arguments[i] !== undefined) days[arguments[i]] = true;
+  }
+  Object.keys(days).forEach(function(d) {
+    var dayData = itineraryState.filter(function(x) { return x.day === Number(d); })[0];
+    if (dayData) updateDayPanel(dayData);
+  });
+}
+
+function confirmDeleteFlight() {
+  var spotName = document.getElementById('flight-name-input').value.trim();
+  var day      = _editingFlightOldDay;
+
+  document.querySelector('#confirm-modal .modal-title').textContent = '刪除班機';
+  document.getElementById('modal-msg').textContent = '確認要刪除「' + spotName + '」嗎？';
+  document.getElementById('modal-confirm-btn').textContent = '刪除';
+  document.getElementById('modal-confirm-btn').onclick = function() {
+    closeModal();
+    closeFlightModal();
+    deleteFlightRecord(day, spotName);
+  };
+  document.getElementById('confirm-modal').classList.remove('hidden');
+}
+
+function deleteFlightRecord(day, spotName) {
+  var flightId = _editingFlightId;
+  flightsData = flightsData.filter(function(f) { return !_flightMatchesEditing(f); });
+  rerenderFlightDays(day);
+  showToast('✓ 已移除「' + spotName + '」');
+
+  if (API_URL && currentTrip) {
+    fetch(apiUrlFor(currentTrip.trip_id), {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'delete_flight', trip_id: currentTrip.trip_id, flight_id: flightId || '', day: day, spot_name: spotName })
+    }).catch(function(){});
+  }
 }
 
 // 依起訖日期合成空白的每日行程骨架，讓新行程一開始就有正確天數的分頁
@@ -1777,11 +1978,13 @@ function renderDayPanel(dayData) {
   var diningStr  = (dayData.dining && dayData.dining.length) ? buildDiningHTML(dayData.dining) : '';
   var addBtnHtml = '<div class="add-spot-wrap">'
     + '<button class="btn-add-spot" onclick="showAddModal(' + dayData.day + ')">➕ 新增景點</button>'
+    + '<button class="btn-add-spot" onclick="openAddFlightModal(' + dayData.day + ')">✈ 新增班機</button>'
     + '<button class="btn-add-spot btn-refresh" onclick="manualRefresh()" title="重新整理">↺</button>'
   + '</div>';
 
-  // 班機卡片：GAS flights 優先，fallback 到 itinerary.json 中的去程/回程 spots
-  var dayFlights = flightsData.filter(function(f) { return f.day === dayData.day; });
+  // 班機卡片：GAS flights 優先（可編輯），fallback 到 itinerary.json 中的去程/回程 spots（唯讀）
+  var dayFlights = flightsData.filter(function(f) { return f.day === dayData.day; })
+    .map(function(f) { return Object.assign({ _editable: true }, f); });
   if (!dayFlights.length) {
     dayFlights = rawSpots.filter(function(s) {
       return s.spot_name && (s.spot_name.indexOf('去程') !== -1 || s.spot_name.indexOf('回程') !== -1);
@@ -1790,6 +1993,11 @@ function renderDayPanel(dayData) {
     });
   }
   var flightCardHtml = dayFlights.map(buildFlightCard).join('');
+
+  // 顯示位置不寫死 day===1/6（原本東京 6 天行程遺留的假設），改用這個行程實際的第一天／最後一天：
+  // 最後一天放在 timeline 之後（探索完再出發），其餘所有天（含中途才有的班機）放在 timeline 之前（先抵達再探索）
+  var tripDayNums = itineraryState.map(function(d) { return d.day; });
+  var lastDay = tripDayNums.length ? Math.max.apply(null, tripDayNums) : dayData.day;
 
   return '<section class="day-panel" data-day="' + dayData.day + '">'
     + '<div class="day-header">'
@@ -1808,10 +2016,10 @@ function renderDayPanel(dayData) {
       + '</div>'
       + '<div class="day-weather-summary" id="dw-' + dayData.date + '" style="display:none"></div>'
     + '</div>'
-    + (flightCardHtml && dayData.day === 1 ? flightCardHtml : '')
+    + (flightCardHtml && dayData.day !== lastDay ? flightCardHtml : '')
     + addBtnHtml
     + '<div class="timeline">' + spotsHtml + '</div>'
-    + (flightCardHtml && dayData.day === 6 ? flightCardHtml : '')
+    + (flightCardHtml && dayData.day === lastDay ? flightCardHtml : '')
     + diningStr
   + '</section>';
 }
@@ -1821,14 +2029,21 @@ function buildFlightCard(f) {
   return '<div class="flight-card">'
     + '<div class="flight-card-icon">✈</div>'
     + '<div class="flight-card-body">'
-      + '<div class="flight-card-title">' + f.spot_name + '</div>'
-      + (f.description ? '<div class="flight-card-desc">' + f.description + '</div>' : '')
+      + '<div class="flight-card-title">' + escHtml(f.spot_name) + '</div>'
+      + (f.description ? '<div class="flight-card-desc">' + escHtml(f.description) + '</div>' : '')
       + (f.transport && f.transport.method
-        ? '<div class="flight-card-transport">🚃 ' + f.transport.method
-          + (f.transport.duration ? '&nbsp;／&nbsp;⏱ ' + f.transport.duration : '')
+        ? '<div class="flight-card-transport">🚃 ' + escHtml(f.transport.method)
+          + (f.transport.duration ? '&nbsp;／&nbsp;⏱ ' + escHtml(f.transport.duration) : '')
           + '</div>'
         : '')
     + '</div>'
+    + (f._editable
+      ? '<button class="flight-card-edit"'
+          + ' data-flight-id="' + escHtml(f.flight_id || '') + '"'
+          + ' data-day="' + f.day + '"'
+          + ' data-name="' + escHtml(f.spot_name) + '"'
+          + ' onclick="openEditFlightModal(this.dataset.flightId, Number(this.dataset.day), this.dataset.name)" title="編輯班機">✎</button>'
+      : '')
   + '</div>';
 }
 

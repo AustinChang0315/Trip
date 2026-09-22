@@ -52,7 +52,8 @@ const FLIGHT_HEADERS = [
   'description',        // 完整說明
   'transport_method',   // 入境/出境後的交通方式
   'transport_duration', // 預估交通時間
-  'maps_url'            // Google Maps 導航連結
+  'maps_url',           // Google Maps 導航連結
+  'flight_id'           // 班機唯一識別碼（前端產生，用於編輯/刪除比對）
 ];
 const HEADERS = [
   'trip_id',      // 所屬行程 ID
@@ -193,7 +194,8 @@ function doGet(e) {
           description:        fHeaders.indexOf('description'),
           transport_method:   fHeaders.indexOf('transport_method'),
           transport_duration: fHeaders.indexOf('transport_duration'),
-          maps_url:           fHeaders.indexOf('maps_url')
+          maps_url:           fHeaders.indexOf('maps_url'),
+          flight_id:          fHeaders.indexOf('flight_id')
         };
         fData.slice(1).forEach(function(row) {
           if (!row[FC.spot_name]) return;
@@ -202,6 +204,7 @@ function doGet(e) {
             day:         Number(row[FC.day]),
             spot_name:   String(row[FC.spot_name]   || ''),
             description: String(row[FC.description] || ''),
+            flight_id:   FC.flight_id >= 0 ? String(row[FC.flight_id] || '') : '',
             transport: {
               method:          String(row[FC.transport_method]   || ''),
               duration:        String(row[FC.transport_duration] || ''),
@@ -227,6 +230,10 @@ function doPost(e) {
 
     if (action === 'add_trip')    return handleAddTrip(payload);
     if (action === 'update_trip') return handleUpdateTrip(payload);
+
+    if (action === 'add_flight')    return handleAddFlight(payload);
+    if (action === 'update_flight') return handleUpdateFlight(payload);
+    if (action === 'delete_flight') return handleDeleteFlight(payload);
 
     const sheet = getSheet();
 
@@ -514,6 +521,115 @@ function handleUpdateTrip(payload) {
   }
 
   return jsonResponse({ success: true, removed_dates: removedDates, message: '行程已更新' });
+}
+
+// flights 分頁不存在時建立並寫入表頭（仿照 createTripsSheet）
+function getOrCreateFlightSheet(ss) {
+  var sheet = ss.getSheetByName(FLIGHT_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(FLIGHT_SHEET_NAME);
+    sheet.appendRow(FLIGHT_HEADERS);
+    var hr = sheet.getRange(1, 1, 1, FLIGHT_HEADERS.length);
+    hr.setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// 舊版 flights 分頁（手動輸入介面上線前）沒有 flight_id 欄位，第一次寫入時自動補上表頭
+function ensureFlightIdColumn(sheet) {
+  var headers = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  if (headers.indexOf('flight_id') < 0) {
+    sheet.getRange(1, sheet.getLastColumn() + 1).setValue('flight_id');
+  }
+}
+
+// 新增班機：flight_id 由前端產生後傳入，後端原樣存入/讀回，避免樂觀值與實際值不一致
+function handleAddFlight(payload) {
+  var tripId = String(payload.trip_id || '');
+  if (!tripId) return jsonResponse({ success: false, error: 'trip_id is required' });
+
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getOrCreateFlightSheet(ss);
+  ensureFlightIdColumn(sheet);
+
+  sheet.appendRow([
+    tripId,
+    Number(payload.day),
+    String(payload.spot_name   || ''),
+    String(payload.description || ''),
+    String(payload.transport_method   || ''),
+    String(payload.transport_duration || ''),
+    '',
+    String(payload.flight_id || ('fid_' + Date.now()))
+  ]);
+
+  return jsonResponse({ success: true, message: '班機已新增：' + payload.spot_name });
+}
+
+// 在 flights 分頁裡找出符合的列：flight_id 相符優先，沒有 flight_id（改版前舊資料）才退回 trip_id+day+spot_name 比對
+function findFlightRow(sheet, payload) {
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var tripCol = headers.indexOf('trip_id');
+  var dayCol  = headers.indexOf('day');
+  var nameCol = headers.indexOf('spot_name');
+  var idCol   = headers.indexOf('flight_id');
+
+  var tripId     = String(payload.trip_id || '');
+  var targetId   = String(payload.flight_id || '');
+  var targetDay  = Number(payload.day);
+  var targetName = String(payload.spot_name || '');
+
+  for (var i = data.length - 1; i >= 1; i--) {
+    var rowTrip = tripCol >= 0 ? String(data[i][tripCol]) : '';
+    if (rowTrip !== tripId) continue;
+    var rowId = idCol >= 0 ? String(data[i][idCol]) : '';
+    var matched = (targetId && rowId)
+      ? rowId === targetId
+      : (Number(data[i][dayCol]) === targetDay && String(data[i][nameCol]) === targetName);
+    if (matched) return { data: data, headers: headers, rowIndex: i };
+  }
+  return null;
+}
+
+function handleUpdateFlight(payload) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getOrCreateFlightSheet(ss);
+  ensureFlightIdColumn(sheet);
+
+  var found = findFlightRow(sheet, payload);
+  if (!found) return jsonResponse({ success: false, error: '找不到班機資料' });
+
+  var headers = found.headers;
+  var r       = found.rowIndex + 1;
+  var col     = {
+    day:                headers.indexOf('day'),
+    spot_name:          headers.indexOf('spot_name'),
+    description:        headers.indexOf('description'),
+    transport_method:   headers.indexOf('transport_method'),
+    transport_duration: headers.indexOf('transport_duration')
+  };
+
+  sheet.getRange(r, col.day + 1).setValue(Number(payload.day));
+  sheet.getRange(r, col.spot_name + 1).setValue(String(payload.spot_name || ''));
+  sheet.getRange(r, col.description + 1).setValue(String(payload.description || ''));
+  sheet.getRange(r, col.transport_method + 1).setValue(String(payload.transport_method || ''));
+  sheet.getRange(r, col.transport_duration + 1).setValue(String(payload.transport_duration || ''));
+
+  return jsonResponse({ success: true, message: '班機已更新：' + payload.spot_name });
+}
+
+function handleDeleteFlight(payload) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getOrCreateFlightSheet(ss);
+  ensureFlightIdColumn(sheet);
+
+  var found = findFlightRow(sheet, payload);
+  if (!found) return jsonResponse({ success: false, error: '找不到班機資料' });
+
+  sheet.deleteRow(found.rowIndex + 1);
+  return jsonResponse({ success: true, message: '班機已刪除：' + payload.spot_name });
 }
 
 // 讀取 trips 頁籤所有行程（供行程列表畫面使用）
