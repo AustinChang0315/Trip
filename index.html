@@ -2111,6 +2111,27 @@ function closeAddModal() {
   _addTargetDay = null;
 }
 
+// 完全找不到任何既有景點座標時的中性地圖視角（不偏向任何特定國家/城市）
+var NEUTRAL_MAP_CENTER = { lat: 20, lng: 0 };
+
+// 新增景點時要用哪個座標當「參考中心」（地圖畫面置中、搜尋結果偏向）。
+// 沒有寫死任何特定城市：先看當天景點，再擴大看整個行程其他天，
+// 都沒有（行程還一個景點都沒加過）就回傳 null，交給呼叫端決定怎麼處理。
+function getTripAnchorCenter(targetDay) {
+  if (targetDay !== null && targetDay !== undefined) {
+    var day = itineraryState.filter(function(d){ return d.day === targetDay; })[0];
+    if (day && day.spots) {
+      var sameDay = day.spots.filter(function(s){ return s.latitude && s.longitude; })[0];
+      if (sameDay) return { lat: sameDay.latitude, lng: sameDay.longitude };
+    }
+  }
+  for (var i = 0; i < itineraryState.length; i++) {
+    var anySpot = (itineraryState[i].spots || []).filter(function(s){ return s.latitude && s.longitude; })[0];
+    if (anySpot) return { lat: anySpot.latitude, lng: anySpot.longitude };
+  }
+  return null;
+}
+
 // Places API 景點搜尋
 async function searchPlace() {
   document.activeElement.blur(); // 立刻收合虛擬鍵盤（在任何非同步作業前執行）
@@ -2125,23 +2146,18 @@ async function searchPlace() {
     searchBtn.disabled    = true;
     searchBtn.textContent = '搜尋中…';
 
-    // 動態 locationBias：以當天第一個景點為中心往外 10km
-    var biasCenter = { lat: 35.6762, lng: 139.6503 }; // 預設：東京市中心
-    if (_addTargetDay !== null) {
-      var targetDay = itineraryState.filter(function(d){ return d.day === _addTargetDay; })[0];
-      if (targetDay && targetDay.spots) {
-        var anchor = targetDay.spots.filter(function(s){ return s.latitude && s.longitude; })[0];
-        if (anchor) biasCenter = { lat: anchor.latitude, lng: anchor.longitude };
-      }
-    }
+    // 動態 locationBias：以既有景點為中心往外 10km；行程還沒有任何景點時不帶 bias，讓搜尋不受地理位置限制
+    var biasCenter = getTripAnchorCenter(_addTargetDay);
 
-    var { Place } = await google.maps.importLibrary('places');
-    var { places } = await Place.searchByText({
+    var searchRequest = {
       textQuery: query,
       fields: ['id', 'displayName', 'formattedAddress', 'location', 'addressComponents', 'regularOpeningHours', 'editorialSummary'],
-      language: 'zh-TW',
-      locationBias: { center: biasCenter, radius: 10000 }
-    });
+      language: 'zh-TW'
+    };
+    if (biasCenter) searchRequest.locationBias = { center: biasCenter, radius: 10000 };
+
+    var { Place } = await google.maps.importLibrary('places');
+    var { places } = await Place.searchByText(searchRequest);
 
     if (!places || !places[0]) {
       showToast('找不到景點，請換個關鍵字');
@@ -2288,11 +2304,16 @@ function initModalMap() {
   if (currentMarker) { currentMarker.setMap(null); currentMarker = null; }
   tempPlaceData = null;
 
+  // 地圖畫面預設位置：有既有景點就以既有景點為準，完全沒有就顯示中性世界視角（不寫死任何特定城市）
+  var anchor = getTripAnchorCenter(_addTargetDay);
+  var center = anchor || NEUTRAL_MAP_CENTER;
+  var zoom   = anchor ? 13 : 2;
+
   if (modalMap) {
     // 地圖已初始化：通知重新計算尺寸（從 hidden 變回可見後必要）
     google.maps.event.trigger(modalMap, 'resize');
-    modalMap.panTo({ lat: 35.6762, lng: 139.6503 });
-    modalMap.setZoom(13);
+    modalMap.panTo(center);
+    modalMap.setZoom(zoom);
     return;
   }
 
@@ -2301,8 +2322,8 @@ function initModalMap() {
   if (placeholder) placeholder.style.display = 'none';
 
   modalMap = new google.maps.Map(document.getElementById('modal-map'), {
-    center: { lat: 35.6762, lng: 139.6503 }, // 東京市中心
-    zoom: 13,
+    center: center,
+    zoom: zoom,
     gestureHandling: 'greedy',  // 單指拖曳（全螢幕 Modal 不需雙指鎖定）
     disableDefaultUI: true,
     zoomControl: true
