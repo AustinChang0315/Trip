@@ -566,7 +566,6 @@
     }
     .trip-card-edit:active { color: var(--accent); background: var(--accent-lt); }
     .trip-card-title { font-size: 1rem; font-weight: 600; color: var(--text-1); margin-bottom: 4px; }
-    .trip-card-dest  { font-size: .8rem; color: var(--text-2); margin-bottom: 6px; }
     .trip-card-dates { font-size: .72rem; color: var(--text-3); letter-spacing: .05em; }
     .fab-add-trip {
       position: fixed; right: 20px; bottom: 28px; z-index: 50;
@@ -739,8 +738,8 @@
     <div class="modal-title" id="trip-modal-title">新增行程</div>
     <div class="modal-form">
       <div class="field">
-        <label for="trip-dest-input">目的地／國家</label>
-        <input id="trip-dest-input" type="text" placeholder="例如：日本・大阪" autocomplete="off" />
+        <label for="trip-dest-input">行程名稱</label>
+        <input id="trip-dest-input" type="text" placeholder="幫這趟行程取個名字，例如：東京質感自由行 2026" autocomplete="off" />
       </div>
       <div class="field">
         <label for="trip-start-input">出發日期</label>
@@ -994,12 +993,10 @@ function renderTripList(trips) {
     return String(b.start_date || '').localeCompare(String(a.start_date || ''));
   });
   wrap.innerHTML = sorted.map(function(t) {
-    var dest = t.country_or_destination || '';
-    var showDest = dest && dest !== t.title; // 目的地與標題相同時（新增行程時同一個欄位）不重複顯示
+    // 卡片一律只顯示行程名稱 + 日期兩行，不額外顯示目的地，維持所有行程外觀一致
     return '<div class="trip-card">'
       + '<button class="trip-card-main" onclick="enterTrip(\'' + escHtml(t.trip_id) + '\')">'
         + '<div class="trip-card-title">' + escHtml(t.title || t.trip_id) + '</div>'
-        + (showDest ? '<div class="trip-card-dest">' + escHtml(dest) + '</div>' : '')
         + '<div class="trip-card-dates">' + escHtml(formatTripDates(t.start_date, t.end_date)) + '</div>'
       + '</button>'
       + '<button class="trip-card-edit" onclick="event.stopPropagation(); openEditTripModal(\'' + escHtml(t.trip_id) + '\')" title="編輯行程">✎</button>'
