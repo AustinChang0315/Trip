@@ -549,6 +549,17 @@
 
     /* ── Trip List View ────────────────────────────────── */
     #trip-list-view { display: none; min-height: 100vh; }
+    .trip-year-filter { display: flex; overflow-x: auto; gap: 8px; padding: 0 16px 12px; scrollbar-width: none; -ms-overflow-style: none; }
+    .trip-year-filter::-webkit-scrollbar { display: none; }
+    .year-pill {
+      flex-shrink: 0; padding: 6px 14px; border-radius: var(--r-sm);
+      border: 1.5px solid rgba(255,255,255,.2);
+      background: transparent; color: rgba(255,255,255,.55);
+      font-size: .78rem; font-weight: 600; letter-spacing: .04em;
+      transition: border-color .18s, background .18s, color .18s;
+    }
+    .year-pill:active { transform: scale(.97); }
+    .year-pill.active { border-color: rgba(255,255,255,.9); background: rgba(255,255,255,.15); color: #fff; }
     .trip-list-wrap { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
     .trip-card {
       background: var(--surface); border: 1px solid var(--border-lt);
@@ -627,6 +638,7 @@
     <div class="trip-banner">
       <span class="trip-banner-title">我的行程</span>
     </div>
+    <div class="trip-year-filter" id="trip-year-filter"></div>
   </header>
   <div class="trip-list-wrap" id="trip-list-wrap">
     <div class="panel-empty">載入行程中…</div>
@@ -779,6 +791,7 @@ var _baseItinerary = null; // manualRefresh() 存取用
 var DEFAULT_TRIP_ID   = 'tokyo-2026-06'; // 既有東京行程的固定 ID（與 google-backend.js 一致）
 var currentTrip        = null; // { trip_id, title, country_or_destination, start_date, end_date }
 var tripRegistryCache   = [];   // 行程列表快取（來自 trip_registry_cache）
+var _tripYearFilter    = null;  // 行程列表的年份篩選；null 代表還沒初始化，showTripList() 第一次執行時設成今年
 
 // 依目前行程組出 namespaced localStorage key，避免不同行程資料互相污染
 function tripKey(base) {
@@ -935,7 +948,35 @@ function showTripList() {
   document.getElementById('trip-list-view').style.display = 'block';
   document.title = '我的行程';
   currentTrip = null;
+  if (_tripYearFilter === null) _tripYearFilter = String(new Date().getFullYear()); // 只在第一次進入時預設今年
   loadTripList();
+}
+
+// 從行程清單算出去重、由新到舊排序的年份陣列；一定包含「今年」，即使今年還沒有行程
+function getTripYears(trips) {
+  var years = {};
+  years[String(new Date().getFullYear())] = true;
+  (trips || []).forEach(function(t) {
+    var y = String(t.start_date || '').slice(0, 4);
+    if (/^\d{4}$/.test(y)) years[y] = true;
+  });
+  return Object.keys(years).sort(function(a, b) { return b - a; });
+}
+
+function renderYearFilter(trips) {
+  var wrap = document.getElementById('trip-year-filter');
+  if (!wrap) return;
+  var years = getTripYears(trips);
+  var pills = ['<button class="year-pill' + (_tripYearFilter === 'all' ? ' active' : '') + '" onclick="selectTripYear(\'all\')">全部</button>'];
+  years.forEach(function(y) {
+    pills.push('<button class="year-pill' + (_tripYearFilter === y ? ' active' : '') + '" onclick="selectTripYear(\'' + y + '\')">' + y + '</button>');
+  });
+  wrap.innerHTML = pills.join('');
+}
+
+function selectTripYear(year) {
+  _tripYearFilter = year;
+  renderTripList(tripRegistryCache); // renderTripList() 內部會一併重繪年份篩選列
 }
 
 function loadTripList() {
@@ -985,11 +1026,23 @@ function formatTripDates(start, end) {
 
 function renderTripList(trips) {
   var wrap = document.getElementById('trip-list-wrap');
+  renderYearFilter(trips);
+
   if (!trips || !trips.length) {
     wrap.innerHTML = '<div class="panel-empty">尚無行程，點右下角新增第一個行程吧</div>';
     return;
   }
-  var sorted = trips.slice().sort(function(a, b) {
+
+  var filtered = _tripYearFilter === 'all'
+    ? trips
+    : trips.filter(function(t) { return String(t.start_date || '').slice(0, 4) === _tripYearFilter; });
+
+  if (!filtered.length) {
+    wrap.innerHTML = '<div class="panel-empty">此年度尚無行程</div>';
+    return;
+  }
+
+  var sorted = filtered.slice().sort(function(a, b) {
     return String(b.start_date || '').localeCompare(String(a.start_date || ''));
   });
   wrap.innerHTML = sorted.map(function(t) {
