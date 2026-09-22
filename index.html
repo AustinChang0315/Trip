@@ -2115,16 +2115,34 @@ function closeAddModal() {
 var NEUTRAL_MAP_CENTER = { lat: 20, lng: 0 };
 
 // 新增景點時要用哪個座標當「參考中心」（地圖畫面置中、搜尋結果偏向）。
-// 沒有寫死任何特定城市：先看當天景點，再擴大看整個行程其他天，
-// 都沒有（行程還一個景點都沒加過）就回傳 null，交給呼叫端決定怎麼處理。
+// 沒有寫死任何特定城市：先看當天景點，再由近到遠找「時間軸上」最接近的其他天
+// （同距離優先看前一天，符合「剛從哪裡來」的直覺——避免多城市長行程時
+// 隨便抓到陣列裡第一筆資料、卻是地理上很遠的那一天），
+// 整個行程都還沒加過任何景點才回傳 null，交給呼叫端決定怎麼處理。
 function getTripAnchorCenter(targetDay) {
+  function firstSpotOnDay(dayNum) {
+    var d = itineraryState.filter(function(x){ return x.day === dayNum; })[0];
+    if (!d || !d.spots) return null;
+    return d.spots.filter(function(s){ return s.latitude && s.longitude; })[0] || null;
+  }
+
   if (targetDay !== null && targetDay !== undefined) {
-    var day = itineraryState.filter(function(d){ return d.day === targetDay; })[0];
-    if (day && day.spots) {
-      var sameDay = day.spots.filter(function(s){ return s.latitude && s.longitude; })[0];
-      if (sameDay) return { lat: sameDay.latitude, lng: sameDay.longitude };
+    var sameDay = firstSpotOnDay(targetDay);
+    if (sameDay) return { lat: sameDay.latitude, lng: sameDay.longitude };
+
+    if (itineraryState.length) {
+      var allDays = itineraryState.map(function(d){ return d.day; });
+      var maxDist = Math.max.apply(null, allDays.map(function(d){ return Math.abs(d - targetDay); }).concat([0]));
+      for (var dist = 1; dist <= maxDist; dist++) {
+        var prevSpot = firstSpotOnDay(targetDay - dist);
+        if (prevSpot) return { lat: prevSpot.latitude, lng: prevSpot.longitude };
+        var nextSpot = firstSpotOnDay(targetDay + dist);
+        if (nextSpot) return { lat: nextSpot.latitude, lng: nextSpot.longitude };
+      }
     }
   }
+
+  // 保底：targetDay 未知時（理論上不會發生），掃描整個行程抓任一個有座標的景點
   for (var i = 0; i < itineraryState.length; i++) {
     var anySpot = (itineraryState[i].spots || []).filter(function(s){ return s.latitude && s.longitude; })[0];
     if (anySpot) return { lat: anySpot.latitude, lng: anySpot.longitude };
