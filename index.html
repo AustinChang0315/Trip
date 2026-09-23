@@ -195,36 +195,31 @@
       display: flex; align-items: flex-start; gap: 10px;
     }
     .flight-card-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; color: var(--text-3); }
-    .flight-card-body { flex: 1; min-width: 0; padding-right: 22px; }
+    .flight-card-body { flex: 1; min-width: 0; }
     .flight-card-title { font-size: .9rem; font-weight: 700; color: var(--text-1); line-height: 1.35; margin-bottom: 5px; }
     .flight-card-desc  { font-size: .76rem; color: var(--text-2); line-height: 1.7; margin-bottom: 5px; }
-    .flight-card-transport { font-size: .72rem; color: var(--text-3); line-height: 1.5; }
-    .flight-card-edit {
-      position: absolute; top: 8px; right: 10px;
-      font-size: .8rem; color: var(--text-3);
-      padding: 3px 5px; border-radius: 5px; line-height: 1;
-      background: transparent; transition: color .15s;
-    }
-    .flight-card-edit:active { color: var(--accent); }
+    .flight-card-transport { font-size: .78rem; color: var(--text-3); line-height: 1.5; margin-top: 2px; }
+    .flight-card--tappable { cursor: pointer; transition: opacity .15s; }
+    .flight-card--tappable:active { opacity: .65; }
 
     /* 出發／抵達對照式版面（結構化班機資料才有）：時間列＋地點列共用同一組 grid 欄寬，兩列左右對齊 */
-    .flight-route-top { font-size: .7rem; color: var(--text-3); margin-bottom: 8px; }
+    .flight-route-top { font-size: .78rem; color: var(--text-3); margin-bottom: 7px; }
     .flight-route {
       display: grid; grid-template-columns: 1fr auto 1fr;
-      align-items: center; column-gap: 8px; row-gap: 5px;
+      align-items: center; column-gap: 8px; row-gap: 6px;
     }
-    .flight-route-time { font-size: 1.3rem; font-weight: 700; color: var(--text-1); line-height: 1.15; white-space: nowrap; }
+    .flight-route-time { font-size: 1.6rem; font-weight: 700; color: var(--text-1); line-height: 1.15; white-space: nowrap; }
     .flight-route-time--dep { text-align: left; }
     .flight-route-time--arr { text-align: right; }
-    .flight-route-date { font-size: .74rem; color: var(--text-3); text-align: center; white-space: nowrap; }
+    .flight-route-date { font-size: .86rem; color: var(--text-3); text-align: center; white-space: nowrap; }
     .flight-route-place {
-      font-size: .74rem; color: var(--text-2); line-height: 1.3; min-width: 0;
+      font-size: .86rem; color: var(--text-2); line-height: 1.3; min-width: 0;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
       overflow: hidden; min-height: 1.9em;
     }
     .flight-route-place--dep { text-align: left; }
     .flight-route-place--arr { text-align: right; }
-    .flight-route-icon { font-size: .85rem; color: var(--accent); text-align: center; }
+    .flight-route-icon { font-size: 1.05rem; color: var(--accent); text-align: center; }
 
     /* Delete Button（景點右上角） */
     .btn-del-spot {
@@ -2246,7 +2241,16 @@ function buildFlightCard(f) {
     : '<div class="flight-card-title">' + escHtml(f.spot_name) + '</div>'
       + (f.description ? '<div class="flight-card-desc">' + escHtml(f.description) + '</div>' : '');
 
-  return '<div class="flight-card">'
+  // 點整張卡片觸發編輯（取代原本右上角的 ✎ 按鈕），只有背後有真實可編輯資料時才加這些屬性
+  var tapAttrs = f._editable
+    ? ' class="flight-card flight-card--tappable"'
+      + ' data-flight-id="' + escHtml(f.flight_id || '') + '"'
+      + ' data-day="' + f.day + '"'
+      + ' data-name="' + escHtml(f.spot_name) + '"'
+      + ' onclick="openEditFlightModal(this.dataset.flightId, Number(this.dataset.day), this.dataset.name)"'
+    : ' class="flight-card"';
+
+  return '<div' + tapAttrs + '>'
     + (hasRoute ? '' : '<div class="flight-card-icon">✈</div>')
     + '<div class="flight-card-body">'
       + contentHtml
@@ -2256,13 +2260,6 @@ function buildFlightCard(f) {
           + '</div>'
         : '')
     + '</div>'
-    + (f._editable
-      ? '<button class="flight-card-edit"'
-          + ' data-flight-id="' + escHtml(f.flight_id || '') + '"'
-          + ' data-day="' + f.day + '"'
-          + ' data-name="' + escHtml(f.spot_name) + '"'
-          + ' onclick="openEditFlightModal(this.dataset.flightId, Number(this.dataset.day), this.dataset.name)" title="編輯班機">✎</button>'
-      : '')
   + '</div>';
 }
 
