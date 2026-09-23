@@ -206,6 +206,24 @@
     }
     .flight-card-edit:active { color: var(--accent); }
 
+    /* 出發／抵達對照式版面（結構化班機資料才有） */
+    .flight-route { display: flex; align-items: flex-start; gap: 6px; }
+    .flight-endpoint { flex: 1; min-width: 0; }
+    .flight-endpoint--dep { text-align: left; }
+    .flight-endpoint--arr { text-align: right; }
+    .flight-endpoint-place {
+      font-size: .7rem; color: var(--text-3); line-height: 1.3;
+      margin-bottom: 3px; overflow-wrap: break-word;
+    }
+    .flight-endpoint-time { font-size: 1.05rem; font-weight: 700; color: var(--text-1); line-height: 1.2; }
+    .flight-endpoint-date { font-size: .66rem; color: var(--text-3); margin-top: 2px; }
+    .flight-route-mid {
+      flex-shrink: 0; display: flex; flex-direction: column; align-items: center;
+      padding-top: 3px; min-width: 62px;
+    }
+    .flight-route-arrow { font-size: .78rem; color: var(--accent); line-height: 1; margin-bottom: 3px; white-space: nowrap; }
+    .flight-route-flight { font-size: .64rem; color: var(--text-2); white-space: nowrap; text-align: center; }
+
     /* Delete Button（景點右上角） */
     .btn-del-spot {
       position: absolute; top: 8px; right: 10px;
@@ -2144,8 +2162,8 @@ function renderDayPanel(dayData) {
 
   var diningStr  = (dayData.dining && dayData.dining.length) ? buildDiningHTML(dayData.dining) : '';
   var addBtnHtml = '<div class="add-spot-wrap">'
-    + '<button class="btn-add-spot" onclick="showAddModal(' + dayData.day + ')">➕ 新增景點</button>'
     + '<button class="btn-add-spot" onclick="openAddFlightModal(' + dayData.day + ')">✈ 新增班機</button>'
+    + '<button class="btn-add-spot" onclick="showAddModal(' + dayData.day + ')">➕ 新增景點</button>'
     + '<button class="btn-add-spot btn-refresh" onclick="manualRefresh()" title="重新整理">↺</button>'
   + '</div>';
 
@@ -2192,12 +2210,39 @@ function renderDayPanel(dayData) {
 }
 
 /* ─── Flight Card HTML ────────────────────────────────── */
+// 出發／抵達對照式版面：只有結構化欄位齊全（這次手動輸入介面上線後新增的班機）才套用，
+// 改版前的舊資料（東京既有航班、itinerary.json 去程/回程 fallback）沒有這些欄位，交給 buildFlightCard() 退回舊版文字版面
+function buildFlightRouteHtml(f) {
+  return '<div class="flight-route">'
+    + '<div class="flight-endpoint flight-endpoint--dep">'
+      + '<div class="flight-endpoint-place">' + escHtml(f.origin) + '</div>'
+      + '<div class="flight-endpoint-time">' + escHtml(f.departure_time) + '</div>'
+      + '<div class="flight-endpoint-date">' + escHtml(formatFlightDate(f.departure_date)) + '</div>'
+    + '</div>'
+    + '<div class="flight-route-mid">'
+      + '<div class="flight-route-arrow">✈ →</div>'
+      + '<div class="flight-route-flight">' + escHtml((f.airline || '') + ' ' + (f.flight_no || '')).trim() + '</div>'
+    + '</div>'
+    + '<div class="flight-endpoint flight-endpoint--arr">'
+      + '<div class="flight-endpoint-place">' + escHtml(f.destination) + '</div>'
+      + '<div class="flight-endpoint-time">' + escHtml(f.arrival_time) + '</div>'
+      + '<div class="flight-endpoint-date">' + escHtml(formatFlightDate(f.arrival_date)) + '</div>'
+    + '</div>'
+  + '</div>';
+}
+
 function buildFlightCard(f) {
+  var hasRoute = f.origin && f.destination && f.departure_time && f.arrival_time;
+
+  var contentHtml = hasRoute
+    ? buildFlightRouteHtml(f)
+    : '<div class="flight-card-title">' + escHtml(f.spot_name) + '</div>'
+      + (f.description ? '<div class="flight-card-desc">' + escHtml(f.description) + '</div>' : '');
+
   return '<div class="flight-card">'
-    + '<div class="flight-card-icon">✈</div>'
+    + (hasRoute ? '' : '<div class="flight-card-icon">✈</div>')
     + '<div class="flight-card-body">'
-      + '<div class="flight-card-title">' + escHtml(f.spot_name) + '</div>'
-      + (f.description ? '<div class="flight-card-desc">' + escHtml(f.description) + '</div>' : '')
+      + contentHtml
       + (f.transport && f.transport.method
         ? '<div class="flight-card-transport">🚃 ' + escHtml(f.transport.method)
           + (f.transport.duration ? '&nbsp;／&nbsp;⏱ ' + escHtml(f.transport.duration) : '')
