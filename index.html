@@ -1300,8 +1300,8 @@ function closeFlightModal() {
 // 出發地/目的地欄位的機場搜尋：重用既有 searchPlace() 的 Places API 呼叫方式（language: 'zh-TW'），
 // 但只需要 displayName、且限定 includedType: 'airport'，讓使用者輸入代號（TPE）或中文地名（桃園）都能查到。
 // 單打城市名（例如「布拉格」）時，Google 排出來的第一批結果常常是景點/飯店，加上 includedType 篩選後反而變成查無結果，
-// 所以先幫使用者把查詢字串補上「機場」關鍵字，讓文字搜尋本身就偏向機場；仍然查不到才退回不限 type 的搜尋，
-// 寧可給一個可能不夠精準、使用者可以自己修正的結果，也不要直接判定查無資料。
+// 所以幫「非代號」的查詢字串補上「機場」關鍵字偏向機場；三字代號（例如 VIE）本身已經是明確的機場識別碼，
+// 混進中文「機場」反而可能讓文字搜尋比對不到，所以代號不加這個字尾。多層都查不到才放棄。
 async function searchAirport(inputEl, btnEl) {
   var query = inputEl.value.trim();
   if (!query) return;
@@ -1312,9 +1312,13 @@ async function searchAirport(inputEl, btnEl) {
 
   try {
     var { Place } = await google.maps.importLibrary('places');
-    var airportQuery = /機場|airport/i.test(query) ? query : query + ' 機場';
+    var isCode = /^[A-Za-z]{3}$/.test(query);
+    var hasAirportWord = /機場|airport/i.test(query);
+    var airportQuery = (isCode || hasAirportWord) ? query : query + ' 機場';
 
     var places = null;
+
+    // 第一層：加上機場關鍵字（或代號原樣）+ 限定 type
     try {
       var typed = await Place.searchByText({
         textQuery: airportQuery,
@@ -1323,15 +1327,29 @@ async function searchAirport(inputEl, btnEl) {
         includedType: 'airport'
       });
       places = typed.places;
-    } catch (typedErr) { /* includedType 查詢失敗（例如型別不支援）時，退回下面不限 type 的搜尋 */ }
+    } catch (e1) { /* includedType 不支援時往下retry */ }
 
+    // 第二層：同樣的查詢字串，不限制 type
     if (!places || !places[0]) {
-      var broad = await Place.searchByText({
-        textQuery: airportQuery,
+      try {
+        var broad = await Place.searchByText({
+          textQuery: airportQuery,
+          fields: ['displayName'],
+          language: 'zh-TW'
+        });
+        places = broad.places;
+      } catch (e2) {}
+    }
+
+    // 第三層：如果有加過「機場」字尾，改用使用者原始輸入（不加字尾）再試一次，
+    // 避免補字反而讓查詢變得不精準
+    if ((!places || !places[0]) && airportQuery !== query) {
+      var raw = await Place.searchByText({
+        textQuery: query,
         fields: ['displayName'],
         language: 'zh-TW'
       });
-      places = broad.places;
+      places = raw.places;
     }
 
     if (!places || !places[0]) {
