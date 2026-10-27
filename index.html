@@ -1039,6 +1039,8 @@ function newSpotId() {
 
 var _writeChain = Promise.resolve();
 var _pendingWrites = 0;
+var _writeSeq = 0;           // 每送出一筆寫入就加 1，用來判斷「抓資料期間有沒有新的寫入」
+var _needReconcile = false;  // 有行程寫入失敗：佇列清空後要用雲端資料還原畫面
 
 function _sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
@@ -1054,6 +1056,7 @@ async function _sendOnce(url, body) {
 // 回傳 true／false，不會 throw；label 用在失敗提示（例如「景點順序」）
 function queueWrite(url, body, label, idempotent) {
   _pendingWrites++;
+  _writeSeq++;
   var run = _writeChain.then(async function() {
     var delays = idempotent ? [0, 1000, 3000] : [0];
     var lastErr = '';
@@ -1074,7 +1077,16 @@ function queueWrite(url, body, label, idempotent) {
   _writeChain = run.catch(function() {});
   return run.then(function(ok) {
     _pendingWrites--;
-    if (!ok) showToast('⚠ ' + label + '沒有存成功，重新整理後可能會看到舊資料');
+    if (!ok) {
+      if (url.indexOf(API_URL) === 0) {
+        // 行程類寫入失敗：畫面已先改了，等佇列清空後改回雲端上的內容，避免畫面和試算表不一致
+        _needReconcile = true;
+        showToast('⚠ ' + label + '沒有存成功，畫面將還原成雲端上的內容');
+      } else {
+        showToast('⚠ ' + label + '沒有存成功，重新整理後可能會看到舊資料');
+      }
+    }
+    if (_needReconcile && _pendingWrites === 0) { _needReconcile = false; reconcileFromServer(); }
     return ok;
   });
 }
@@ -2032,6 +2044,75 @@ async function manualRefresh() {
     btns.forEach(function(b) { b.disabled = false; b.style.opacity = ''; });
   }
 }
+
+/* ─── 與雲端同步（回到前景／寫入失敗後還原）───────────── */
+
+// 套用伺服器資料並重畫；force=true 時不保護「剛在本機改過的天數」（寫入失敗後要以雲端為準）
+function applyFreshItinerary(fresh, force) {
+  try { localStorage.setItem(tripKey('gas_cache'), JSON.stringify(fresh)); } catch(e) {}
+  if (Array.isArray(fresh.flights)) flightsData = fresh.flights;
+  if (force) _dayMutatedAt = {};
+  var updated = mergeGAS(_baseItinerary, fresh);
+  prepareAndRender(updated, true);
+  fetchWeather(updated);
+}
+
+// 畫面上有東西正在操作（開著視窗、拖曳中、輸入中）時不要重畫
+function isUserBusy() {
+  if (document.querySelector('.modal:not(.hidden)')) return true;
+  if (document.querySelector('.sortable-chosen')) return true;
+  var ae = document.activeElement;
+  return !!ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName);
+}
+
+// 寫入失敗後：等佇列清空，抓雲端資料覆蓋畫面
+async function reconcileFromServer() {
+  if (!API_URL || !_baseItinerary || !currentTrip) return;
+  var tripId = currentTrip.trip_id, seq = _writeSeq;
+  try {
+    var r = await fetchWithTimeout(apiUrlFor(tripId), 10000);
+    var fresh = await r.json();
+    if (!fresh.itinerary || !fresh.itinerary.length) { _needReconcile = true; return; }
+    if (!currentTrip || currentTrip.trip_id !== tripId) return;
+    // 抓的期間又有新的寫入：這份資料可能已過時，等下一次佇列清空再還原
+    if (seq !== _writeSeq || _pendingWrites > 0) { _needReconcile = true; return; }
+    applyFreshItinerary(fresh, true);
+    showToast('已還原成雲端上的行程');
+  } catch(e) {
+    showToast('無法連線，畫面可能與雲端不一致，請稍後按重新整理');
+  }
+}
+
+// 回到前景（從背景切回 App、解鎖手機）時靜默抓一次最新行程，太太改的內容不用手動重新整理就會出現
+var _lastForegroundSync = 0;
+var _foregroundSyncing  = false;
+async function syncWhenForegrounded() {
+  if (document.visibilityState !== 'visible' || _foregroundSyncing) return;
+  if (!API_URL || !_baseItinerary || !currentTrip) return;
+  var app = document.getElementById('app');
+  if (!app || app.style.display === 'none') return;
+  if (Date.now() - _lastForegroundSync < 30000) return;
+  if (_pendingWrites > 0 || isUserBusy()) return;
+
+  _foregroundSyncing = true;
+  _lastForegroundSync = Date.now();
+  var tripId = currentTrip.trip_id, seq = _writeSeq;
+  try {
+    var r = await fetchWithTimeout(apiUrlFor(tripId), 8000);
+    var fresh = await r.json();
+    if (!fresh.itinerary || !fresh.itinerary.length) return;
+    // 抓的期間切換了行程、有新寫入或開始操作：放棄這份資料，不蓋掉畫面
+    if (!currentTrip || currentTrip.trip_id !== tripId) return;
+    if (seq !== _writeSeq || _pendingWrites > 0 || isUserBusy()) return;
+    var text = JSON.stringify(fresh), cached = null;
+    try { cached = localStorage.getItem(tripKey('gas_cache')); } catch(e) {}
+    if (text === cached) return; // 跟上次一樣，不用重畫
+    applyFreshItinerary(fresh, false);
+    showToast('已同步最新行程');
+  } catch(e) { /* 沒訊號就維持目前畫面 */ }
+  finally { _foregroundSyncing = false; }
+}
+document.addEventListener('visibilitychange', syncWhenForegrounded);
 
 /* ─── Countdown ───────────────────────────────────────── */
 function buildCountdown(days) {
@@ -3986,6 +4067,19 @@ if ('serviceWorker' in navigator) {
     });
   }).catch(function(){});
 }
+
+/* ─── 清掉舊版留在手機上的本機排序／出發時間／交通時間資料 ─────
+   這些資料現在一律以 Google Sheet 為準，舊鍵不會再被讀取，留著只佔空間 */
+(function purgeObsoleteLocalData() {
+  try {
+    var dead = [];
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (/(^|__)(day_order_\d+|day_start_\d+|day_mutated_\d+|transit_mins_cache)$/.test(k)) dead.push(k);
+    }
+    dead.forEach(function(k) { localStorage.removeItem(k); });
+  } catch(e) {}
+})();
 
 /* ─── Bootstrap ───────────────────────────────────────── */
 initAuth();
