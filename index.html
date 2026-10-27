@@ -2228,8 +2228,8 @@ function renderDayPanel(dayData) {
   return '<section class="day-panel" data-day="' + dayData.day + '">'
     + '<div class="day-header">'
       + '<div class="day-header-actions">'
-      + '<button class="btn-sort-day" onclick="triggerOptimizeDay(' + dayData.day + ')" title="自動排出最短路線">🔀 最佳路線</button>'
-      + '<button class="btn-calc-travel" id="btn-calc-' + dayData.day + '" onclick="calcTravelTimes(' + dayData.day + ')" title="查詢精確大眾運輸交通時間">🕐 交通時間</button>'
+      + '<button class="btn-sort-day" onclick="confirmAction(\'最佳路線\', \'要重新排列 Day ' + dayData.day + ' 的景點順序嗎？目前的順序會被改掉。\', triggerOptimizeDay, ' + dayData.day + ')" title="自動排出最短路線">🔀 最佳路線</button>'
+      + '<button class="btn-calc-travel" id="btn-calc-' + dayData.day + '" onclick="confirmAction(\'查詢交通時間\', \'要查詢 Day ' + dayData.day + ' 各景點之間的交通時間嗎？\', calcTravelTimes, ' + dayData.day + ')" title="查詢精確大眾運輸交通時間">🕐 交通時間</button>'
       + '</div>'
       + '<span class="day-number-badge">DAY ' + dayData.day + '</span>'
       + '<h2 class="day-panel-title">' + dayData.day_title + '</h2>'
@@ -3384,6 +3384,18 @@ function deleteSpot(dayNum, spotName, spotId) {
       body: JSON.stringify({ action: 'delete', trip_id: currentTrip.trip_id, spot_name: spotName, spot_id: spotId || '', day: dayNum })
     }).catch(function(){});
   }
+}
+
+// 通用確認視窗：按「確定」才執行 fn(arg)，按取消或點背景則什麼都不做
+function confirmAction(title, message, fn, arg) {
+  document.querySelector('#confirm-modal .modal-title').textContent = title;
+  document.getElementById('modal-msg').textContent = message;
+  document.getElementById('modal-confirm-btn').textContent = '確定';
+  document.getElementById('modal-confirm-btn').onclick = function() {
+    closeModal();
+    fn(arg);
+  };
+  document.getElementById('confirm-modal').classList.remove('hidden');
 }
 
 /* ─── 編輯景點（點景點卡片修改名稱／停留時間）─────────── */
