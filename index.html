@@ -262,7 +262,8 @@
       color: var(--sage); background: var(--sage-lt);
       padding: 2px 8px; border-radius: 100px; margin-bottom: 6px;
     }
-    .spot-name { font-size: .92rem; font-weight: 700; color: var(--text-1); line-height: 1.35; margin-bottom: 6px; }
+    .spot-name { font-size: .92rem; font-weight: 700; color: var(--text-1); line-height: 1.35; margin-bottom: 6px; overflow-wrap: anywhere; }
+    .spot-card--editable .spot-name { padding-right: 60px; } /* 讓出右上角拖曳把手＋刪除鈕的位置，長名稱才不會被蓋住 */
     .spot-address { font-size: .71rem; color: var(--text-3); line-height: 1.5; margin-bottom: 5px; }
     .spot-hours {
       font-size: .73rem; color: var(--text-2); line-height: 1.5;
