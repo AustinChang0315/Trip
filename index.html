@@ -229,15 +229,14 @@
       background: transparent; transition: color .15s;
     }
     .btn-del-spot:active { color: var(--red); }
-    .btn-move-spot {
-      position: absolute; top: 8px;
-      font-size: .78rem; color: var(--text-3);
-      padding: 3px 5px; border-radius: 5px; line-height: 1;
-      background: transparent; transition: color .15s;
+    .spot-drag-handle {
+      position: absolute; top: 4px; right: 34px;
+      padding: 5px 7px; line-height: 1; font-size: .8rem; letter-spacing: -2px;
+      color: var(--text-3); opacity: .45; cursor: grab;
+      touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
     }
-    .btn-move-spot:active { color: var(--accent); }
-    .btn-move-up { right: 56px; }
-    .btn-move-dn { right: 34px; }
+    .spot-drag-handle:active { opacity: .9; color: var(--accent); }
+    .timeline-item--ghost { opacity: .35; }
 
     /* Add Spot Button（每天底部） */
     .add-spot-wrap { padding: 12px 16px 4px; display: flex; gap: 8px; }
@@ -915,6 +914,7 @@
 </div>
 
 <script src="js/utils.js"></script>
+<script src="js/sortable.min.js"></script>
 <script>
 /* ─── Config ──────────────────────────────────────────── */
 var API_URL   = 'https://script.google.com/macros/s/AKfycbyFbLN8_5oVJ6UcPROYyxuM3RiixTr2Oi54Kl92qbsCd5lZizU41VDqtqzdVHhU1XMNpg/exec';
@@ -2053,6 +2053,12 @@ function renderTabs(itinerary) {
 /* ─── Render Timeline ─────────────────────────────────── */
 function renderItinerary(itinerary) {
   document.getElementById('app-content').innerHTML = itinerary.map(renderDayPanel).join('');
+  initSpotSorting(document.getElementById('app-content'));
+}
+
+// 是否列入時間軸（去程／回程班機 spot 不列入，另外用班機卡片顯示）
+function isTimelineSpot(s) {
+  return !s.spot_name || (s.spot_name.indexOf('去程') === -1 && s.spot_name.indexOf('回程') === -1);
 }
 
 function renderDayPanel(dayData) {
@@ -2065,9 +2071,7 @@ function renderDayPanel(dayData) {
       + '（' + WKDAYS[dt.getDay()] + '）';
   var rawSpots = dayData.spots || [];
   // 班機 spots 分離，不列入時間軸
-  var spots = rawSpots.filter(function(s) {
-    return !s.spot_name || (s.spot_name.indexOf('去程') === -1 && s.spot_name.indexOf('回程') === -1);
-  });
+  var spots = rawSpots.filter(isTimelineSpot);
 
   var dayStartMins = parseTimeMins(dayData.day_start || '09:00');
 
@@ -2118,7 +2122,7 @@ function renderDayPanel(dayData) {
         + '</div>'
       : '';
 
-    return '<div class="' + itemClass + '">'
+    return '<div class="' + itemClass + '" data-vidx="' + i + '">'
       + '<div class="timeline-time">'
         + (timeStr ? '<span class="time-badge">' + timeStr + '</span>' : '')
       + '</div>'
@@ -2140,12 +2144,7 @@ function renderDayPanel(dayData) {
                 + ' data-name="' + escHtml(spot.spot_name || '') + '"'
                 + ' data-spot-id="' + (spot.spot_id || '') + '"'
                 + ' onclick="confirmDeleteSpot(this)" title="移除景點">🗑</button>'
-              + (!isFirst
-                ? '<button class="btn-move-spot btn-move-up" onclick="moveSpot(' + dayData.day + ',' + i + ',\'up\')" title="往上移">↑</button>'
-                : '')
-              + (!isLast
-                ? '<button class="btn-move-spot btn-move-dn" onclick="moveSpot(' + dayData.day + ',' + i + ',\'down\')" title="往下移">↓</button>'
-                : '')
+              + (spots.length > 1 ? '<span class="spot-drag-handle" title="拖曳排序">⋮⋮</span>' : '')
             : '')
           + (spot.region_name ? '<span class="spot-region-tag">' + spot.region_name + '</span>' : '')
           + '<div class="spot-name">' + escHtml(spot.spot_name) + '</div>'
@@ -2596,6 +2595,7 @@ function updateDayPanel(dayData) {
   var tmp = document.createElement('div');
   tmp.innerHTML = renderDayPanel(dayData);
   panel.parentNode.replaceChild(tmp.firstChild, panel);
+  initSpotSorting(document.querySelector('.day-panel[data-day="' + dayData.day + '"]'));
   // 保持原本頁籤 active 狀態
   var newPanel = document.querySelector('.day-panel[data-day="' + dayData.day + '"]');
   if (newPanel) newPanel.classList.add('active');
@@ -3403,7 +3403,7 @@ var _editingSpot = null; // { day, spotId, oldName }
 
 // 點卡片本體開啟編輯；點到導航連結、刪除、上下移動等按鈕時不觸發
 function onSpotCardClick(ev, card) {
-  if (ev.target.closest('button, a')) return;
+  if (ev.target.closest('button, a, .spot-drag-handle')) return;
   openEditSpotModal(Number(card.dataset.day), card.dataset.spotId || '', card.dataset.name || '');
 }
 
@@ -3474,27 +3474,53 @@ function confirmEditSpot() {
 
 /* ─── 景點排序（手動移動 + 最佳路線按鈕）──────────────── */
 
-// ↑↓ 移動景點
-function moveSpot(dayNum, idx, direction) {
+// 拖曳排序：只有按住卡片角落的 ⋮⋮ 把手才會開始拖，點卡片本身仍是編輯、長按仍可選取文字
+function initSpotSorting(root) {
+  if (typeof Sortable === 'undefined' || !root) return;
+  root.querySelectorAll('.timeline').forEach(function(tl) {
+    if (tl._sortable) return;
+    tl._sortable = Sortable.create(tl, {
+      handle: '.spot-drag-handle',
+      draggable: '.timeline-item',
+      animation: 150,
+      ghostClass: 'timeline-item--ghost',
+      onEnd: onSpotDragEnd
+    });
+  });
+}
+
+function onSpotDragEnd(evt) {
+  var panel = evt.from.closest('.day-panel');
+  if (!panel) return;
+  var order = Array.prototype.map.call(evt.from.querySelectorAll('.timeline-item'), function(el) {
+    return Number(el.dataset.vidx);
+  });
+  reorderDaySpots(Number(panel.dataset.day), order);
+}
+
+// order：拖曳後各景點原本在時間軸上的位置（data-vidx），依新順序排列
+function reorderDaySpots(dayNum, order) {
   var dayIdx = -1;
   for (var i = 0; i < itineraryState.length; i++) {
     if (itineraryState[i].day === dayNum) { dayIdx = i; break; }
   }
   if (dayIdx < 0) return;
-  var spots = itineraryState[dayIdx].spots.slice();
-  var target = direction === 'up' ? idx - 1 : idx + 1;
-  if (target < 0 || target >= spots.length) return;
-  var tmp = spots[idx]; spots[idx] = spots[target]; spots[target] = tmp;
-  [idx, target].forEach(function(i) {
-    if (spots[i] && spots[i].time) {
-      spots[i] = Object.assign({}, spots[i]);
-      delete spots[i].time;
-    }
+  var spots = itineraryState[dayIdx].spots;
+  var slots = [];
+  spots.forEach(function(s, idx) { if (isTimelineSpot(s)) slots.push(idx); });
+  if (order.length !== slots.length) { updateDayPanel(itineraryState[dayIdx]); return; }
+  if (order.every(function(v, k) { return v === k; })) return; // 放回原位
+
+  var rebuilt = spots.slice();
+  slots.forEach(function(slotIdx, k) {
+    var s = spots[slots[order[k]]];
+    if (order[k] !== k && s.time) { s = Object.assign({}, s); delete s.time; }
+    rebuilt[slotIdx] = s;
   });
-  itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: spots });
-  saveDayOrder(dayNum, spots, tripKey(''));
+  itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: rebuilt });
+  saveDayOrder(dayNum, rebuilt, tripKey(''));
   updateDayPanel(itineraryState[dayIdx]);
-  postOrderToGAS(dayNum, spots);
+  postOrderToGAS(dayNum, rebuilt);
 }
 
 // ⏰ 只存值，不重繪（手機選時間時避免提前關閉選擇器）
