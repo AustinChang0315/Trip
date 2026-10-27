@@ -444,7 +444,9 @@ function handleUpdateOrder(sheet, payload) {
     };
   });
 
-  // 批次更新符合條件的列（同時比對 trip_id，避免跨行程誤更新）
+  // 找出要更新的列（同時比對 trip_id，避免跨行程誤更新），比對規則與原本逐列寫入時完全相同
+  var matched = {}; // 列索引 → { sort_order, travel_mins }
+  var firstRow = -1, lastRow = -1;
   for (var r = 1; r < data.length; r++) {
     var rowTrip = tripCol >= 0 ? String(data[r][tripCol]) : '';
     if (rowTrip !== tripId) continue;
@@ -453,9 +455,29 @@ function handleUpdateOrder(sheet, payload) {
     var rowName = String(data[r][nameCol]);
     var key     = (rowId && orderMap[rowId] !== undefined) ? rowId : rowName;
     if (rowDay === targetDay && orderMap[key] !== undefined) {
-      sheet.getRange(r + 1, sortCol  + 1).setValue(orderMap[key].sort_order);
-      sheet.getRange(r + 1, travelCol + 1).setValue(orderMap[key].travel_mins);
+      matched[r] = orderMap[key];
+      if (firstRow < 0) firstRow = r;
+      lastRow = r;
     }
+  }
+
+  // 一次寫回：從第一個到最後一個符合的列，每欄只呼叫一次 setValues（原本是每列 2 次 setValue）。
+  // 範圍內沒符合的列（例如夾在中間的其他天資料）原樣寫回舊值，不會被改動。
+  if (firstRow >= 0) {
+    var oldVal = function(r, col) { return data[r][col] === undefined ? '' : data[r][col]; };
+    var sortVals = [], travelVals = [];
+    for (var k = firstRow; k <= lastRow; k++) {
+      if (matched[k]) {
+        sortVals.push([matched[k].sort_order]);
+        travelVals.push([matched[k].travel_mins]);
+      } else {
+        sortVals.push([oldVal(k, sortCol)]);
+        travelVals.push([oldVal(k, travelCol)]);
+      }
+    }
+    var rowCount = lastRow - firstRow + 1;
+    sheet.getRange(firstRow + 1, sortCol   + 1, rowCount, 1).setValues(sortVals);
+    sheet.getRange(firstRow + 1, travelCol + 1, rowCount, 1).setValues(travelVals);
   }
 
   return jsonResponse({ success: true, message: 'Day ' + targetDay + ' 順序已更新' });
