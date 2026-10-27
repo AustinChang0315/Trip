@@ -629,6 +629,11 @@
     #trip-add-modal .field input {
       font-size: 16px;
     }
+    #spot-edit-modal .modal-box { width: 300px; text-align: left; }
+    #spot-edit-modal .modal-title { text-align: center; margin-bottom: 18px; }
+    #spot-edit-modal .modal-form { padding: 0; border-top: none; gap: 14px; margin-bottom: 14px; }
+    .spot-card--editable { cursor: pointer; transition: opacity .15s; }
+    .spot-card--editable:active { opacity: .8; }
     #flight-modal .modal-box { width: 350px; text-align: left; }
     #flight-modal .modal-title { text-align: center; margin-bottom: 18px; }
     #flight-modal .modal-form { padding: 0; border-top: none; gap: 12px; margin-bottom: 14px; }
@@ -817,6 +822,29 @@
 </div>
 
 <!-- ── Add/Edit Flight Modal ──────────────────────────────── -->
+<!-- ── Edit Spot Modal ─────────────────────────────────────── -->
+<div id="spot-edit-modal" class="modal hidden">
+  <div class="modal-overlay" onclick="closeEditSpotModal()"></div>
+  <div class="modal-box">
+    <div class="modal-title">編輯景點</div>
+    <div class="modal-form">
+      <div class="field">
+        <label for="spot-edit-name-input">景點名稱</label>
+        <input id="spot-edit-name-input" type="text" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="spot-edit-duration-input">停留時間（分鐘）</label>
+        <input id="spot-edit-duration-input" type="number" min="5" step="5" inputmode="numeric" />
+      </div>
+    </div>
+    <p id="spot-edit-error" style="font-size:.78rem;color:var(--red);min-height:18px;margin-bottom:6px;"></p>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeEditSpotModal()">取消</button>
+      <button class="modal-confirm" onclick="confirmEditSpot()" style="background:var(--accent);">儲存</button>
+    </div>
+  </div>
+</div>
+
 <div id="flight-modal" class="modal hidden">
   <div class="modal-overlay" onclick="closeFlightModal()"></div>
   <div class="modal-box">
@@ -2098,11 +2126,18 @@ function renderDayPanel(dayData) {
         + '<div class="timeline-dot' + (isFlight ? ' timeline-dot--flight' : '') + '"></div>'
       + '</div>'
       + '<div class="timeline-card-col">'
-        + '<div class="spot-card' + (isFlight ? ' spot-card--flight' : '') + '">'
+        + '<div class="spot-card' + (isFlight ? ' spot-card--flight' : ' spot-card--editable') + '"'
+          + (!isFlight
+            ? ' data-day="' + dayData.day + '"'
+              + ' data-name="' + escHtml(spot.spot_name || '') + '"'
+              + ' data-spot-id="' + escHtml(spot.spot_id || '') + '"'
+              + ' onclick="onSpotCardClick(event, this)"'
+            : '')
+        + '>'
           + (!isFlight
             ? '<button class="btn-del-spot"'
                 + ' data-day="' + dayData.day + '"'
-                + ' data-name="' + (spot.spot_name || '').replace(/"/g, '&quot;') + '"'
+                + ' data-name="' + escHtml(spot.spot_name || '') + '"'
                 + ' data-spot-id="' + (spot.spot_id || '') + '"'
                 + ' onclick="confirmDeleteSpot(this)" title="移除景點">🗑</button>'
               + (!isFirst
@@ -2113,7 +2148,7 @@ function renderDayPanel(dayData) {
                 : '')
             : '')
           + (spot.region_name ? '<span class="spot-region-tag">' + spot.region_name + '</span>' : '')
-          + '<div class="spot-name">' + spot.spot_name + '</div>'
+          + '<div class="spot-name">' + escHtml(spot.spot_name) + '</div>'
           + (spot.address ? '<div class="spot-address">📍 ' + spot.address + '</div>' : '')
           + (spot.description ? '<div class="spot-desc">' + spot.description + '</div>' : '')
           + (function() {
@@ -3347,6 +3382,80 @@ function deleteSpot(dayNum, spotName, spotId) {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'delete', trip_id: currentTrip.trip_id, spot_name: spotName, spot_id: spotId || '', day: dayNum })
+    }).catch(function(){});
+  }
+}
+
+/* ─── 編輯景點（點景點卡片修改名稱／停留時間）─────────── */
+var _editingSpot = null; // { day, spotId, oldName }
+
+// 點卡片本體開啟編輯；點到導航連結、刪除、上下移動等按鈕時不觸發
+function onSpotCardClick(ev, card) {
+  if (ev.target.closest('button, a')) return;
+  openEditSpotModal(Number(card.dataset.day), card.dataset.spotId || '', card.dataset.name || '');
+}
+
+function openEditSpotModal(dayNum, spotId, spotName) {
+  var dayData = itineraryState.filter(function(d) { return d.day === dayNum; })[0];
+  if (!dayData) return;
+  var spot = dayData.spots.filter(function(s) {
+    return spotId ? s.spot_id === spotId : s.spot_name === spotName;
+  })[0];
+  if (!spot) return;
+
+  _editingSpot = { day: dayNum, spotId: spot.spot_id || '', oldName: spot.spot_name || '' };
+  document.getElementById('spot-edit-name-input').value = spot.spot_name || '';
+  document.getElementById('spot-edit-duration-input').value = spot.duration || 60;
+  document.getElementById('spot-edit-error').textContent = '';
+  document.getElementById('spot-edit-modal').classList.remove('hidden');
+}
+
+function closeEditSpotModal() {
+  document.getElementById('spot-edit-modal').classList.add('hidden');
+}
+
+function confirmEditSpot() {
+  if (!_editingSpot) return;
+  var newName     = document.getElementById('spot-edit-name-input').value.trim();
+  var newDuration = Math.round(Number(document.getElementById('spot-edit-duration-input').value));
+  var errEl       = document.getElementById('spot-edit-error');
+
+  if (!newName) { errEl.textContent = '請輸入景點名稱'; return; }
+  if (!(newDuration > 0)) { errEl.textContent = '停留時間必須大於 0 分鐘'; return; }
+
+  var dayIdx = -1;
+  for (var i = 0; i < itineraryState.length; i++) {
+    if (itineraryState[i].day === _editingSpot.day) { dayIdx = i; break; }
+  }
+  if (dayIdx < 0) { closeEditSpotModal(); return; }
+
+  var target = _editingSpot;
+  var matched = false;
+  var updatedSpots = itineraryState[dayIdx].spots.map(function(s) {
+    if (matched) return s;
+    var hit = target.spotId ? s.spot_id === target.spotId : s.spot_name === target.oldName;
+    if (!hit) return s;
+    matched = true;
+    return Object.assign({}, s, { spot_name: newName, duration: newDuration });
+  });
+  if (!matched) { closeEditSpotModal(); return; }
+
+  itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: updatedSpots });
+  saveDayOrder(target.day, updatedSpots, tripKey(''));
+  markDayMutated(target.day);
+  closeEditSpotModal();
+  updateDayPanel(itineraryState[dayIdx]);
+  showToast('✓ 已更新「' + newName + '」');
+
+  if (API_URL && currentTrip) {
+    fetch(apiUrlFor(currentTrip.trip_id), {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'update_spot', trip_id: currentTrip.trip_id, day: target.day,
+        spot_id: target.spotId, old_name: target.oldName,
+        spot_name: newName, duration: newDuration
+      })
     }).catch(function(){});
   }
 }

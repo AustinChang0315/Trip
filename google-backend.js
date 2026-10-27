@@ -264,6 +264,7 @@ function doPost(e) {
     if (action === 'add')              return handleAdd(sheet, payload);
     if (action === 'delete')           return handleDelete(sheet, payload);
     if (action === 'update_order')     return handleUpdateOrder(sheet, payload);
+    if (action === 'update_spot')      return handleUpdateSpot(sheet, payload);
     if (action === 'update_day_start') return handleUpdateDayStart(sheet, payload);
 
     return jsonResponse({ success: false, error: '不支援的 action: ' + action });
@@ -337,6 +338,38 @@ function handleDelete(sheet, payload) {
   }
 
   return jsonResponse({ success: false, error: '找不到景點「' + targetName + '」（Day ' + targetDay + '）' });
+}
+
+// 編輯景點名稱／停留時間：先用 spot_id 比對，找不到（例如前端剛新增、id 還是本地暫時值）再退回 day + 舊名稱
+function handleUpdateSpot(sheet, payload) {
+  const tripId   = String(payload.trip_id || '');
+  const targetId = String(payload.spot_id || '');
+  const oldName  = String(payload.old_name || '');
+  const day      = Number(payload.day);
+  const data     = sheet.getDataRange().getValues();
+  const headers  = data[0];
+  const tripCol  = headers.indexOf('trip_id');
+  const dayCol   = headers.indexOf('day');
+  const nameCol  = headers.indexOf('spot_name');
+  const durCol   = headers.indexOf('duration');
+  const idCol    = headers.indexOf('spot_id');
+
+  var rowIdx = -1;
+  if (targetId && idCol >= 0) {
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][tripCol]) === tripId && String(data[i][idCol]) === targetId) { rowIdx = i; break; }
+    }
+  }
+  if (rowIdx < 0) {
+    for (var j = 1; j < data.length; j++) {
+      if (String(data[j][tripCol]) === tripId && Number(data[j][dayCol]) === day && String(data[j][nameCol]) === oldName) { rowIdx = j; break; }
+    }
+  }
+  if (rowIdx < 0) return jsonResponse({ success: false, error: '找不到景點「' + oldName + '」（Day ' + day + '）' });
+
+  sheet.getRange(rowIdx + 1, nameCol + 1).setValue(String(payload.spot_name || oldName));
+  sheet.getRange(rowIdx + 1, durCol + 1).setValue(Number(payload.duration) || 60);
+  return jsonResponse({ success: true, message: '景點已更新：' + payload.spot_name });
 }
 
 function handleUpdateOrder(sheet, payload) {
