@@ -246,7 +246,23 @@ function doGet(e) {
   }
 }
 
+// 所有寫入都在 script 鎖內執行：兩個人同時操作時一次只處理一個請求，
+// 避免兩邊同時「讀整張表 → 各自改 → 各自寫」而互相覆蓋或寫出錯位／重複的列
 function doPost(e) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(25000);
+  } catch (lockErr) {
+    return jsonResponse({ success: false, error: '系統忙碌中，請稍後再試' });
+  }
+  try {
+    return processPost(e);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function processPost(e) {
   try {
     // 前端以 Content-Type: text/plain 傳送 JSON，避免 CORS preflight
     const payload = JSON.parse(e.postData.contents);
@@ -282,10 +298,16 @@ function handleAdd(sheet, payload) {
   const tripId    = String(payload.trip_id || '');
   const day_title = payload.day_title || getDayTitle(sheet, tripId, payload.day) || '';
 
-  // 取得當天最大 sort_order，新景點排在最後
-  const existingSortOrder = payload.sort_order !== undefined
-    ? Number(payload.sort_order)
-    : getMaxSortOrder(sheet, tripId, payload.day) + 1;
+  // spot_id 由前端產生並一起送來，畫面上的景點和試算表裡的列從一開始就是同一個 id。
+  // 同一個 id 已經存在代表是前端重試（第一次其實已寫入），直接回成功，避免重複新增。
+  const spotId = String(payload.spot_id || '') || ('sid_' + Date.now() + '_' + Math.floor(Math.random() * 9999));
+  if (payload.spot_id && spotIdExists(sheet, tripId, spotId)) {
+    return jsonResponse({ success: true, message: '景點已存在：' + payload.spot_name });
+  }
+
+  // 一律由後端在鎖內算「當天最大 sort_order + 1」，新景點才一定排在最後
+  // （前端傳來的值只看得到自己那份資料，兩人同時新增或刪過景點後可能撞號）
+  const existingSortOrder = getMaxSortOrder(sheet, tripId, payload.day) + 1;
 
   sheet.appendRow([
     tripId,
@@ -303,10 +325,22 @@ function handleAdd(sheet, payload) {
     existingSortOrder,
     0,                                               // travel_mins 預設 0，待 update_order 更新
     String(payload.day_start || getDayStart(sheet, tripId, payload.day) || '09:00'),
-    'sid_' + Date.now() + '_' + Math.floor(Math.random() * 9999)
+    spotId
   ]);
 
   return jsonResponse({ success: true, message: '景點已新增：' + payload.spot_name });
+}
+
+function spotIdExists(sheet, tripId, spotId) {
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idCol   = headers.indexOf('spot_id');
+  var tripCol = headers.indexOf('trip_id');
+  if (idCol < 0) return false;
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) === spotId && (tripCol < 0 || String(data[i][tripCol]) === tripId)) return true;
+  }
+  return false;
 }
 
 function handleDelete(sheet, payload) {
@@ -340,7 +374,7 @@ function handleDelete(sheet, payload) {
   return jsonResponse({ success: false, error: '找不到景點「' + targetName + '」（Day ' + targetDay + '）' });
 }
 
-// 編輯景點名稱／停留時間：先用 spot_id 比對，找不到（例如前端剛新增、id 還是本地暫時值）再退回 day + 舊名稱
+// 編輯景點名稱／停留時間：先用 spot_id 比對，找不到（例如舊資料沒有 id）再退回 day + 舊名稱
 function handleUpdateSpot(sheet, payload) {
   const tripId   = String(payload.trip_id || '');
   const targetId = String(payload.spot_id || '');

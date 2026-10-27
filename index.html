@@ -1032,6 +1032,11 @@ function isDayMutated(dayNum) {
 /* ─── 寫入後端：依序送出、有結果可看、失敗會重試與提示 ─────────
    所有寫入共用一條佇列（先送的先完成，避免兩個請求同時改同一份資料互相蓋掉）。
    idempotent=true 的動作（更新／刪除）失敗會自動重試；新增類動作不重試，避免網路只是回應慢卻已經寫入、重試造成重複。 */
+// 景點 id 由前端產生、後端直接採用（格式與後端舊的自動產生格式相同）
+function newSpotId() {
+  return 'sid_' + Date.now() + '_' + Math.floor(Math.random() * 9999);
+}
+
 var _writeChain = Promise.resolve();
 var _pendingWrites = 0;
 
@@ -3326,7 +3331,7 @@ function confirmAddSpot() {
     : buildMapsUrl(regionName ? spotName + ' ' + regionName : spotName);
 
   var newSpot = {
-    spot_id:       stableSpotKey({ spot_name: spotName, latitude: lat, longitude: lng }, _addTargetDay),
+    spot_id:       newSpotId(),
     spot_name:     spotName,
     duration:      duration,
     region_name:   regionName,
@@ -3351,6 +3356,7 @@ function confirmAddSpot() {
     queueWrite(apiUrlFor(currentTrip.trip_id), {
       action:        'add',
       trip_id:       currentTrip.trip_id,
+      spot_id:       newSpot.spot_id,   // 後端直接採用，畫面與試算表從一開始就是同一個 id
       day:           dayData.day,
       date:          dayData.date,
       day_title:     dayData.day_title,
@@ -3361,9 +3367,9 @@ function confirmAddSpot() {
       longitude:     lng,
       description:   description,
       address:       address,
-      opening_hours: JSON.stringify(openingHours),
-      sort_order:    dayData.spots.length  // 新景點排在最後
-    }, '新增景點「' + spotName + '」', false);
+      opening_hours: JSON.stringify(openingHours)
+      // sort_order 由後端在鎖內算（當天最大值 + 1），新景點一定排在最後
+    }, '新增景點「' + spotName + '」', true); // 後端以 spot_id 去重，重試不會重複新增
   }
 }
 
