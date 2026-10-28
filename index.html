@@ -140,6 +140,10 @@
       border: 1px solid var(--border-lt); border-radius: 5px;
       padding: 3px 7px; background: var(--surface); width: 72px;
     }
+    .day-start-confirm {
+      font-size: .72rem; font-weight: 600; color: #fff; background: var(--accent);
+      border: none; border-radius: 5px; padding: 4px 10px; letter-spacing: .03em;
+    }
     .day-number-badge {
       display: inline-block; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
       color: var(--accent); background: var(--accent-lt); padding: 3px 10px; border-radius: 100px; margin-bottom: 8px;
@@ -2366,8 +2370,11 @@ function renderDayPanel(dayData) {
       + '<div class="day-start-wrap">'
         + '<span class="day-start-label">⏰ 出發時間</span>'
         + '<input class="day-start-input" type="time" value="' + (dayData.day_start || '09:00') + '"'
-          + ' oninput="storeDayStart(' + dayData.day + ', this.value)"'
-          + ' onblur="updateDayStart(' + dayData.day + ', this.value)">'
+          + ' data-day="' + dayData.day + '"'
+          + ' oninput="onDayStartInput(this)"'
+          + ' onblur="onDayStartBlur(event, this)"'
+          + ' onkeydown="if (event.key === \'Enter\') this.blur()">'
+        + '<button type="button" class="day-start-confirm" hidden onclick="confirmDayStart(this)">✓ 確定</button>'
       + '</div>'
       + '<div class="day-weather-summary" id="dw-' + dayData.date + '" style="display:none"></div>'
     + '</div>'
@@ -3599,7 +3606,8 @@ function reorderDaySpots(dayNum, order) {
   postOrderToGAS(dayNum, rebuilt);
 }
 
-// ⏰ 只存值，不重繪（手機選時間時避免提前關閉選擇器）
+// ⏰ 出發時間：輸入中只存值、不重繪（手機選時間時避免提前關閉選擇器），並在值有變動時顯示「✓ 確定」。
+// input.defaultValue 是渲染當下已儲存的值，和目前輸入值不同才算「有改動」
 function storeDayStart(dayNum, timeStr) {
   var dayIdx = -1;
   for (var i = 0; i < itineraryState.length; i++) {
@@ -3609,14 +3617,46 @@ function storeDayStart(dayNum, timeStr) {
   itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { day_start: timeStr });
 }
 
-// ⏰ 確認時間後重繪 + GAS 同步（由 onblur 觸發）
+function onDayStartInput(input) {
+  storeDayStart(Number(input.dataset.day), input.value);
+  var btn = input.parentNode.querySelector('.day-start-confirm');
+  if (btn) btn.hidden = (input.value === input.defaultValue);
+}
+
+// 離開輸入框：有改動就提交（保留原本點別處即生效的行為）；焦點移到「確定」按鈕時由按鈕處理，避免重複提交
+function onDayStartBlur(ev, input) {
+  var rt = ev.relatedTarget;
+  if (rt && rt.classList && rt.classList.contains('day-start-confirm')) return;
+  commitDayStart(input);
+}
+
+function confirmDayStart(btn) {
+  commitDayStart(btn.parentNode.querySelector('.day-start-input'));
+}
+
+function commitDayStart(input) {
+  if (!input || input.value === input.defaultValue) return; // 沒改動：不重畫、不寫入
+  if (input.dataset.committed) return;                       // 重畫時舊輸入框可能再觸發一次 blur，不重複提交
+  input.dataset.committed = '1';
+  updateDayStart(Number(input.dataset.day), input.value);
+  showToast('✓ 出發時間已更新');
+}
+
+// ⏰ 提交出發時間：重繪當天（整天時間依出發時間重新推算）+ 同步雲端
 function updateDayStart(dayNum, timeStr) {
   var dayIdx = -1;
   for (var i = 0; i < itineraryState.length; i++) {
     if (itineraryState[i].day === dayNum) { dayIdx = i; break; }
   }
   if (dayIdx < 0) return;
-  itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { day_start: timeStr });
+  // 景點若自帶固定 time，畫面會優先用它而不跟著出發時間走；先移除，讓整天時間一律由「出發時間＋停留＋交通」推算
+  var spots = itineraryState[dayIdx].spots.map(function(s) {
+    if (s.time === undefined) return s;
+    var copy = Object.assign({}, s);
+    delete copy.time;
+    return copy;
+  });
+  itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { day_start: timeStr, spots: spots });
   markDayMutated(dayNum);
   updateDayPanel(itineraryState[dayIdx]);
   if (API_URL && currentTrip) {
