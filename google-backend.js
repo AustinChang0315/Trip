@@ -79,7 +79,9 @@ const HEADERS = [
   'sort_order',   // 景點在當天的顯示順序（integer，從 0 開始）
   'travel_mins',  // 到達此景點的交通時間（分鐘，integer）
   'day_start',    // 當天出發時間（HH:MM 字串）
-  'spot_id'       // 景點唯一識別碼（用於同名景點的正確操作）
+  'spot_id',      // 景點唯一識別碼（用於同名景點的正確操作）
+  'travel_mode',  // 前一個景點 → 此景點的交通方式：walk｜transit｜drive
+  'travel_source' // 交通時間來源：google｜estimate｜manual｜manual_est
 ];
 
 // ──────────────────────────────────────────
@@ -128,7 +130,9 @@ function doGet(e) {
       sort_order:   headers.indexOf('sort_order'),
       travel_mins:  headers.indexOf('travel_mins'),
       day_start:    headers.indexOf('day_start'),
-      spot_id:      headers.indexOf('spot_id')
+      spot_id:      headers.indexOf('spot_id'),
+      travel_mode:   headers.indexOf('travel_mode'),
+      travel_source: headers.indexOf('travel_source')
     };
 
     // 只保留當前 trip_id 的資料列，避免不同行程的景點混在一起
@@ -153,6 +157,8 @@ function doGet(e) {
       const travel_mins = COL.travel_mins >= 0 && row[COL.travel_mins] !== '' ? Number(row[COL.travel_mins]) : 0;
       const day_start   = COL.day_start   >= 0 ? formatTimeStr(row[COL.day_start])   : '';
       const spot_id     = COL.spot_id     >= 0 && row[COL.spot_id] ? String(row[COL.spot_id]) : '';
+      const travel_mode   = COL.travel_mode   >= 0 && row[COL.travel_mode]   ? String(row[COL.travel_mode])   : '';
+      const travel_source = COL.travel_source >= 0 && row[COL.travel_source] ? String(row[COL.travel_source]) : '';
 
       var opening_hours = [];
       try { opening_hours = JSON.parse(String(row[COL.opening_hours] || '[]')); } catch(e) {}
@@ -174,6 +180,8 @@ function doGet(e) {
         sort_order:    sort_order,
         travel_mins:   travel_mins,
         spot_id:       spot_id,
+        travel_mode:   travel_mode,
+        travel_source: travel_source,
         transport: {
           google_maps_url: buildNavUrl(spot_name)
         }
@@ -434,13 +442,24 @@ function handleUpdateOrder(sheet, payload) {
 
   const idCol = headers.indexOf('spot_id');
 
-  // 建立 spot_id（優先）或 spot_name → { sort_order, travel_mins } 的快查 map
+  // 交通方式／來源兩欄：只有前端這次有帶才建立與寫入；舊版前端的請求完全不受影響
+  var hasModes = spots.some(function(s) { return s.travel_mode !== undefined || s.travel_source !== undefined; });
+  var modeCol   = headers.indexOf('travel_mode');
+  var sourceCol = headers.indexOf('travel_source');
+  if (hasModes) {
+    if (modeCol < 0)   modeCol   = ensureHeaderColumn(sheet, headers, 'travel_mode');
+    if (sourceCol < 0) sourceCol = ensureHeaderColumn(sheet, headers, 'travel_source');
+  }
+
+  // 建立 spot_id（優先）或 spot_name → { sort_order, travel_mins, travel_mode, travel_source } 的快查 map
   var orderMap = {};
   spots.forEach(function(s) {
     var key = s.spot_id ? String(s.spot_id) : String(s.spot_name);
     orderMap[key] = {
-      sort_order:  Number(s.sort_order  || 0),
-      travel_mins: Number(s.travel_mins || 0)
+      sort_order:    Number(s.sort_order  || 0),
+      travel_mins:   Number(s.travel_mins || 0),
+      travel_mode:   String(s.travel_mode   || ''),
+      travel_source: String(s.travel_source || '')
     };
   });
 
@@ -465,22 +484,39 @@ function handleUpdateOrder(sheet, payload) {
   // 範圍內沒符合的列（例如夾在中間的其他天資料）原樣寫回舊值，不會被改動。
   if (firstRow >= 0) {
     var oldVal = function(r, col) { return data[r][col] === undefined ? '' : data[r][col]; };
-    var sortVals = [], travelVals = [];
+    var sortVals = [], travelVals = [], modeVals = [], sourceVals = [];
     for (var k = firstRow; k <= lastRow; k++) {
       if (matched[k]) {
         sortVals.push([matched[k].sort_order]);
         travelVals.push([matched[k].travel_mins]);
+        modeVals.push([matched[k].travel_mode]);
+        sourceVals.push([matched[k].travel_source]);
       } else {
         sortVals.push([oldVal(k, sortCol)]);
         travelVals.push([oldVal(k, travelCol)]);
+        modeVals.push([hasModes ? oldVal(k, modeCol) : '']);
+        sourceVals.push([hasModes ? oldVal(k, sourceCol) : '']);
       }
     }
     var rowCount = lastRow - firstRow + 1;
     sheet.getRange(firstRow + 1, sortCol   + 1, rowCount, 1).setValues(sortVals);
     sheet.getRange(firstRow + 1, travelCol + 1, rowCount, 1).setValues(travelVals);
+    if (hasModes) {
+      sheet.getRange(firstRow + 1, modeCol   + 1, rowCount, 1).setValues(modeVals);
+      sheet.getRange(firstRow + 1, sourceCol + 1, rowCount, 1).setValues(sourceVals);
+    }
   }
 
   return jsonResponse({ success: true, message: 'Day ' + targetDay + ' 順序已更新' });
+}
+
+// 在表頭最後補一欄（必要時先擴充工作表欄數），回傳新欄的 0-based 索引；呼叫端傳入的 headers 陣列也一併更新
+function ensureHeaderColumn(sheet, headers, name) {
+  var col = headers.length;
+  if (col + 1 > sheet.getMaxColumns()) sheet.insertColumnsAfter(sheet.getMaxColumns(), col + 1 - sheet.getMaxColumns());
+  sheet.getRange(1, col + 1).setValue(name);
+  headers.push(name);
+  return col;
 }
 
 function handleUpdateDayStart(sheet, payload) {
@@ -967,7 +1003,7 @@ function addMissingColumns() {
   var sheet   = getSheet();
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
-  var toAdd = ['address', 'opening_hours', 'sort_order', 'travel_mins', 'day_start', 'spot_id'].filter(function(h) {
+  var toAdd = ['address', 'opening_hours', 'sort_order', 'travel_mins', 'day_start', 'spot_id', 'travel_mode', 'travel_source'].filter(function(h) {
     return headers.indexOf(h) === -1;
   });
 

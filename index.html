@@ -184,6 +184,18 @@
       width: 1.5px; background: var(--tl-line); transform: translateX(-50%);
     }
     .travel-bridge-label { font-size: .7rem; color: var(--text-3); padding: 3px 0; display: flex; align-items: center; gap: 3px; }
+    .travel-bridge-label--btn { text-align: left; justify-self: start; border-radius: 6px; padding: 3px 6px; margin-left: -6px; }
+    .travel-bridge-label--btn:active { background: var(--accent-lt); }
+    .travel-bridge-label--loading { opacity: .5; pointer-events: none; }
+    #segment-menu .modal-box { width: 260px; }
+    #segment-menu .seg-opt {
+      display: block; width: 100%; padding: 12px; margin-top: 8px; font-size: .88rem;
+      border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text-1);
+    }
+    #segment-menu .seg-opt--on { border-color: var(--accent); background: var(--accent-lt); font-weight: 600; }
+    #travel-mode-modal .modal-box { width: 280px; }
+    #travel-mode-modal .modal-actions { flex-direction: column; }
+    #travel-mode-modal .mode-opt { flex: none; width: 100%; padding: 12px; border-radius: var(--r-sm); background: var(--accent); color: #fff; font-size: .88rem; }
 
     /* Spot Card */
     .spot-card {
@@ -761,6 +773,33 @@
       <button class="modal-cancel" onclick="closeModal()">取消</button>
       <button class="modal-confirm" id="modal-confirm-btn">刪除</button>
     </div>
+  </div>
+</div>
+
+<!-- ── 交通時間：這天怎麼移動 ───────────────────────────── -->
+<div id="travel-mode-modal" class="modal hidden">
+  <div class="modal-overlay" onclick="closeTravelModeModal()"></div>
+  <div class="modal-box">
+    <div class="modal-title">查詢交通時間</div>
+    <div class="modal-msg" id="travel-mode-msg"></div>
+    <div class="modal-actions">
+      <button class="mode-opt" onclick="startCalcTravel('transit')">🚃 大眾運輸</button>
+      <button class="mode-opt" onclick="startCalcTravel('drive')">🚗 自駕</button>
+      <button class="modal-cancel" onclick="closeTravelModeModal()">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 交通時間：改這一段的交通方式 ────────────────────── -->
+<div id="segment-menu" class="modal hidden">
+  <div class="modal-overlay" onclick="closeSegmentMenu()"></div>
+  <div class="modal-box">
+    <div class="modal-title">這一段怎麼移動？</div>
+    <div class="modal-msg" id="segment-menu-msg"></div>
+    <button class="seg-opt" data-mode="walk"    onclick="setSegmentMode('walk')">🚶 步行</button>
+    <button class="seg-opt" data-mode="transit" onclick="setSegmentMode('transit')">🚃 大眾運輸</button>
+    <button class="seg-opt" data-mode="drive"   onclick="setSegmentMode('drive')">🚗 開車</button>
+    <button class="seg-opt" data-mode="auto"    onclick="setSegmentMode('auto')">↺ 自動（由系統判斷）</button>
   </div>
 </div>
 
@@ -1781,20 +1820,9 @@ function prepareAndRender(itinerary, isUpdate) {
       var prevDay = (itineraryState || []).filter(function(ps) { return ps.day === d.day; })[0];
       if (prevDay) return prevDay;
     }
-    var prevSpotsMap = {};
-    (itineraryState || []).forEach(function(ps) {
-      if (ps.day === d.day) ps.spots.forEach(function(s) {
-        if (s.spot_id && s.travel_mins > 0) prevSpotsMap[s.spot_id] = s.travel_mins;
-      });
-    });
-    // 景點順序、出發時間、交通時間一律以後端（Google Sheet）為準，不再用各裝置 localStorage 的版本覆蓋
+    // 景點順序、出發時間、交通時間／方式一律以後端（Google Sheet）為準，不再用各裝置 localStorage 或舊畫面的版本覆蓋
     var spots = (d.spots || []).slice().map(function(s) {
-      var withId = s.spot_id ? s : Object.assign({}, s, { spot_id: stableSpotKey(s, d.day) });
-      // 後端交通時間是 0 時，保留這個畫面本次已算出的非零值（只在記憶體，不跨裝置）
-      if (!(withId.travel_mins > 0) && withId.spot_id && prevSpotsMap[withId.spot_id] > 0) {
-        return Object.assign({}, withId, { travel_mins: prevSpotsMap[withId.spot_id] });
-      }
-      return withId;
+      return s.spot_id ? s : Object.assign({}, s, { spot_id: stableSpotKey(s, d.day) });
     });
     return Object.assign({}, d, {
       spots:     spots,
@@ -2237,13 +2265,8 @@ function renderDayPanel(dayData) {
     if (!csFlight) runningMins += (cs.duration || 60);
     // 加上前往下一個景點的交通時間
     if (ci + 1 < spots.length) {
-      var nextS = spots[ci + 1];
-      var fallbackKm = (cs.latitude && cs.longitude && nextS.latitude && nextS.longitude)
-        ? haversineKm(cs.latitude, cs.longitude, nextS.latitude, nextS.longitude) : 0;
-      var tMins = nextS.travel_mins > 0
-        ? nextS.travel_mins
-        : (fallbackKm > 0 ? Math.max(5, Math.round(fallbackKm * 12.5)) : 15);
-      runningMins += tMins;
+      // 與下方段落標籤共用 segmentInfo：同一段路只有一個數字
+      runningMins += segmentInfo(cs, spots[ci + 1]).mins;
     }
   }
 
@@ -2322,25 +2345,18 @@ function renderDayPanel(dayData) {
         var nextSpot = spots[i + 1];
         if (!nextSpot || nextSpot._isFlight) return '';
         var curr = spots[i];
-        var km = (curr.latitude && curr.longitude && nextSpot.latitude && nextSpot.longitude)
-          ? haversineKm(curr.latitude, curr.longitude, nextSpot.latitude, nextSpot.longitude) : -1;
-        var transMins = nextSpot.travel_mins > 0 ? nextSpot.travel_mins : 0;
-        var walkMins  = km > 0 ? Math.max(1, Math.round(km * 12.5)) : 0;
-        var label = '';
-        if (transMins > 0) {
-          label = '🚃 ' + transMins + ' 分';
-        } else if (km >= 0 && km < 1) {
-          label = walkMins > 0 ? ('🚶 ' + walkMins + ' 分') : '';
-        } else if (km >= 1 && km < 2) {
-          label = walkMins > 0 ? ('🚶 ' + walkMins + ' 分') : '';
-        } else {
-          label = '🚃 ─';
-        }
-        if (!label) return '';
+        var seg  = segmentInfo(curr, nextSpot);
+        var icon = SEGMENT_ICONS[seg.mode];
+        if (!icon) return ''; // 沒有座標又沒有存值：不顯示
+        // 估算的加「約」；使用者手動指定的加 ✎ 記號。點標籤可改交通方式
+        var label = icon + ' ' + (isEstimateSegment({ travel_source: seg.source }) ? '約 ' : '') + seg.mins + ' 分'
+          + (/^manual/.test(seg.source) ? ' ✎' : '');
         return '<div class="travel-bridge">'
           + '<div></div>'
           + '<div class="travel-bridge-line"></div>'
-          + '<div class="travel-bridge-label">' + label + '</div>'
+          + '<button type="button" class="travel-bridge-label travel-bridge-label--btn"'
+            + ' data-day="' + dayData.day + '" data-spot-id="' + escHtml(nextSpot.spot_id || '') + '"'
+            + ' onclick="openSegmentMenu(this)">' + label + '</button>'
           + '</div>';
       })();
   }).join('');
@@ -2365,7 +2381,7 @@ function renderDayPanel(dayData) {
     + '<div class="day-header">'
       + '<div class="day-header-actions">'
       + '<button class="btn-sort-day" onclick="confirmAction(\'最佳路線\', \'要重新排列 Day ' + dayData.day + ' 的景點順序嗎？目前的順序會被改掉。\', triggerOptimizeDay, ' + dayData.day + ')" title="自動排出最短路線">🔀 最佳路線</button>'
-      + '<button class="btn-calc-travel" id="btn-calc-' + dayData.day + '" onclick="confirmAction(\'查詢交通時間\', \'要查詢 Day ' + dayData.day + ' 各景點之間的交通時間嗎？\', calcTravelTimes, ' + dayData.day + ')" title="查詢精確大眾運輸交通時間">🕐 交通時間</button>'
+      + '<button class="btn-calc-travel" id="btn-calc-' + dayData.day + '" onclick="openTravelModeModal(' + dayData.day + ')" title="用 Google 查各景點之間的交通時間">🕐 交通時間</button>'
       + '</div>'
       + '<span class="day-number-badge">DAY ' + dayData.day + '</span>'
       + '<h2 class="day-panel-title">' + dayData.day_title + '</h2>'
@@ -3465,7 +3481,9 @@ function deleteSpot(dayNum, spotName, spotId) {
 
   if (!deleted) return;
 
-  itineraryState[dayIndex] = Object.assign({}, dayData, { spots: remaining });
+  // 被刪景點的後一個景點，前一個景點變了：它那一段不再有效
+  var cleaned = invalidateChangedSegments(dayData.spots, remaining);
+  itineraryState[dayIndex] = Object.assign({}, dayData, { spots: cleaned });
   markDayMutated(dayNum);
   updateDayPanel(itineraryState[dayIndex]);
   showToast('✓ 已移除「' + spotName + '」');
@@ -3474,6 +3492,7 @@ function deleteSpot(dayNum, spotName, spotId) {
     queueWrite(apiUrlFor(currentTrip.trip_id),
       { action: 'delete', trip_id: currentTrip.trip_id, spot_name: spotName, spot_id: spotId || '', day: dayNum },
       '刪除景點「' + spotName + '」', true);
+    if (segmentsDiffer(remaining, cleaned)) postOrderToGAS(dayNum, cleaned); // 把清掉的路段也存回試算表
   }
 }
 
@@ -3603,6 +3622,7 @@ function reorderDaySpots(dayNum, order) {
     if (order[k] !== k && s.time) { s = Object.assign({}, s); delete s.time; }
     rebuilt[slotIdx] = s;
   });
+  rebuilt = invalidateChangedSegments(spots, rebuilt);
   itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: rebuilt });
   markDayMutated(dayNum);
   updateDayPanel(itineraryState[dayIdx]);
@@ -3677,7 +3697,7 @@ function triggerOptimizeDay(dayNum) {
   }
   if (dayIdx < 0) return;
   var dayData = itineraryState[dayIdx];
-  var optimized = optimizeDayRoute(dayData.spots, dayData.day_start);
+  var optimized = invalidateChangedSegments(dayData.spots, optimizeDayRoute(dayData.spots, dayData.day_start));
   itineraryState[dayIdx] = Object.assign({}, dayData, { spots: optimized });
   markDayMutated(dayNum);
   updateDayPanel(itineraryState[dayIdx]);
@@ -3685,89 +3705,215 @@ function triggerOptimizeDay(dayNum) {
   showToast('🔀 路線已優化');
 }
 
-// T4：POST 景點順序和交通時間到 GAS
+// POST 景點順序和各路段（交通時間／方式／來源）到 GAS。路段資料只送「目前存著的值」，不再自己用距離公式重算覆蓋
 function postOrderToGAS(dayNum, spots) {
   if (!API_URL || !currentTrip) return;
   var payload = spots.map(function(s, i) {
-    var tMins = 0;
-    if (i > 0) {
-      var prev = spots[i - 1];
-      if (prev.latitude && prev.longitude && s.latitude && s.longitude) {
-        tMins = estimateMinsByDistance(
-          haversineMeters(prev.latitude, prev.longitude, s.latitude, s.longitude)
-        );
-      } else if (s.travel_mins > 0) {
-        tMins = s.travel_mins;
-      }
-    }
-    return { spot_name: s.spot_name, spot_id: s.spot_id || '', sort_order: i, travel_mins: tMins };
+    return {
+      spot_name: s.spot_name, spot_id: s.spot_id || '', sort_order: i,
+      travel_mins:   s.travel_mins > 0 ? s.travel_mins : 0,
+      travel_mode:   s.travel_mode   || '',
+      travel_source: s.travel_source || ''
+    };
   });
   queueWrite(apiUrlFor(currentTrip.trip_id),
     { action: 'update_order', trip_id: currentTrip.trip_id, day: dayNum, spots: payload },
     '景點順序', true);
 }
 
-async function getTransitDurationMinutes(originLatLng, destinationLatLng) {
-  if (originLatLng === destinationLatLng) return 0;
-  const [oLat, oLng] = originLatLng.split(',').map(Number);
-  const [dLat, dLng] = destinationLatLng.split(',').map(Number);
-  const meters = haversineMeters(oLat, oLng, dLat, dLng);
-  const mins = estimateMinsByDistance(meters);
-  console.log(`📏 ${Math.round(meters)}m → ${mins} 分鐘`);
-  return mins;
+/* ─── 路段（前一個景點 → 這個景點）──────────────────────────
+   路段資料存在「抵達的那個景點」上：travel_mins / travel_mode / travel_source（見 js/utils.js 的 segmentInfo）。
+   前一個景點一改變，那一段就不再有效，清掉後畫面會即時估算，要精準再按「交通時間」。 */
+function clearSegment(s) {
+  if (!(s.travel_mins > 0) && !s.travel_mode && !s.travel_source) return s;
+  var c = Object.assign({}, s);
+  c.travel_mins = 0; c.travel_mode = ''; c.travel_source = '';
+  return c;
 }
 
-// 🕐 Routes API — 一次查整天所有路段的精確大眾運輸交通時間
-async function calcTravelTimes(dayNum) {
-  var dayIdx = -1;
-  for (var i = 0; i < itineraryState.length; i++) {
-    if (itineraryState[i].day === dayNum) { dayIdx = i; break; }
+// 比較新舊順序，「時間軸上的前一個景點」變了的那一段就清掉
+function invalidateChangedSegments(oldSpots, newSpots) {
+  var before = {}, prevOld = null;
+  oldSpots.forEach(function(s) {
+    if (!isTimelineSpot(s)) return;
+    before[s.spot_id || s.spot_name] = prevOld ? (prevOld.spot_id || prevOld.spot_name) : '';
+    prevOld = s;
+  });
+  var prevKey = '';
+  return newSpots.map(function(s) {
+    if (!isTimelineSpot(s)) return s;
+    var key = s.spot_id || s.spot_name;
+    var nowPred = prevKey;
+    prevKey = key;
+    return before[key] === nowPred ? s : clearSegment(s);
+  });
+}
+
+function segmentsDiffer(a, b) {
+  return a.some(function(s, i) {
+    return (s.travel_mins || 0) !== (b[i].travel_mins || 0) || (s.travel_mode || '') !== (b[i].travel_mode || '');
+  });
+}
+
+/* ─── Google Routes：查單一路段的交通時間 ──────────────────
+   一套規則（全世界通用）：手動指定的方式 > 短距離步行 > 這天選的方式（大眾運輸／自駕）；
+   Google 查不到（例如日本的大眾運輸）或失敗就用估算，畫面會標「約」。 */
+var ROUTES_URL  = 'https://routes.googleapis.com/directions/v2:computeRoutes';
+var ROUTES_MODE = { walk: 'WALK', transit: 'TRANSIT', drive: 'DRIVE' };
+var SEGMENT_ICONS = { walk: '🚶', transit: '🚃', drive: '🚗' };
+var _routesWarned = false;
+
+function mapsApiKey() {
+  var el = document.getElementById('google-maps-script');
+  var m = el && /[?&]key=([^&]+)/.exec(el.src || '');
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+// 回傳分鐘數；查無路線（回空）、逾時、錯誤一律回 null
+async function getRouteMinutes(o, d, mode) {
+  var key = mapsApiKey();
+  if (!key || !ROUTES_MODE[mode]) return null;
+  var ctrl  = new AbortController();
+  var timer = setTimeout(function() { ctrl.abort(); }, 10000);
+  try {
+    var r = await fetch(ROUTES_URL, {
+      method: 'POST', signal: ctrl.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters'
+      },
+      body: JSON.stringify({
+        origin:      { location: { latLng: { latitude: o.latitude, longitude: o.longitude } } },
+        destination: { location: { latLng: { latitude: d.latitude, longitude: d.longitude } } },
+        travelMode:  ROUTES_MODE[mode]
+      })
+    });
+    if (!r.ok) {
+      console.warn('[routes]', r.status);
+      if (!_routesWarned) { _routesWarned = true; showToast('Google 路線服務暫時無法使用，改用估算'); }
+      return null;
+    }
+    var json  = await r.json();
+    var route = json.routes && json.routes[0];
+    if (!route || !route.duration) return null;
+    var secs = parseInt(route.duration, 10);
+    return secs > 0 ? Math.max(1, Math.ceil(secs / 60)) : null;
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+// 單一路段：回傳 { mins, mode, source }；source = google｜estimate｜manual｜manual_est
+async function resolveSegment(prev, cur, dayMode, manualMode) {
+  var meters = haversineMeters(prev.latitude, prev.longitude, cur.latitude, cur.longitude);
+  var mode   = pickSegmentMode(meters, dayMode, manualMode);
+  var g      = await getRouteMinutes(prev, cur, mode);
+  if (g != null) return { mins: g, mode: mode, source: manualMode ? 'manual' : 'google' };
+  return { mins: estimateMinsForMode(meters, mode), mode: mode, source: manualMode ? 'manual_est' : 'estimate' };
+}
+
+// 同時最多 limit 個請求
+async function mapLimit(items, limit, fn) {
+  var results = new Array(items.length), next = 0;
+  async function worker() {
+    while (next < items.length) {
+      var i = next++;
+      results[i] = await fn(items[i], i);
+    }
+  }
+  var workers = [];
+  for (var w = 0; w < Math.min(limit, items.length); w++) workers.push(worker());
+  await Promise.all(workers);
+  return results;
+}
+
+function findDayIndex(dayNum) {
+  for (var i = 0; i < itineraryState.length; i++) {
+    if (itineraryState[i].day === dayNum) return i;
+  }
+  return -1;
+}
+
+// 這天目前大多用什麼方式：有「非手動」的開車路段就當自駕，否則大眾運輸（只用來決定「自動」路段的預設，不另外存）
+function inferDayMode(dayData) {
+  var drive = dayData.spots.some(function(s) { return s.travel_mode === 'drive' && !isManualSegment(s); });
+  return drive ? 'drive' : 'transit';
+}
+
+// 時間軸上有座標的景點（路段的兩端）
+function segmentSpots(spots) {
+  return spots.filter(function(s) { return isTimelineSpot(s) && s.latitude && s.longitude; });
+}
+
+/* ─── 🕐 交通時間按鈕：先問這天怎麼移動 ─────────────────── */
+var _pendingCalcDay = null;
+
+function openTravelModeModal(dayNum) {
+  _pendingCalcDay = dayNum;
+  document.getElementById('travel-mode-msg').textContent =
+    'Day ' + dayNum + ' 要怎麼移動？約 1 公里內的路段會自動用步行。';
+  document.getElementById('travel-mode-modal').classList.remove('hidden');
+}
+
+function closeTravelModeModal() {
+  document.getElementById('travel-mode-modal').classList.add('hidden');
+}
+
+function startCalcTravel(dayMode) {
+  var day = _pendingCalcDay;
+  closeTravelModeModal();
+  if (day !== null) calcTravelTimes(day, dayMode);
+}
+
+// 整天各路段逐段查 Google；手動指定過方式的路段保留原方式
+async function calcTravelTimes(dayNum, dayMode) {
+  var dayIdx = findDayIndex(dayNum);
   if (dayIdx < 0) return;
 
   var btn = document.getElementById('btn-calc-' + dayNum);
   if (btn) { btn.disabled = true; btn.textContent = '計算中…'; }
 
-  var spots = itineraryState[dayIdx].spots;
-
-  // 只取有座標的非航班景點（不限 duration，飯店/起點也需計入）
-  var validIdxs = [];
-  spots.forEach(function(s, i) {
-    if (s.latitude && s.longitude && !s._isFlight) validIdxs.push(i);
-  });
-
-  if (validIdxs.length < 2) {
+  var seq = segmentSpots(itineraryState[dayIdx].spots);
+  if (seq.length < 2) {
     showToast('景點不足，無法計算交通時間');
     if (btn) { btn.disabled = false; btn.textContent = '🕐 交通時間'; }
     return;
   }
 
   try {
-    var segPromises = [];
-    var dayDate = itineraryState[dayIdx].date;
-    for (var k = 0; k < validIdxs.length - 1; k++) {
-      var s1 = spots[validIdxs[k]], s2 = spots[validIdxs[k + 1]];
-      segPromises.push(getTransitDurationMinutes(
-        s1.latitude + ',' + s1.longitude,
-        s2.latitude + ',' + s2.longitude,
-        s1.time ? dayDate + 'T' + s1.time + ':00' : null
-      ));
-    }
-    var segMins = await Promise.all(segPromises);
+    _routesWarned = false;
+    var pairs = [];
+    for (var k = 0; k < seq.length - 1; k++) pairs.push({ prev: seq[k], cur: seq[k + 1] });
 
-    var updatedSpots = spots.slice();
-    for (var k = 0; k < segMins.length; k++) {
-      if (segMins[k] > 0) {
-        var spotIdx = validIdxs[k + 1];
-        updatedSpots[spotIdx] = Object.assign({}, updatedSpots[spotIdx], { travel_mins: segMins[k] });
-      }
-    }
+    var results = await mapLimit(pairs, 5, function(p) {
+      return resolveSegment(p.prev, p.cur, dayMode, isManualSegment(p.cur) ? p.cur.travel_mode : '');
+    });
 
-    itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: updatedSpots });
+    // 查詢期間使用者可能又改了順序：以最新狀態為準，前一個景點沒變的路段才套用結果
+    dayIdx = findDayIndex(dayNum);
+    var spots = itineraryState[dayIdx].spots;
+    var byId = {};
+    pairs.forEach(function(p, i) { byId[p.cur.spot_id] = { prevId: p.prev.spot_id, res: results[i] }; });
+    var prevId = null, google = 0, estimated = 0;
+    var updated = spots.map(function(s) {
+      var hit = byId[s.spot_id];
+      var pid = prevId;
+      if (isTimelineSpot(s) && s.latitude && s.longitude) prevId = s.spot_id;
+      if (!hit || hit.prevId !== pid) return s;
+      if (hit.res.source === 'google' || hit.res.source === 'manual') google++; else estimated++;
+      return Object.assign({}, s, { travel_mins: hit.res.mins, travel_mode: hit.res.mode, travel_source: hit.res.source });
+    });
+
+    itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: updated });
     markDayMutated(dayNum);
     updateDayPanel(itineraryState[dayIdx]);
-    postOrderToGAS(dayNum, updatedSpots);
-    showToast('🕐 交通時間已更新');
+    postOrderToGAS(dayNum, updated);
+    showToast(google === 0 && estimated > 0
+      ? (_routesWarned ? '🕐 Google 路線服務無法使用，已全部用估算（標「約」）' : '🕐 Google 查不到路線，已用估算（標「約」）')
+      : '🕐 交通時間已更新（Google ' + google + ' 段' + (estimated ? '、估算 ' + estimated + ' 段' : '') + '）');
 
   } catch(err) {
     console.error('[calcTravelTimes]', err);
@@ -3776,6 +3922,71 @@ async function calcTravelTimes(dayNum) {
     var b = document.getElementById('btn-calc-' + dayNum);
     if (b) { b.disabled = false; b.textContent = '🕐 交通時間'; }
   }
+}
+
+/* ─── 點路段標籤：手動改這一段的交通方式 ───────────────────── */
+var _segTarget = null; // { day, spotId }
+
+function openSegmentMenu(btn) {
+  var day = Number(btn.dataset.day), spotId = btn.dataset.spotId;
+  var dayIdx = findDayIndex(day);
+  if (dayIdx < 0) return;
+  var seq = segmentSpots(itineraryState[dayIdx].spots);
+  var idx = -1;
+  for (var i = 0; i < seq.length; i++) { if (seq[i].spot_id === spotId) { idx = i; break; } }
+  if (idx < 1) { showToast('這一段沒有座標，無法查詢交通方式'); return; }
+
+  _segTarget = { day: day, spotId: spotId };
+  var cur = seq[idx];
+  document.getElementById('segment-menu-msg').textContent = seq[idx - 1].spot_name + ' → ' + cur.spot_name;
+  var current = isManualSegment(cur) ? cur.travel_mode : 'auto';
+  document.querySelectorAll('#segment-menu .seg-opt').forEach(function(b) {
+    b.classList.toggle('seg-opt--on', b.dataset.mode === current);
+  });
+  document.getElementById('segment-menu').classList.remove('hidden');
+}
+
+function closeSegmentMenu() {
+  document.getElementById('segment-menu').classList.add('hidden');
+}
+
+async function setSegmentMode(mode) {
+  var t = _segTarget;
+  closeSegmentMenu();
+  if (!t) return;
+  var dayIdx = findDayIndex(t.day);
+  if (dayIdx < 0) return;
+
+  var seq = segmentSpots(itineraryState[dayIdx].spots);
+  var idx = -1;
+  for (var i = 0; i < seq.length; i++) { if (seq[i].spot_id === t.spotId) { idx = i; break; } }
+  if (idx < 1) return;
+  var prev = seq[idx - 1], cur = seq[idx];
+
+  var labelEl = document.querySelector('.travel-bridge-label--btn[data-day="' + t.day + '"][data-spot-id="' + t.spotId + '"]');
+  if (labelEl) { labelEl.classList.add('travel-bridge-label--loading'); labelEl.textContent = '…'; }
+
+  _routesWarned = false;
+  var manual = mode === 'auto' ? '' : mode;
+  var res = await resolveSegment(prev, cur, inferDayMode(itineraryState[dayIdx]), manual);
+
+  // 查詢期間順序可能變了：這個景點的前一個景點沒變才套用
+  dayIdx = findDayIndex(t.day);
+  var latest = segmentSpots(itineraryState[dayIdx].spots);
+  var li = -1;
+  for (var j = 0; j < latest.length; j++) { if (latest[j].spot_id === t.spotId) { li = j; break; } }
+  if (li < 1 || latest[li - 1].spot_id !== prev.spot_id) { updateDayPanel(itineraryState[dayIdx]); return; }
+
+  var updated = itineraryState[dayIdx].spots.map(function(s) {
+    return s.spot_id === t.spotId
+      ? Object.assign({}, s, { travel_mins: res.mins, travel_mode: res.mode, travel_source: res.source })
+      : s;
+  });
+  itineraryState[dayIdx] = Object.assign({}, itineraryState[dayIdx], { spots: updated });
+  markDayMutated(t.day);
+  updateDayPanel(itineraryState[dayIdx]);
+  postOrderToGAS(t.day, updated);
+  showToast(res.source === 'manual_est' ? 'Google 查不到這種方式，已用估算（標「約」）' : '✓ 已更新這一段的交通時間');
 }
 
 /* ─── Expense Summary ─────────────────────────────────── */

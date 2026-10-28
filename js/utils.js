@@ -36,6 +36,46 @@ function estimateMinsByDistance(meters) {
   }
 }
 
+/* ─── 路段交通方式與估算（Google 查不到時的後備）──────────────────────────── */
+
+// 直線距離小於這個值的路段一律當步行
+var SHORT_WALK_METERS = 1200;
+
+// 沒有 Google 結果時，依方式估算分鐘數（直線距離 × 繞路係數）
+function estimateMinsForMode(meters, mode) {
+  if (mode === 'walk')  return Math.max(1, Math.ceil(meters * 1.3 / 80));
+  if (mode === 'drive') return Math.max(3, Math.ceil(meters * 1.3 / 500) + 3);
+  return estimateMinsByDistance(meters);
+}
+
+// 這一段要用什麼方式：手動指定 > 短距離步行 > 當天選的方式（transit / drive）
+function pickSegmentMode(meters, dayMode, manualMode) {
+  if (manualMode) return manualMode;
+  if (meters < SHORT_WALK_METERS) return 'walk';
+  return dayMode === 'drive' ? 'drive' : 'transit';
+}
+
+// 路段資料存在「抵達的那個景點」上：travel_mins / travel_mode / travel_source
+// travel_source：google｜estimate｜manual（手動指定、Google 結果）｜manual_est（手動指定、估算）
+function isManualSegment(spot)   { return /^manual/.test((spot && spot.travel_source) || ''); }
+function isEstimateSegment(spot) { var s = (spot && spot.travel_source) || ''; return s === 'estimate' || s === 'manual_est'; }
+
+// 畫面標籤與時間軸共用：有存值就用存值（舊資料只有分鐘數，視為估算的大眾運輸），沒有就依座標即時估算
+function segmentInfo(prev, cur) {
+  var hasCoords = prev && cur && prev.latitude && prev.longitude && cur.latitude && cur.longitude;
+  if (cur && cur.travel_mins > 0) {
+    return {
+      mins:   cur.travel_mins,
+      mode:   cur.travel_mode || 'transit',
+      source: cur.travel_source || 'estimate'
+    };
+  }
+  if (!hasCoords) return { mins: 15, mode: '', source: 'estimate' };
+  var meters = haversineMeters(prev.latitude, prev.longitude, cur.latitude, cur.longitude);
+  var mode = pickSegmentMode(meters, 'transit', '');
+  return { mins: estimateMinsForMode(meters, mode), mode: mode, source: 'estimate' };
+}
+
 /* ─── Cluster 2: Route Optimization ──────────────────────────────────────── */
 
 // 全排列產生器（N ≤ 8 時暴力搜最短）
@@ -299,6 +339,8 @@ function optimizeDayRoute(spots, startTime) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     haversineMeters, haversineKm, estimateMinsByDistance,
+    SHORT_WALK_METERS, estimateMinsForMode, pickSegmentMode,
+    isManualSegment, isEstimateSegment, segmentInfo,
     allPermutations, routeTotalKm, nearestNeighborSort,
     nearestNeighborSortBetween, sortSpotsOptimal,
     minsToTime, parseTimeMins, normalizeHHMM,
