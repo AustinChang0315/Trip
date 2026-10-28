@@ -1832,10 +1832,15 @@ function prepareAndRender(itinerary, isUpdate) {
   }
 }
 
+// 雲端回應有效：沒有 error，且有景點或有班機（只有班機、還沒有景點的行程也算有效）
+function hasCloudData(d) {
+  return !!d && !d.error && !!((d.itinerary && d.itinerary.length) || (d.flights && d.flights.length));
+}
+
 // GAS 資料合併到每天的空白骨架（日期來自行程起訖日，景點／標題／出發時間來自雲端）
 function mergeGAS(baseItinerary, gasData) {
   var gasMap = {};
-  gasData.itinerary.forEach(function(d) { gasMap[d.day] = d; });
+  (gasData.itinerary || []).forEach(function(d) { gasMap[d.day] = d; });
   return baseItinerary.map(function(day) {
     var gas = gasMap[day.day];
     // 雲端已有這個行程的資料、卻沒有這一天 = 這天的景點都被刪光了，這天就是空的
@@ -1907,7 +1912,7 @@ async function boot(trip) {
     if (cached) gasCache = JSON.parse(cached);
   } catch(e) { localStorage.removeItem(tripKey('gas_cache')); }
 
-  if (gasCache && gasCache.itinerary && gasCache.itinerary.length) {
+  if (hasCloudData(gasCache)) {
     // ── 快取路徑：立即用上次 GAS 資料渲染（第二次以後開啟超快）
     var itinerary = mergeGAS(baseItinerary, gasCache);
     if (gasCache.flights) flightsData = gasCache.flights;
@@ -1923,7 +1928,7 @@ async function boot(trip) {
         .then(function(fresh) {
           // 抓的期間使用者已切換到別的行程：這份資料不屬於目前畫面，丟掉
           if (!currentTrip || currentTrip.trip_id !== trip.trip_id) return;
-          if (fresh.itinerary && fresh.itinerary.length) {
+          if (hasCloudData(fresh)) {
             localStorage.setItem(tripKey('gas_cache'), JSON.stringify(fresh));
             if (Array.isArray(fresh.flights)) flightsData = fresh.flights;
             var updated = mergeGAS(baseItinerary, fresh);
@@ -1943,7 +1948,7 @@ async function boot(trip) {
         showToast('載入行程中…');
         var r2    = await fetchWithTimeout(apiUrlFor(trip.trip_id), 15000);
         var json2 = await r2.json();
-        if (json2.itinerary && json2.itinerary.length) {
+        if (hasCloudData(json2)) {
           localStorage.setItem(tripKey('gas_cache'), JSON.stringify(json2));
           if (Array.isArray(json2.flights)) flightsData = json2.flights;
           itinerary = mergeGAS(baseItinerary, json2);
@@ -1988,7 +1993,7 @@ async function manualRefresh() {
     var r      = await fetchWithTimeout(apiUrlFor(tripId), 10000);
     var fresh  = await r.json();
     if (!currentTrip || currentTrip.trip_id !== tripId) return;
-    if (fresh.itinerary && fresh.itinerary.length) {
+    if (hasCloudData(fresh)) {
       var cached = null;
       try { cached = localStorage.getItem(tripKey('gas_cache')); } catch(e2) {}
       var unchanged = JSON.stringify(fresh) === cached;
@@ -2065,7 +2070,7 @@ async function reconcileFromServer() {
   try {
     var r = await fetchWithTimeout(apiUrlFor(tripId), 10000);
     var fresh = await r.json();
-    if (!fresh.itinerary || !fresh.itinerary.length) { _needReconcile = true; return; }
+    if (!hasCloudData(fresh)) { _needReconcile = true; return; }
     if (!currentTrip || currentTrip.trip_id !== tripId) return;
     // 抓的期間又有新的寫入：這份資料可能已過時，等下一次佇列清空再還原
     if (seq !== _writeSeq || _pendingWrites > 0) { _needReconcile = true; return; }
@@ -2093,7 +2098,7 @@ async function syncWhenForegrounded() {
   try {
     var r = await fetchWithTimeout(apiUrlFor(tripId), 8000);
     var fresh = await r.json();
-    if (!fresh.itinerary || !fresh.itinerary.length) return;
+    if (!hasCloudData(fresh)) return;
     // 抓的期間切換了行程、有新寫入或開始操作：放棄這份資料，不蓋掉畫面
     if (!currentTrip || currentTrip.trip_id !== tripId) return;
     if (seq !== _writeSeq || _pendingWrites > 0 || isUserBusy()) return;
@@ -2333,16 +2338,9 @@ function renderDayPanel(dayData) {
     + '<button class="btn-add-spot btn-refresh" onclick="manualRefresh()" title="重新整理">↺</button>'
   + '</div>';
 
-  // 班機卡片：GAS flights 優先（可編輯），fallback 到試算表景點列中名稱含去程/回程的項目（唯讀）
-  var dayFlights = flightsData.filter(function(f) { return f.day === dayData.day; })
+  // 班機卡片：只顯示用「✈ 新增班機」表單建立的班機（試算表 flights 頁籤、欄位齊全），可點擊編輯
+  var dayFlights = flightsData.filter(function(f) { return f.day === dayData.day && isStructuredFlight(f); })
     .map(function(f) { return Object.assign({ _editable: true }, f); });
-  if (!dayFlights.length) {
-    dayFlights = rawSpots.filter(function(s) {
-      return s.spot_name && (s.spot_name.indexOf('去程') !== -1 || s.spot_name.indexOf('回程') !== -1);
-    }).map(function(s) {
-      return { day: dayData.day, spot_name: s.spot_name, description: s.description, transport: s.transport };
-    });
-  }
   var flightCardHtml = dayFlights.map(buildFlightCard).join('');
 
   // 顯示位置不寫死 day===1/6（原本東京 6 天行程遺留的假設），改用這個行程實際的第一天／最後一天：
@@ -2375,8 +2373,12 @@ function renderDayPanel(dayData) {
 }
 
 /* ─── Flight Card HTML ────────────────────────────────── */
-// 出發／抵達對照式版面：只有結構化欄位齊全（這次手動輸入介面上線後新增的班機）才套用，
-// 改版前的舊資料（東京既有航班、試算表景點列裡的去程/回程 fallback）沒有這些欄位，交給 buildFlightCard() 退回舊版文字版面
+// 表單建立的班機一定有出發地、目的地、起飛與抵達時間；缺任何一項的舊文字資料不顯示
+function isStructuredFlight(f) {
+  return !!(f.origin && f.destination && f.departure_time && f.arrival_time);
+}
+
+// 出發／抵達對照式版面
 function buildFlightRouteHtml(f) {
   var flightLabel = ((f.airline || '') + ' ' + (f.flight_no || '')).trim();
   var dateLabel   = formatFlightDateRange(f.departure_date, f.arrival_date);
@@ -2393,26 +2395,16 @@ function buildFlightRouteHtml(f) {
 }
 
 function buildFlightCard(f) {
-  var hasRoute = f.origin && f.destination && f.departure_time && f.arrival_time;
-
-  var contentHtml = hasRoute
-    ? buildFlightRouteHtml(f)
-    : '<div class="flight-card-title">' + escHtml(f.spot_name) + '</div>'
-      + (f.description ? '<div class="flight-card-desc">' + escHtml(f.description) + '</div>' : '');
-
-  // 點整張卡片觸發編輯（取代原本右上角的 ✎ 按鈕），只有背後有真實可編輯資料時才加這些屬性
-  var tapAttrs = f._editable
-    ? ' class="flight-card flight-card--tappable"'
-      + ' data-flight-id="' + escHtml(f.flight_id || '') + '"'
-      + ' data-day="' + f.day + '"'
-      + ' data-name="' + escHtml(f.spot_name) + '"'
-      + ' onclick="openEditFlightModal(this.dataset.flightId, Number(this.dataset.day), this.dataset.name)"'
-    : ' class="flight-card"';
+  // 點整張卡片觸發編輯（取代原本右上角的 ✎ 按鈕）
+  var tapAttrs = ' class="flight-card flight-card--tappable"'
+    + ' data-flight-id="' + escHtml(f.flight_id || '') + '"'
+    + ' data-day="' + f.day + '"'
+    + ' data-name="' + escHtml(f.spot_name) + '"'
+    + ' onclick="openEditFlightModal(this.dataset.flightId, Number(this.dataset.day), this.dataset.name)"';
 
   return '<div' + tapAttrs + '>'
-    + (hasRoute ? '' : '<div class="flight-card-icon">✈</div>')
     + '<div class="flight-card-body">'
-      + contentHtml
+      + buildFlightRouteHtml(f)
       + (f.transport && f.transport.method
         ? '<div class="flight-card-transport">🚃 ' + escHtml(f.transport.method)
           + (f.transport.duration ? '&nbsp;／&nbsp;⏱ ' + escHtml(f.transport.duration) : '')
