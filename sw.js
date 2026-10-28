@@ -1,4 +1,4 @@
-const CACHE = 'tokyo-trip-v14';
+const CACHE = 'tokyo-trip-v15';
 const FETCH_TIMEOUT_MS = 4000; // 訊號差時最多等這麼久，逾時就改用快取
 
 // 預先快取：第一次安裝就存好，之後沒訊號也能開
@@ -8,7 +8,6 @@ const PRECACHE = [
   './manifest.json',
   './js/utils.js',
   './js/sortable.min.js',
-  './data/itinerary.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
 ];
