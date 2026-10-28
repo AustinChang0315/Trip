@@ -177,6 +177,8 @@ python -m http.server 8000
 
 部署：將整個資料夾推送至 GitHub，在 Repository Settings 開啟 GitHub Pages，指向 `main` 分支根目錄。
 
+**每次部署前務必更新 `version.js` 的 `APP_VERSION`**：頁面底部顯示這個版本，`sw.js` 也靠它判斷有沒有新版（GitHub Pages 的網頁檔有 10 分鐘 HTTP 快取，不改版本號，手機不會自動換版）。
+
 ---
 
 ## Claude Code 啟動指令

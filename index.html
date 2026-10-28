@@ -881,6 +881,7 @@
   </div>
 </div>
 
+<script src="version.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/sortable.min.js"></script>
 <script>
@@ -1978,6 +1979,7 @@ async function boot(trip) {
 
 /* ─── 手動刷新 ────────────────────────────────────────── */
 async function manualRefresh() {
+  checkForAppUpdate(); // ↺ 只重抓資料；順便檢查程式有沒有新版，有的話會自動換版
   var btns = document.querySelectorAll('.btn-refresh');
   btns.forEach(function(b) { b.disabled = true; b.style.opacity = '0.4'; });
   showToast('重新整理中…');
@@ -2026,8 +2028,7 @@ function applyFreshItinerary(fresh, force) {
 }
 
 // 畫面底部顯示「版本 · 上次同步時間」，讓使用者看得出這台是不是舊版、有沒有同步到
-var APP_VERSION = '2026-10-28';
-var _lastSyncedAt = null;
+var _lastSyncedAt = null; // APP_VERSION 來自 version.js
 function renderSyncStatus() {
   var el = document.getElementById('sync-status');
   if (!el) return;
@@ -2114,6 +2115,7 @@ async function syncWhenForegrounded() {
 
 // 切回前景／視窗取得焦點／頁面從背景恢復：行程 + 記帳統計都同步一次
 function onForeground() {
+  checkForAppUpdate();
   syncWhenForegrounded();
   syncExpenseSummary();
 }
@@ -2123,7 +2125,11 @@ document.addEventListener('visibilitychange', function() {
 window.addEventListener('focus', onForeground);
 window.addEventListener('pageshow', onForeground);
 // 畫面開著不動時（例如電腦上一直放著的分頁）每分鐘檢查一次行程；分頁在背景時 syncWhenForegrounded 會自己略過
-setInterval(syncWhenForegrounded, 60000);
+setInterval(function() {
+  if (document.visibilityState !== 'visible') return;
+  checkForAppUpdate();
+  syncWhenForegrounded();
+}, 60000);
 
 /* ─── Countdown ───────────────────────────────────────── */
 function buildCountdown(days) {
@@ -3902,14 +3908,37 @@ function buildNavUrl(lat, lon, name) {
 }
 
 /* ─── Service Worker ──────────────────────────────────── */
+var _swReg = null;
+var _reloadScheduled = false;
+
+// 新版本啟用後重新載入——但要等到沒有待送出的寫入、沒開著視窗、沒在輸入、記帳表單沒寫到一半，才不會把使用者手上的東西弄丟
+function reloadWhenIdle() {
+  if (_reloadScheduled) return;
+  _reloadScheduled = true;
+  showToast('有新版本，更新中…');
+  var timer = setInterval(function() {
+    var typing = (document.getElementById('e-item') || {}).value || (document.getElementById('e-amt') || {}).value;
+    if (_pendingWrites > 0 || isUserBusy() || typing) return;
+    clearInterval(timer);
+    window.location.reload();
+  }, 2000);
+}
+
+// 主動問瀏覽器有沒有新版（比對 sw.js 與 version.js），不用等到下次開啟 App
+function checkForAppUpdate() {
+  if (_swReg) _swReg.update().catch(function() {});
+}
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js').then(function(reg){
+  // updateViaCache: 'none'：檢查更新時不吃 GitHub Pages 10 分鐘的 HTTP 快取
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then(function(reg){
+    _swReg = reg;
     reg.update();
     reg.addEventListener('updatefound', function(){
       var nw = reg.installing;
       nw.addEventListener('statechange', function(){
         if (nw.state === 'activated' && navigator.serviceWorker.controller) {
-          window.location.reload();
+          reloadWhenIdle();
         }
       });
     });
