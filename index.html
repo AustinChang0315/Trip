@@ -655,7 +655,7 @@
 
     /* ── Print ─────────────────────────────────────────── */
     @media print {
-      #auth-overlay, #trip-list-view, .app-header, .day-tabs, .btn-nav, .section, .print-wrap, #toast, .divider, #countdown { display: none !important; }
+      #auth-overlay, #trip-list-view, .app-header, .day-tabs, .btn-nav, .section, .print-wrap, #sync-status, #toast, .divider, #countdown { display: none !important; }
       .day-panel { display: block !important; page-break-inside: avoid; }
       body { background: #fff; }
     }
@@ -733,6 +733,7 @@
   <div class="print-wrap">
     <button class="print-btn" onclick="window.print()">↓ 下載離線備份（列印 / PDF）</button>
   </div>
+  <div class="synced-at" id="sync-status" style="margin:4px 0 28px"></div>
 </div>
 
 <div id="toast"></div>
@@ -1040,23 +1041,33 @@ function newSpotId() {
 var _writeChain = Promise.resolve();
 var _pendingWrites = 0;
 var _writeSeq = 0;           // 每送出一筆寫入就加 1，用來判斷「抓資料期間有沒有新的寫入」
+var _lastLocalWriteAt = 0;   // 最近一次本機送出寫入的時間
 var _needReconcile = false;  // 有行程寫入失敗：佇列清空後要用雲端資料還原畫面
 
 function _sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
+var WRITE_TIMEOUT_MS = 20000; // 訊號不穩時 fetch 可能一直不回，逾時才不會卡住後面所有寫入與重新整理
+
 async function _sendOnce(url, body) {
-  var r = await fetch(url, {
-    method: 'POST', keepalive: true,
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(body)
-  });
-  return r.json();
+  var ctrl  = new AbortController();
+  var timer = setTimeout(function() { ctrl.abort(); }, WRITE_TIMEOUT_MS);
+  try {
+    var r = await fetch(url, {
+      method: 'POST', keepalive: true, signal: ctrl.signal,
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(body)
+    });
+    return await r.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // 回傳 true／false，不會 throw；label 用在失敗提示（例如「景點順序」）
 function queueWrite(url, body, label, idempotent) {
   _pendingWrites++;
   _writeSeq++;
+  _lastLocalWriteAt = Date.now();
   var run = _writeChain.then(async function() {
     var delays = idempotent ? [0, 1000, 3000] : [0];
     var lastErr = '';
@@ -1869,7 +1880,8 @@ function mergeGAS(baseItinerary, gasData) {
   gasData.itinerary.forEach(function(d) { gasMap[d.day] = d; });
   return baseItinerary.map(function(day) {
     var gas = gasMap[day.day];
-    if (!gas) return day;
+    // 雲端已有這個行程的資料、卻沒有這一天 = 這天的景點都被刪光了，不能退回 itinerary.json 的舊內容
+    if (!gas) return Object.assign({}, day, { spots: [], _gas_day_start: '' });
     var fixedSpots = (gas.spots || []).map(function(s) {
       return Object.assign({}, s, s.latitude && s.longitude ? {
         transport: Object.assign({}, s.transport, {
@@ -1919,6 +1931,8 @@ function setupGeocodeListener() {
 async function boot(trip) {
   currentTrip = trip;
   flightsData = []; // 重設，避免切換行程時殘留上一個行程的班機資料
+  _lastSyncedAt = null; // 切換行程時重設；第一次抓到雲端資料才會顯示同步時間
+  renderSyncStatus();
   setTripHeader(trip);
   document.getElementById('app').style.display = 'block';
   fetchCurrencyRates(); // 背景抓即時匯率，供記帳「估算外幣」使用
@@ -1974,12 +1988,15 @@ async function boot(trip) {
       fetchWithTimeout(apiUrlFor(trip.trip_id), 6000)
         .then(function(r) { return r.json(); })
         .then(function(fresh) {
+          // 抓的期間使用者已切換到別的行程：這份資料不屬於目前畫面，丟掉
+          if (!currentTrip || currentTrip.trip_id !== trip.trip_id) return;
           if (fresh.itinerary && fresh.itinerary.length) {
             localStorage.setItem(tripKey('gas_cache'), JSON.stringify(fresh));
-            if (fresh.flights && fresh.flights.length) flightsData = fresh.flights;
+            if (Array.isArray(fresh.flights)) flightsData = fresh.flights;
             var updated = mergeGAS(baseItinerary, fresh);
             prepareAndRender(updated, true);
             fetchWeather(updated);
+            markSynced();
           }
         })
         .catch(function() {});
@@ -1995,8 +2012,9 @@ async function boot(trip) {
         var json2 = await r2.json();
         if (json2.itinerary && json2.itinerary.length) {
           localStorage.setItem(tripKey('gas_cache'), JSON.stringify(json2));
-          if (json2.flights && json2.flights.length) flightsData = json2.flights;
+          if (Array.isArray(json2.flights)) flightsData = json2.flights;
           itinerary = mergeGAS(baseItinerary, json2);
+          markSynced();
         }
       } catch(e) { /* GAS 失敗，沿用基底資料 */ }
     }
@@ -2024,20 +2042,28 @@ async function manualRefresh() {
   showToast('重新整理中…');
   try {
     if (!API_URL || !_baseItinerary || !currentTrip) { location.reload(); return; }
-    await _writeChain; // 先等本機送出的寫入完成，才不會抓到舊資料
-    _dayMutatedAt = {};
-    var r     = await fetchWithTimeout(apiUrlFor(currentTrip.trip_id), 10000);
-    var fresh = await r.json();
+    // 先等本機送出的寫入完成（最多等 8 秒），才不會抓到還沒寫進去的舊資料；
+    // 等太久就不再等，避免某筆寫入卡住時按鈕一直轉
+    var settled = await Promise.race([
+      _writeChain.then(function() { return true; }),
+      _sleep(8000).then(function() { return false; })
+    ]);
+    var tripId = currentTrip.trip_id;
+    var r      = await fetchWithTimeout(apiUrlFor(tripId), 10000);
+    var fresh  = await r.json();
+    if (!currentTrip || currentTrip.trip_id !== tripId) return;
     if (fresh.itinerary && fresh.itinerary.length) {
-      localStorage.setItem(tripKey('gas_cache'), JSON.stringify(fresh));
-      if (fresh.flights && fresh.flights.length) flightsData = fresh.flights;
-      var updated = mergeGAS(_baseItinerary, fresh);
-      prepareAndRender(updated, true);
-      fetchWeather(updated);
-      showToast('✓ 行程已更新');
+      var cached = null;
+      try { cached = localStorage.getItem(tripKey('gas_cache')); } catch(e2) {}
+      var unchanged = JSON.stringify(fresh) === cached;
+      // 還有本機寫入沒送完時不強制覆蓋剛改過的那幾天，免得畫面倒退
+      applyFreshItinerary(fresh, settled);
+      if (!settled) showToast('已更新，但還有 ' + _pendingWrites + ' 筆修改在送出，稍後請再按一次');
+      else showToast(unchanged ? '✓ 已是最新' : '✓ 行程已更新');
     } else {
       showToast('行程資料異常，保留現有資料');
     }
+    syncExpenseSummary();
   } catch(e) {
     showToast('無法連線，使用本機資料');
   } finally {
@@ -2055,6 +2081,37 @@ function applyFreshItinerary(fresh, force) {
   var updated = mergeGAS(_baseItinerary, fresh);
   prepareAndRender(updated, true);
   fetchWeather(updated);
+  markSynced();
+}
+
+// 畫面底部顯示「版本 · 上次同步時間」，讓使用者看得出這台是不是舊版、有沒有同步到
+var APP_VERSION = '2026-10-28';
+var _lastSyncedAt = null;
+function renderSyncStatus() {
+  var el = document.getElementById('sync-status');
+  if (!el) return;
+  var t = _lastSyncedAt
+    ? ' · 上次同步 ' + String(_lastSyncedAt.getHours()).padStart(2, '0') + ':' + String(_lastSyncedAt.getMinutes()).padStart(2, '0')
+    : '';
+  el.textContent = '版本 ' + APP_VERSION + t;
+}
+function markSynced() { _lastSyncedAt = new Date(); renderSyncStatus(); }
+
+// 記帳統計同步：內容有變才重畫（last_synced 每次都不同，不列入比較）；有視窗開著時不動，避免刪除的列號過期
+function syncExpenseSummary() {
+  if (!GAS_URL || GAS_URL.indexOf('YOUR_') !== -1 || !currentTrip || _pendingWrites > 0) return;
+  var tripId = currentTrip.trip_id;
+  fetch(gasUrlFor(tripId))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!currentTrip || currentTrip.trip_id !== tripId || _pendingWrites > 0) return;
+      if (data.error || typeof data.total_twd !== 'number') return;
+      if (document.querySelector('.modal:not(.hidden)')) return;
+      var sig = function(d) { return d ? JSON.stringify([d.total_twd, d.categories, d.records]) : ''; };
+      if (sig(data) === sig(window._expData)) return;
+      buildSummary(data);
+    })
+    .catch(function() {});
 }
 
 // 畫面上有東西正在操作（開著視窗、拖曳中、輸入中）時不要重畫
@@ -2106,13 +2163,26 @@ async function syncWhenForegrounded() {
     if (seq !== _writeSeq || _pendingWrites > 0 || isUserBusy()) return;
     var text = JSON.stringify(fresh), cached = null;
     try { cached = localStorage.getItem(tripKey('gas_cache')); } catch(e) {}
-    if (text === cached) return; // 跟上次一樣，不用重畫
+    if (text === cached) { markSynced(); return; } // 跟上次一樣，不用重畫
     applyFreshItinerary(fresh, false);
-    showToast('已同步最新行程');
+    // 剛送出自己的修改後抓到的「變動」多半就是自己那筆，不必提示
+    if (Date.now() - _lastLocalWriteAt > 120000) showToast('已同步最新行程');
   } catch(e) { /* 沒訊號就維持目前畫面 */ }
   finally { _foregroundSyncing = false; }
 }
-document.addEventListener('visibilitychange', syncWhenForegrounded);
+
+// 切回前景／視窗取得焦點／頁面從背景恢復：行程 + 記帳統計都同步一次
+function onForeground() {
+  syncWhenForegrounded();
+  syncExpenseSummary();
+}
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') onForeground();
+});
+window.addEventListener('focus', onForeground);
+window.addEventListener('pageshow', onForeground);
+// 畫面開著不動時（例如電腦上一直放著的分頁）每分鐘檢查一次行程；分頁在背景時 syncWhenForegrounded 會自己略過
+setInterval(syncWhenForegrounded, 60000);
 
 /* ─── Countdown ───────────────────────────────────────── */
 function buildCountdown(days) {
