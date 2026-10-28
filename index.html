@@ -138,12 +138,15 @@
     .day-start-input {
       font-size: .78rem; font-weight: 600; color: var(--text-2);
       border: 1px solid var(--border-lt); border-radius: 5px;
-      padding: 3px 7px; background: var(--surface); width: 72px;
+      padding: 3px 7px; background: var(--surface);
+      /* 不再寫死寬度：電腦版（zh-TW）「上午 09:00」＋時鐘圖示約需 104px，72px 會把時、分擠到看不見 */
     }
     .day-start-confirm {
       font-size: .72rem; font-weight: 600; color: #fff; background: var(--accent);
       border: none; border-radius: 5px; padding: 4px 10px; letter-spacing: .03em;
     }
+    /* 值沒改時淡色、不可按；一改值就變成實心可按 */
+    .day-start-confirm:disabled { background: var(--border-lt); color: var(--text-3); cursor: default; }
     .day-number-badge {
       display: inline-block; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
       color: var(--accent); background: var(--accent-lt); padding: 3px 10px; border-radius: 100px; margin-bottom: 8px;
@@ -2374,7 +2377,7 @@ function renderDayPanel(dayData) {
           + ' oninput="onDayStartInput(this)"'
           + ' onblur="onDayStartBlur(event, this)"'
           + ' onkeydown="if (event.key === \'Enter\') this.blur()">'
-        + '<button type="button" class="day-start-confirm" hidden onclick="confirmDayStart(this)">✓ 確定</button>'
+        + '<button type="button" class="day-start-confirm" disabled onclick="confirmDayStart(this)">✓ 確定</button>'
       + '</div>'
       + '<div class="day-weather-summary" id="dw-' + dayData.date + '" style="display:none"></div>'
     + '</div>'
@@ -3620,7 +3623,7 @@ function storeDayStart(dayNum, timeStr) {
 function onDayStartInput(input) {
   storeDayStart(Number(input.dataset.day), input.value);
   var btn = input.parentNode.querySelector('.day-start-confirm');
-  if (btn) btn.hidden = (input.value === input.defaultValue);
+  if (btn) btn.disabled = (input.value === input.defaultValue);
 }
 
 // 離開輸入框：有改動就提交（保留原本點別處即生效的行為）；焦點移到「確定」按鈕時由按鈕處理，避免重複提交
